@@ -1,0 +1,7 @@
+requests
+sqlalchemy
+psycopg2-binary
+python-dotenv
+telethon
+rapidfuzz
+anthropic
