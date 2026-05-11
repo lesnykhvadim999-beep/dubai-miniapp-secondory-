@@ -16,6 +16,7 @@ parser_engine.py — Smart Entity Recognition & Validation Engine
 - Если район из текста не совпадает с базой → низкий confidence
 - Если здание не в базе → Nominatim
 """
+from __future__ import annotations
 import re
 import os
 import json
