@@ -1670,12 +1670,52 @@ def extract_status(text: str) -> Optional[str]:
     return None
 
 
+def extract_bathrooms(text: str) -> Optional[int]:
+    """Returns int (1..20) or None.
+
+    Patterns recognized:
+      - "3 Bathrooms", "4 bath", "5 Bathroom" (number before label)
+      - "Bathrooms: 2", "🛁 Bathrooms : 3" (label before number)
+      - "2 BA" (rare abbreviation)
+    """
+    # Number BEFORE label: "3 Bathrooms", "4 bath", "5 Bathroom"
+    m = re.search(r'(?<![\d.])(\d{1,2})\s*(?:bathroom|bath)s?\b', text, re.I)
+    if m:
+        v = int(m.group(1))
+        if 1 <= v <= 20:
+            return v
+    # Label BEFORE number: "Bathrooms: 3", "Bathroom-2"
+    m = re.search(r'\bbathrooms?\s*[:\-]\s*(\d{1,2})\b', text, re.I)
+    if m:
+        v = int(m.group(1))
+        if 1 <= v <= 20:
+            return v
+    # "2 BA" — only if standalone, not part of word
+    m = re.search(r'(?<![\d.])(\d{1,2})\s*BA\b(?![A-Za-z])', text)
+    if m:
+        v = int(m.group(1))
+        if 1 <= v <= 20:
+            return v
+    return None
+
+
 def extract_furnishing(text: str) -> Optional[str]:
+    """Order matters: check 'semi-furnished' and 'unfurnished' BEFORE 'furnished',
+    otherwise 'Unfurnished' is wrongly matched as 'furnished' (substring trap).
+    """
     tl = text.lower()
-    for furn, keywords in FURNISHING_KEYWORDS.items():
-        for kw in keywords:
-            if kw in tl:
-                return furn
+    # semi-furnished (most specific)
+    if re.search(r'\bsemi[\s\-]?furnished\b|\bs/f\b', tl):
+        return "semi-furnished"
+    # unfurnished
+    if re.search(r'\bunfurnished\b|\bun[\s\-]furnished\b|\bu/f\b', tl):
+        return "unfurnished"
+    # furnished (must come last; use word boundary so it doesn't match inside "unfurnished")
+    if re.search(r'\b(?:fully\s+)?furnished\b|\bf/f\b', tl):
+        return "furnished"
+    # bare (= unfurnished in real-estate parlance)
+    if re.search(r'\bbare\b', tl):
+        return "unfurnished"
     return None
 
 
