@@ -510,17 +510,22 @@ PROP_TYPE_MAP = {
 # Views
 VIEWS = [
     "full sea view", "partial sea view", "sea view",
-    "burj khalifa view", "burj view",
+    "burj khalifa view", "burj view", "bruj view",
     "fountain view", "full fountain view",
     "marina view", "full marina view",
     "golf view", "golf course view",
     "canal view", "water canal view",
     "palm view", "palm jumeirah view",
-    "city view", "skyline view",
+    "city view", "skyline view", "downtown view",
     "community view", "pool view",
     "lagoon view", "park view",
     "beach view", "ocean view",
     "creek view", "harbour view",
+    "full water view", "water view",
+    "garden view", "mountain view", "lake view",
+    "boulevard view", "courtyard view",
+    "panoramic view", "full panoramic view",
+    "open view", "street view",
 ]
 
 STATUS_KEYWORDS = {
@@ -1597,19 +1602,42 @@ def extract_price(text: str) -> dict:
 
 def extract_view(text: str) -> Optional[str]:
     tl = text.lower()
-    for view in VIEWS:
+    # Sort by length DESC so "full sea view" beats "sea view"
+    for view in sorted(VIEWS, key=len, reverse=True):
         if view in tl:
             return view.title()
+    # Generic fallback: "View: X" or "View - X" (capture next short phrase)
+    m = re.search(r'\bview\s*[:\-]\s*([A-Za-z][A-Za-z\s&,/]{2,40})', text, re.I)
+    if m:
+        val = m.group(1).strip(' ,/&').strip()
+        # Cut at conjunction or newline-like punctuation
+        val = re.split(r'\s*(?:,|/|\||\n|—|–|-)\s*', val)[0].strip()
+        if 3 <= len(val) <= 40 and not re.search(r'\d|sqft|sq\.|aed|price', val, re.I):
+            return val.title() + (" View" if not val.lower().endswith("view") else "")
     return None
 
 
 def extract_floor(text: str) -> Optional[int]:
+    # "Floor: 5", "fl#7", "floor 12"
     m = re.search(r'(?:floor|fl)[:\s#]*(\d+)', text, re.I)
     if m:
         return int(m.group(1))
+    # "5th floor", "23rd Floor"
     m = re.search(r'(\d+)(?:st|nd|rd|th)\s*floor', text, re.I)
     if m:
         return int(m.group(1))
+    # "8 floor", "5 floor" — number + space + floor (no ordinal)
+    m = re.search(r'(?<!\d)(\d+)\s+floor\b', text, re.I)
+    if m:
+        v = int(m.group(1))
+        if 0 <= v <= 200:
+            return v
+    # "23floor" — number directly attached
+    m = re.search(r'(?<!\d)(\d+)floor\b', text, re.I)
+    if m:
+        v = int(m.group(1))
+        if 0 <= v <= 200:
+            return v
     return None
 
 
