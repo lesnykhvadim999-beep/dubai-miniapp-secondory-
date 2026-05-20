@@ -1123,11 +1123,16 @@ def _clean_building_candidate(s: str) -> Optional[str]:
     s = re.sub(r'[📍🏡🏢💰🔥✨⭐️🌊🛏🛁🚘🪑🔑🪴📐☎️📞📩‼️🟥🟨🟩‍♂️‍♀️]', '', s)
     # Remove markdown
     s = re.sub(r'\*+|_+|~+|`+', '', s)
-    # Reject if contains key:value separator (likely a service line like "Property type: townhouse")
-    if re.search(r'[:=]', s):
-        return None
+    # If there's a ":" inside, take only the part before it (e.g. "Park Horizon: building 2" → "Park Horizon")
+    if ':' in s:
+        s = s.split(':', 1)[0].strip()
+    if '=' in s:
+        s = s.split('=', 1)[0].strip()
     # If trailing ", X" where X is shorter than 4 chars — drop the tail (e.g. "Sobha The Crest, B" → "Sobha The Crest")
     s = re.sub(r',\s*[A-Z0-9]{1,3}\s*$', '', s)
+    # If em-dash, prefer the part before it (e.g. "Eden House – The Canal" → "Eden House")
+    if ' – ' in s or ' — ' in s:
+        s = re.split(r'\s+[–—]\s+', s)[0].strip()
     # Collapse whitespace and strip junk
     s = re.sub(r'\s+', ' ', s).strip(' ,.-–—:|')
     if not s:
@@ -1141,7 +1146,16 @@ def _clean_building_candidate(s: str) -> Optional[str]:
     if not re.search(r'[A-Za-zА-Яа-я]', s):
         return None
     # Reject bedrooms/property service fragments
-    if re.search(r'\b(?:\d+\s*br|\d+\s*bhk|\d+\s*bed(?:room)?s?|property\s+type|rooms?|bedrooms?|bathrooms?|parking|furnished|availability|balcony|floor|plot|category|size|price|view|completion|developer|status)\b', s, re.I):
+    if re.search(r'\b(?:\d+\s*br|\d+\s*bhk|\d+\s*bed(?:room)?s?|property\s+type|rooms?|bedrooms?|bathrooms?|parking|furnished|availability|balcony|floor|plot|category|size|price|view|completion|developer|status|terrace|maid|wardrobe|kitchen|contact|whats\s*app|telegram)\b', s, re.I):
+        return None
+    # Reject marketing-style multi-word fragments
+    if re.search(r'\b(?:only|deal|offer|urgent|distress|launch|renovation|sale|rent|lease|client|investor|cheques?|budget)\b', s, re.I):
+        return None
+    # Reject short attribute abbreviations (OP/SP/BUA/BHK alone)
+    if re.fullmatch(r'(?:op|sp|bua|bhk|aed|usd|dxb|auh|shj|rak|uae|gcc)', s, re.I):
+        return None
+    # Must START with a letter (uppercase or Cyrillic) — buildings start with capital, not bullet/digit/symbol
+    if not re.match(r'[A-ZА-Я]', s):
         return None
     # Must not be all digits + punct
     if re.fullmatch(r'[\d\s.,\-+]+', s):
@@ -1178,9 +1192,11 @@ def _extract_building_heuristic(text: str) -> Optional[str]:
 
     # Skip buyer requests entirely — they don't have a "their" building
     head = text[:300].lower()
-    if re.search(r'\bbuyer\s*request\b|\bcash\s*buyer\b|\blooking\s*for\s*(?:a|my|the|an)?\s*\d?\s*(?:bedroom|br|bhk|studio|villa|apartment|townhouse|plot|residence)', head):
+    if re.search(r'\bbuyer\s*request\b|\bcash\s*buyer\b', head):
         return None
-    if re.search(r'\bseeking\s+a\s+\d?\s*(?:bedroom|br|bhk|studio|villa|apartment)', head):
+    if re.search(r'\blooking\s+for\b.{0,40}\b(?:bedroom|br|bhk|studio|villa|apartment|townhouse|plot|residence|commercial|office|retail|warehouse)', head):
+        return None
+    if re.search(r'\bseeking\b.{0,30}\b(?:bedroom|br|bhk|studio|villa|apartment|townhouse|plot|commercial)', head):
         return None
 
     emirate_pat = r'(?:Dubai|Abu Dhabi|Sharjah|Ras\s+Al\s+Khaimah|Ajman|Fujairah|Umm\s+Al\s+Quwain)'
@@ -1221,6 +1237,55 @@ def _extract_building_heuristic(text: str) -> Optional[str]:
             cand = _clean_building_candidate(m.group(1))
             if cand:
                 return cand
+
+    # Pattern 6: "Unit: <Building>" or "Unit: <Building>, <details>"
+    for m in re.finditer(r'\bUnit\s*[:：]\s*([^\n,]{3,40})', text, re.IGNORECASE):
+        cand = _clean_building_candidate(m.group(1))
+        # Skip if it's just a bedroom count like "2 BDR" or "1 Bed"
+        if cand and not re.match(r'^\d+\s*(?:bed|br|bhk|bdr)', cand, re.I):
+            return cand
+
+    # Pattern 7: "Location: <X>" where X is NOT a known area (i.e. it's a building)
+    for m in re.finditer(r'(?:^|\n)\s*\**\s*Location\s*\**\s*[:：]\s*([^\n]{3,50})', text, re.IGNORECASE):
+        val = m.group(1).strip()
+        # Strip markdown
+        val_clean = re.sub(r'\*+|_+', '', val).strip(' ,.-–—:|')
+        if val_clean and not _is_building_stopword(val_clean):
+            cand = _clean_building_candidate(val_clean)
+            if cand:
+                return cand
+
+    # Pattern 8: "📍<Name>" alone on a line, where next line is property-like (bedroom/sqft/price)
+    # Allow em-dash/hyphen inside the name; _clean_building_candidate trims tail.
+    for m in re.finditer(r'📍\s*([^\n,]{3,50})\s*\n([^\n]+)', text):
+        next_line = m.group(2).lower()
+        if re.search(r'\b(?:bedroom|studio|sqft|sq\.?\s*ft|sq\.?\s*m|sqm|m2|floor|sales?\s*price|selling\s*price|price\s*:|aed)\b', next_line):
+            cand = _clean_building_candidate(m.group(1))
+            if cand:
+                return cand
+
+    # Pattern 9: Markdown bold header at start of text
+    # "**🌊 Clearpoint 3 – Rashid Yachts & Marina by EMAAR**"  → "Clearpoint 3"
+    # "**MULBERRY (Dubai Hills)**" → "MULBERRY"
+    head = text[:500]
+    for m in re.finditer(r'\*\*\s*([^\n*]{3,80?})\s*\*\*', head):
+        raw = m.group(1)
+        # Strip emoji and parenthetical
+        cleaned = re.sub(r'[📍🏡🏢💰🔥✨⭐️🌊🛏🛁🚘🪑🔑🪴📐☎️📞📩‼️🟥🟨🟩🌪🌴🚨📌💥🔹🔸🟦]', '', raw)
+        cleaned = re.sub(r'\s*\([^)]+\)\s*', '', cleaned)  # remove (parenthetical)
+        cleaned = cleaned.strip()
+        # Skip if it's a category marker ("FOR SALE", "DISTRESS DEAL", etc.) — fully uppercase short phrases
+        if re.fullmatch(r'[A-Z\s\d!:\-]{3,30}', cleaned) and len(cleaned.split()) <= 3 and not re.search(r'[a-z]', cleaned):
+            # Could be a brand name in caps like "MULBERRY" or a category like "DISTRESS DEAL"
+            stopwords_caps = {'FOR SALE', 'FOR RENT', 'DISTRESS DEAL', 'URGENT SALE',
+                              'HOT DEAL', 'HOT OFFER', 'HOT OFFERS', 'NEW LAUNCH',
+                              'NEW RENOVATION', 'VERY HOT OFFER', 'CASH BUYER',
+                              'BUYER REQUEST', 'OP DEAL', 'OP PRICE', 'BELOW MARKET'}
+            if cleaned.upper().strip(' !:') in stopwords_caps:
+                continue
+        cand = _clean_building_candidate(cleaned)
+        if cand:
+            return cand
 
     return None
 
