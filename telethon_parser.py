@@ -31,7 +31,7 @@ import requests as _requests
 from datetime import datetime, timezone, timedelta
 
 from parser_engine import parse_message, is_spam, ai_parse_listing, merge_ai_with_parsed
-from db_schema import upsert_listing, save_images, log_sync, get_last_parsed_message_id
+from db_schema import upsert_listing, save_images, log_sync, get_last_parsed_message_id, get_conn
 
 # ── Config ────────────────────────────────────────────────────────────────────
 TELETHON_API_ID   = int(os.environ.get("TELEGRAM_API_ID", "39535588"))
