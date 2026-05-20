@@ -1896,9 +1896,35 @@ def extract_contacts(text: str) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 # DEAL QUALITY & ROI
 # ══════════════════════════════════════════════════════════════════════════════
+def _lookup_benchmark(building: Optional[str]) -> Optional[dict]:
+    """Find PRICE_BENCHMARKS entry for building (case-insensitive, partial)."""
+    if not building:
+        return None
+    bdata = PRICE_BENCHMARKS.get(building) or PRICE_BENCHMARKS.get(building.upper())
+    if bdata:
+        return bdata
+    bl = building.lower()
+    for k, v in PRICE_BENCHMARKS.items():
+        if bl == k.lower():
+            return v
+    # Partial match — only if building name is long enough to be unambiguous
+    if len(building) >= 6:
+        for k, v in PRICE_BENCHMARKS.items():
+            if bl in k.lower() or k.lower() in bl:
+                return v
+    return None
+
+
 def compute_deal_quality(price: int, original_price: Optional[int],
                           size_sqft: Optional[float], area: Optional[str],
-                          bedrooms: Optional[int]) -> dict:
+                          bedrooms: Optional[int],
+                          building: Optional[str] = None,
+                          deal_type: Optional[str] = None) -> dict:
+    """Deal-quality scoring.
+    Priority of market comparison:
+      1) Building-level DLD median (PRICE_BENCHMARKS) — most precise
+      2) District-level average (MARKET) — fallback
+    """
     result = {
         "is_hot_deal": False, "deal_quality": "normal", "deal_reason": None,
         "discount_amount": None, "discount_percent": None,
@@ -1906,11 +1932,12 @@ def compute_deal_quality(price: int, original_price: Optional[int],
         "market_avg_sqft": None, "roi_estimate": None,
         "airbnb_estimate_low": None, "airbnb_estimate_high": None,
         "investment_score": None, "market_rent_1br": None, "market_growth_pct": None,
+        "benchmark_source": None,  # "dld_building" | "district"
     }
     if not price:
         return result
 
-    # Discount from original price
+    # Discount from original price (works regardless of comparison source)
     if original_price and original_price > price:
         discount = original_price - price
         discount_pct = round(discount / original_price * 100, 1)
@@ -1928,35 +1955,70 @@ def compute_deal_quality(price: int, original_price: Optional[int],
             result["deal_quality"] = "interesting"
             result["deal_reason"] = f"Slight discount of {discount_pct}% from original price"
 
-    # Market comparison
+    # District-level market context (always populated for ROI/growth)
     mkt = MARKET.get(area, DEFAULT_MKT) if area else DEFAULT_MKT
     mkt_sqft = mkt["sqft"]
     result["market_avg_sqft"] = mkt_sqft
     result["market_rent_1br"] = mkt["rent_1br"]
     result["market_growth_pct"] = mkt["growth"]
 
-    if size_sqft and size_sqft > 0:
+    # PRIORITY 1: Building-level DLD benchmark (if available and we're parsing sale)
+    bench = _lookup_benchmark(building)
+    used_bench = False
+
+    if (deal_type or "sale") == "sale" and bench:
+        sale_med = bench.get("sale_median")
+        sale_min = bench.get("sale_min")
+        sale_max = bench.get("sale_max")
+        sale_count = bench.get("sale_count") or 0
+        # Require at least 5 DLD transactions for the benchmark to be reliable
+        if sale_med and sale_count >= 5:
+            price_vs_bld = round((price - sale_med) / sale_med * 100, 1)
+            # Sanity: if price is so different that it must be data error, skip
+            if -90 <= price_vs_bld <= 500:
+                result["price_vs_market_percent"] = price_vs_bld
+                result["benchmark_source"] = "dld_building"
+                used_bench = True
+                if price_vs_bld <= -15:
+                    result["is_below_market"] = True
+                    result["is_hot_deal"] = True
+                    if result["deal_quality"] == "normal":
+                        result["deal_quality"] = "very_good"
+                        result["deal_reason"] = f"Price {abs(price_vs_bld)}% below DLD median for this building"
+                elif price_vs_bld <= -8:
+                    result["is_below_market"] = True
+                    if result["deal_quality"] == "normal":
+                        result["deal_quality"] = "good"
+                        result["deal_reason"] = f"Price {abs(price_vs_bld)}% below DLD median for this building"
+
+    # FALLBACK: district-level comparison via size_sqft × mkt_sqft
+    if not used_bench and size_sqft and size_sqft > 0:
         market_value = int(size_sqft * mkt_sqft)
         price_vs_mkt = round((price - market_value) / market_value * 100, 1)
         result["price_vs_market_percent"] = price_vs_mkt
+        result["benchmark_source"] = "district"
         if price_vs_mkt <= -12:
             result["is_below_market"] = True
             result["is_hot_deal"] = True
             if result["deal_quality"] == "normal":
                 result["deal_quality"] = "very_good"
-                result["deal_reason"] = f"Price is {abs(price_vs_mkt)}% below market average"
+                result["deal_reason"] = f"Price is {abs(price_vs_mkt)}% below district average"
         elif price_vs_mkt <= -7:
             result["is_below_market"] = True
             if result["deal_quality"] == "normal":
                 result["deal_quality"] = "good"
-                result["deal_reason"] = f"Price is {abs(price_vs_mkt)}% below market average"
+                result["deal_reason"] = f"Price is {abs(price_vs_mkt)}% below district average"
 
-    # ROI
+    # ROI — prefer DLD building rent_median_yearly if available, else MARKET
     rent_1br = mkt["rent_1br"]
+    annual_rent_bld = bench.get("rent_median_yearly") if bench else None
     br_key = {0: "studio", 1: "1br", 2: "2br", 3: "3br"}.get(bedrooms or 1, "1br")
     if bedrooms and bedrooms >= 4:
         br_key = "4br+"
-    annual_rent = int(rent_1br * RENT_MULT.get(br_key, 1.0))
+    if annual_rent_bld and (bench.get("rent_count") or 0) >= 3:
+        annual_rent = int(annual_rent_bld)
+    else:
+        annual_rent = int(rent_1br * RENT_MULT.get(br_key, 1.0))
     if price > 0:
         roi = round(annual_rent / price * 100, 1)
         result["roi_estimate"] = roi
@@ -2234,6 +2296,8 @@ def parse_message(
         size_sqft=sizes.get("size_sqft"),
         area=area,
         bedrooms=bedrooms,
+        building=building,
+        deal_type=deal_type,
     )
 
     # ── Assemble ──────────────────────────────────────────────────────────────
@@ -2491,61 +2555,44 @@ def expand_abbreviations(text):
 DLD_DB_URL = "postgresql://postgres:REDACTED_ARCHIVE_DB_PASSWORD@switchback.proxy.rlwy.net:23244/railway"
 
 def dld_lookup(building_name):
+    """Lookup building in live DLD Postgres. Returns dict with building/area/avg_price or None.
+    Includes AVG(actual_worth) so callers can do price comparison.
+    """
     if not building_name or len(building_name) < 3:
         return None
     try:
         import psycopg2
-        url = "postgresql://postgres:REDACTED_ARCHIVE_DB_PASSWORD@switchback.proxy.rlwy.net:23244/railway"
-        conn = psycopg2.connect(url, connect_timeout=5)
+        conn = psycopg2.connect(DLD_DB_URL, connect_timeout=5)
         cur = conn.cursor()
-        cur.execute("SELECT building_name_en, area_name_en FROM dld_sales_unified WHERE UPPER(building_name_en) = UPPER(%s) AND building_name_en != '' LIMIT 1", (building_name,))
+        # Exact match (case-insensitive)
+        cur.execute("""
+            SELECT building_name_en, area_name_en, AVG(actual_worth) AS avg_price, COUNT(*) AS cnt
+            FROM dld_sales_unified
+            WHERE UPPER(building_name_en) = UPPER(%s) AND building_name_en != ''
+            GROUP BY building_name_en, area_name_en
+            ORDER BY cnt DESC LIMIT 1
+        """, (building_name,))
         row = cur.fetchone()
         if not row:
-            cur.execute("SELECT building_name_en, area_name_en FROM dld_sales_unified WHERE building_name_en ILIKE %s AND building_name_en != '' ORDER BY (SELECT COUNT(*) FROM dld_sales_unified s2 WHERE s2.building_name_en=dld_sales_unified.building_name_en) DESC LIMIT 1", ('%' + building_name + '%',))
+            # Partial match
+            cur.execute("""
+                SELECT building_name_en, area_name_en, AVG(actual_worth) AS avg_price, COUNT(*) AS cnt
+                FROM dld_sales_unified
+                WHERE building_name_en ILIKE %s AND building_name_en != ''
+                GROUP BY building_name_en, area_name_en
+                ORDER BY cnt DESC LIMIT 1
+            """, ('%' + building_name + '%',))
             row = cur.fetchone()
         cur.close()
         conn.close()
         if row:
-            return {"building": row[0], "area": row[1]}
-    except Exception as e:
-        pass
-    return None
-    try:
-        import psycopg2
-        conn = psycopg2.connect(DLD_DB_URL, connect_timeout=3)
-        with conn.cursor() as c:
-            # ?????? ??????????
-            c.execute("""
-                SELECT building_name_en, area_name_en, 
-                       AVG(actual_worth) as avg_price,
-                       COUNT(*) as cnt
-                FROM dld_sales_unified
-                WHERE UPPER(building_name_en) = UPPER(%s)
-                AND building_name_en != ''
-                GROUP BY building_name_en, area_name_en
-                ORDER BY cnt DESC LIMIT 1
-            """, (building_name,))
-            row = c.fetchone()
-            if row:
-                conn.close()
-                return {"building": row[0], "area": row[1], "avg_price": float(row[2]) if row[2] else None}
-            
-            # ???????? ?????????? - ILIKE
-            c.execute("""
-                SELECT building_name_en, area_name_en,
-                       AVG(actual_worth) as avg_price,
-                       COUNT(*) as cnt
-                FROM dld_sales_unified
-                WHERE building_name_en ILIKE %s
-                AND building_name_en != ''
-                GROUP BY building_name_en, area_name_en
-                ORDER BY cnt DESC LIMIT 1
-            """, (f"%{building_name}%",))
-            row = c.fetchone()
-            conn.close()
-            if row:
-                return {"building": row[0], "area": row[1], "avg_price": float(row[2]) if row[2] else None}
-    except Exception as e:
+            return {
+                "building": row[0],
+                "area": row[1],
+                "avg_price": float(row[2]) if row[2] else None,
+                "count": int(row[3]) if row[3] else 0,
+            }
+    except Exception:
         pass
     return None
 
