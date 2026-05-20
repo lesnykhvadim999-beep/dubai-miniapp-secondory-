@@ -1340,47 +1340,118 @@ def extract_bedrooms(text: str) -> Optional[int]:
     # "Unit: X Bedroom" format
 def extract_size(text: str) -> dict:
     result = {"size_sqft": None, "bua_sqft": None, "plot_sqft": None}
-    def _parse_sqft(s: str) -> float:
-        return float(str(s).replace(",", "").replace(" ", "").strip())
-    # Size label first (more specific → less specific)
-    sqft_patterns = [
-        r'Size\s*:?\s*([\d,]+\.?\d*)\s*sq',
-        r'Area\s*:?\s*([\d,]+\.?\d*)\s*sq',
-        r'([\d,]+\.?\d*)\s*sq\.?\s*ft',
-        r'([\d,]+\.?\d*)\s*sqft',
-        r'([\d,]+\.?\d*)\s*SF\b',
-        r'([\d,]+\.?\d*)\s*sq\.',
-        r'([\d,]+\.?\d*)\s*Sqft',
+    def _parse_num(s: str) -> Optional[float]:
+        try:
+            return float(str(s).replace(",", ".").replace(" ", "").strip()) if str(s).count(",") <= 1 else float(str(s).replace(",", "").replace(" ", "").strip())
+        except (ValueError, TypeError):
+            return None
+
+    def _in_range_sqft(v: Optional[float]) -> bool:
+        return v is not None and 50.0 <= v <= 100_000.0
+
+    def _sqm_to_sqft(v: float) -> float:
+        return round(v * 10.764, 1)
+
+    # ── BUA: extract first (more specific) ─────────────────────────────────
+    # "BUA: 3683 sqft", "Bua 1865 sq.ft", "BUA size: 2,456 Sq. Ft.", "BUA: 1865"
+    m = re.search(r'\bBUA\s*(?:size)?\s*[:\-]?\s*([\d,]+\.?\d*)\s*(?:sq\.?\s*ft|sqft|sq\.?\s*f\b|sq\.?)?', text, re.I)
+    if m:
+        v = _parse_num(m.group(1).replace(",", ""))
+        if _in_range_sqft(v):
+            result["bua_sqft"] = v
+    # BUA in sqm
+    m = re.search(r'\bBUA\s*(?:size)?\s*[:\-]?\s*([\d,]+\.?\d*)\s*(?:sqm|sq\.?\s*m\b|m2|sq\.?\s*m)', text, re.I)
+    if m and result["bua_sqft"] is None:
+        v = _parse_num(m.group(1).replace(",", ""))
+        if v and 5 <= v <= 10_000:
+            result["bua_sqft"] = _sqm_to_sqft(v)
+
+    # ── Plot ────────────────────────────────────────────────────────────────
+    m = re.search(r'\bPlot\s*(?:size|area)?\s*[:\-]?\s*([\d,]+\.?\d*)\s*(?:sq\.?\s*ft|sqft|sq\.?)', text, re.I)
+    if m:
+        v = _parse_num(m.group(1).replace(",", ""))
+        if _in_range_sqft(v):
+            result["plot_sqft"] = v
+    m = re.search(r'\bPlot\s*(?:size|area)?\s*[:\-]?\s*([\d,]+\.?\d*)\s*(?:sqm|sq\.?\s*m\b|m2)', text, re.I)
+    if m and result["plot_sqft"] is None:
+        v = _parse_num(m.group(1).replace(",", ""))
+        if v and 5 <= v <= 10_000:
+            result["plot_sqft"] = _sqm_to_sqft(v)
+
+    # ── Main size_sqft ─────────────────────────────────────────────────────
+    # Order: SQM with label first (so "Plot Area: 75.4 SQM" doesn't get caught as sqft)
+    # Then SQFT with label, then bare patterns
+
+    # SQM with label (e.g. "Plot Area: 75.4 SQM", "Area: 130 sqm", "Size: 120 m²")
+    sqm_label_patterns = [
+        r'(?:Plot\s+Area|Total\s+Area|Size|Area)\s*[:=\-]?\s*([\d,]+\.?\d*)\s*(?:sqm|sq\.?\s*m\b|m2|m²)',
+        # Number AFTER label  (Sq.m : 55.17, sqm: 75.4)
+        r'\bsq\.?\s*m\s*[:=]\s*([\d,]+\.?\d*)',
+        r'\bsqm\s*[:=]\s*([\d,]+\.?\d*)',
+        r'\bSQM\s*[:=]\s*([\d,]+\.?\d*)',
     ]
-    for pat in sqft_patterns:
+    for pat in sqm_label_patterns:
         m = re.search(pat, text, re.I)
         if m:
-            val = _parse_sqft(m.group(1))
-            if 50.0 <= val <= 100_000.0:
-                result["size_sqft"] = val
+            v = _parse_num(m.group(1).replace(",", "").replace(" ", ""))
+            if v and 5 <= v <= 10_000:
+                result["size_sqft"] = _sqm_to_sqft(v)
                 break
 
-        # ft² or ft* format
-        m = re.search(r'([\d,]+\.?\d*)\s*ft[²*2]', text, re.I)
-        if m:
-            v = float(m.group(1).replace(',', ''))
-            if 50 <= v <= 100_000:
-                result["size_sqft"] = v
-                return result
-        # SQM/sqm - convert to sqft (1 sqm = 10.764 sqft)
-        m = re.search(r'([\d,]+\.?\d*)\s*(?:sqm|sq\.?\s*m\b|m2)', text, re.I)
-        if m:
-            v = float(m.group(1).replace(',', '')) * 10.764
-            if 50 <= v <= 100_000:
-                result["size_sqft"] = round(v, 1)
-                return result
-        # Area/Plot: X SQM
-        m = re.search(r'(?:area|plot)\s*[:\-]?\s*([\d,]+\.?\d*)\s*(?:sqm|sq\.?m)', text, re.I)
-        if m:
-            v = float(m.group(1).replace(',', '')) * 10.764
-            if 50 <= v <= 100_000:
-                result["size_sqft"] = round(v, 1)
-                return result
+    # SQFT with label (e.g. "Size: 1148 sqft", "Total Area: 654 sq.ft")
+    if result["size_sqft"] is None:
+        sqft_label_patterns = [
+            r'(?:Plot\s+Area|Total\s+Area|Size|Area)\s*[:=\-]?\s*([\d,]+\.?\d*)\s*(?:sq\.?\s*ft|sqft|ft[²*2])',
+            # Number AFTER label  (Sqft: 3880, Sq Ft 1148)
+            r'\bSqft\s*[:=]\s*([\d,]+\.?\d*)',
+            r'\bSq\.?\s*Ft\s*[:=]\s*([\d,]+\.?\d*)',
+        ]
+        for pat in sqft_label_patterns:
+            m = re.search(pat, text, re.I)
+            if m:
+                v = _parse_num(m.group(1).replace(",", ""))
+                if _in_range_sqft(v):
+                    result["size_sqft"] = v
+                    break
+
+    # Bare SQFT (number directly followed by unit)
+    if result["size_sqft"] is None:
+        bare_sqft_patterns = [
+            r'([\d,]+\.?\d*)\s*sq\.?\s*ft\b',
+            r'([\d,]+\.?\d*)\s*sqft\b',
+            r'([\d,]+\.?\d*)\s*ft[²*2]',
+            r'([\d,]+\.?\d*)\s*SF\b',
+            r'([\d,]+\.?\d*)\s*sqf\b',
+            r'([\d,]+\.?\d*)\s*sq\s+f\b',
+        ]
+        for pat in bare_sqft_patterns:
+            m = re.search(pat, text, re.I)
+            if m:
+                v = _parse_num(m.group(1).replace(",", ""))
+                if _in_range_sqft(v):
+                    result["size_sqft"] = v
+                    break
+
+    # Bare SQM (number directly followed by unit)
+    if result["size_sqft"] is None:
+        bare_sqm_patterns = [
+            r'([\d,]+\.?\d*)\s*sqm\b',
+            r'([\d,]+\.?\d*)\s*sq\.?\s*m\b',
+            r'([\d,]+\.?\d*)\s*m2\b',
+            r'([\d,]+\.?\d*)\s*m²',
+        ]
+        for pat in bare_sqm_patterns:
+            m = re.search(pat, text, re.I)
+            if m:
+                v = _parse_num(m.group(1).replace(",", "").replace(" ", ""))
+                if v and 5 <= v <= 10_000:
+                    result["size_sqft"] = _sqm_to_sqft(v)
+                    break
+
+    # Fallback: if size_sqft is still None but we have BUA → use BUA
+    if result["size_sqft"] is None and result["bua_sqft"] is not None:
+        result["size_sqft"] = result["bua_sqft"]
+
     return result
 
 
