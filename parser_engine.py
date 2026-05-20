@@ -1029,23 +1029,45 @@ def detect_area(text: str, known_emirate: Optional[str] = None) -> tuple[Optiona
 # STEP 3: BUILDING DETECTION — SOURCE OF TRUTH
 # If building found in BUILDINGS_DB → use its area and emirate
 # ══════════════════════════════════════════════════════════════════════════════
+def _is_landmark_view_reference(text_lower: str, m: re.Match) -> bool:
+    """Returns True if the matched name is a 'view/near/facing' reference, not the actual building.
+    e.g. 'Burj Khalifa view', '... overlooking Burj Khalifa', 'near Burj Khalifa'.
+    """
+    # 35 chars before
+    before = text_lower[max(0, m.start() - 35): m.start()]
+    after = text_lower[m.end(): m.end() + 20]
+    # Pre-context markers (word that comes BEFORE the name)
+    pre_markers = r'\b(?:view|views|viewing|facing|near|from|overlooking|opposite|towards?|towards|stunning|with|close\s+to|next\s+to|distance\s+from|walking\s+distance)\b\s*[a-z]*\s*$'
+    if re.search(pre_markers, before):
+        return True
+    # Post-context markers (the name is followed by "view")
+    if re.search(r'^\s*(?:view|views)\b', after):
+        return True
+    return False
+
+
 def detect_building(text: str) -> tuple[Optional[str], float, Optional[str], Optional[str], Optional[str]]:
     """
     Returns (building_name, confidence, area, emirate, developer).
     If building found in DB → area and emirate come from DB (cross-validated).
+    Landmark names ("Burj Khalifa", "Marina") in 'view' context are SKIPPED.
     """
     tl = text.lower()
 
-    # 1. Exact match in DB
+    # 1. Exact match in DB — skip landmark-view references
     for bname_lower, bname_canonical in _BUILDINGS_LOWER.items():
-        if re.search(r'\b' + re.escape(bname_lower) + r'\b', tl):
+        for m in re.finditer(r'\b' + re.escape(bname_lower) + r'\b', tl):
+            if _is_landmark_view_reference(tl, m):
+                continue
             bdata = BUILDINGS_DB[bname_canonical]
             return (bname_canonical, 0.95,
                     bdata.get("area"), bdata.get("emirate"), bdata.get("developer"))
 
-    # 2. Alias match
+    # 2. Alias match — same filter
     for alias_lower, bname_canonical in _BUILDING_ALIASES.items():
-        if re.search(r'\b' + re.escape(alias_lower) + r'\b', tl):
+        for m in re.finditer(r'\b' + re.escape(alias_lower) + r'\b', tl):
+            if _is_landmark_view_reference(tl, m):
+                continue
             bdata = BUILDINGS_DB[bname_canonical]
             return (bname_canonical, 0.90,
                     bdata.get("area"), bdata.get("emirate"), bdata.get("developer"))
@@ -1133,6 +1155,22 @@ def _clean_building_candidate(s: str) -> Optional[str]:
     # If em-dash, prefer the part before it (e.g. "Eden House – The Canal" → "Eden House")
     if ' – ' in s or ' — ' in s:
         s = re.split(r'\s+[–—]\s+', s)[0].strip()
+    # If pipe separator with multiple segments, keep the longest/most building-like segment
+    if '|' in s:
+        parts = [p.strip() for p in s.split('|') if p.strip()]
+        # Drop parts that look like areas, sizes, or attributes; keep the candidate
+        good_parts = []
+        for p in parts:
+            if _is_building_stopword(p):
+                continue
+            if re.search(r'\b(?:\d+\s*(?:bedroom|br|bhk|bed|bath|sqft|sq\.|floor)|aed|sale|rent)\b', p, re.I):
+                continue
+            good_parts.append(p)
+        if good_parts:
+            # Pick the longest non-stopword segment
+            s = max(good_parts, key=len)
+        else:
+            return None
     # Collapse whitespace and strip junk
     s = re.sub(r'\s+', ' ', s).strip(' ,.-–—:|')
     if not s:
@@ -1150,6 +1188,9 @@ def _clean_building_candidate(s: str) -> Optional[str]:
         return None
     # Reject marketing-style multi-word fragments
     if re.search(r'\b(?:only|deal|offer|urgent|distress|launch|renovation|sale|rent|lease|client|investor|cheques?|budget)\b', s, re.I):
+        return None
+    # Reject generic property-type and description words alone
+    if re.search(r'\b(?:villa|townhouse|apartment|penthouse|office|studio|duplex|loft|land|spacious|layout|amenities|features|brand\s*new|vacant|rented|tenanted|ready)\b', s, re.I):
         return None
     # Reject short attribute abbreviations (OP/SP/BUA/BHK alone)
     if re.fullmatch(r'(?:op|sp|bua|bhk|aed|usd|dxb|auh|shj|rak|uae|gcc)', s, re.I):
