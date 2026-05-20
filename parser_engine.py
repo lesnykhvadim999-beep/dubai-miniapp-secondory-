@@ -688,9 +688,26 @@ def validate_deal_type_by_price(
     # ── 1 & 2: keyword overrides ──────────────────────────────────────────
     if text:
         t = text.lower()
-        # Buyer request = always sale/buy
-        if re.search(r'buyer.{0,10}request|looking.{0,20}(buy|purchase)', t, re.IGNORECASE):
-            return "sale"
+        # Rent-context guard: cheques/per month/annual rent → keep as rent
+        # (a "looking for studio, 100k 4 cheques" is a RENT request)
+        is_rent_context = bool(re.search(
+            r'\bcheques?\b|\bper\s+month\b|/month\b|\bmonthly\b|\bper\s+year\b|/year\b|\bper\s+annum\b|\bannually\b',
+            t
+        ))
+        # Buyer request = always sale/buy (unless rent-context)
+        buyer_request_patterns = [
+            r'buyer.{0,10}request',
+            r'looking.{0,20}(?:buy|purchase|invest)',
+            r'\bcash\s+buyer\b',
+            r'\bseeking\s+(?:a\s+)?\d?\s*(?:bedroom|br|bhk|studio|villa|apartment|townhouse|plot|residence)',
+            r'looking\s+for\s+(?:a\s+|my\s+)?(?:client|investor)',
+            r'\bclient\s+(?:is\s+)?looking\s+(?:to\s+)?(?:buy|purchase|invest)',
+            r'\bbudget\s*[:=]?\s*(?:up\s+to|aed|\$)',
+        ]
+        if not is_rent_context and any(re.search(p, t, re.IGNORECASE) for p in buyer_request_patterns):
+            # Additional guard: skip if text clearly offers a property (selling/asking price)
+            if not re.search(r'\b(?:selling\s+price|asking\s+price|sales?\s+price|sp\s*:|op\s*:|for\s+sale\b)\b', t):
+                return "sale"
         if any(re.search(p, t, re.IGNORECASE) for p in _HARD_RENT_KW_PE):
             deal_type = "rent"
         elif any(re.search(p, t, re.IGNORECASE) for p in _HARD_SALE_KW_PE):
