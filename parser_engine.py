@@ -693,6 +693,7 @@ def validate_deal_type_by_price(
     bedrooms: Optional[int] = None,
     area: Optional[str] = None,
     text: Optional[str] = None,
+    building: Optional[str] = None,
 ) -> str:
     """
     Override deal_type using keyword rules first, then price sanity limits.
@@ -734,9 +735,29 @@ def validate_deal_type_by_price(
     if not price or price <= 0:
         return deal_type
 
+    # ── 2.5: DLD benchmark classification (priority over absolute limits) ────
+    # If we have a confident verdict from building-level benchmarks, trust it.
+    if building:
+        bench_verdict, bench_conf, _ = classify_deal_by_price(building, price)
+        if bench_verdict and bench_conf >= 0.75:
+            return bench_verdict
+
     # ── 3 & 4: absolute price limits ─────────────────────────────────────
+    # Sale + low price → rent, UNLESS text has explicit sale wording
+    # (cheap studios in Sharjah/Ajman can legitimately sell for 400-500k AED)
     if deal_type == "sale" and price < 500_000:
-        return "rent"
+        has_explicit_sale = False
+        if text:
+            tl = text.lower()
+            has_explicit_sale = bool(re.search(
+                r'\b(?:sales?\s*price|selling\s*price|sale\s*price|asking\s*price|sp\s*:|original\s*price|op\s*:|payment\s*plan|handover\s*q\d)\b',
+                tl
+            ))
+        if not has_explicit_sale:
+            return "rent"
+        # If explicit sale wording but price < 200k, still suspicious — flip
+        if price < 200_000:
+            return "rent"
     if deal_type == "rent" and price > 50_000_000:
         return "sale"
 
@@ -2287,7 +2308,7 @@ def parse_message(
         price_per_sqft = round(price / sizes["size_sqft"], 0)
 
     # ── Validate deal_type against market floor prices ─────────────────────
-    deal_type = validate_deal_type_by_price(price, deal_type, bedrooms, area, text=original_text)
+    deal_type = validate_deal_type_by_price(price, deal_type, bedrooms, area, text=original_text, building=building)
 
     # ── Deal quality ──────────────────────────────────────────────────────────
     deal_analysis = compute_deal_quality(
@@ -2611,44 +2632,61 @@ except:
 
 def classify_deal_by_price(building, price):
     """
-    Returns 'sale', 'rent', or None based on price vs DLD benchmarks.
-    price - raw number from message (AED)
+    Decide sale vs rent purely on benchmark distance.
+    Returns ('sale'|'rent'|None, confidence 0..1, reason).
+    Conservative: returns None unless clearly one or the other.
     """
     if not building or not price or not PRICE_BENCHMARKS:
-        return None
-    
-    # Try exact match first, then case-insensitive
-    bdata = PRICE_BENCHMARKS.get(building) or PRICE_BENCHMARKS.get(building.upper())
+        return None, 0.0, None
+
+    bdata = _lookup_benchmark(building)
     if not bdata:
-        # Try partial match
-        bname_lower = building.lower()
-        for k, v in PRICE_BENCHMARKS.items():
-            if bname_lower in k.lower() or k.lower() in bname_lower:
-                bdata = v
-                break
-    
-    if not bdata:
-        return None
-    
-    sale_median = bdata.get('sale_median')
-    rent_median = bdata.get('rent_median_yearly')
-    
-    # If price is close to rent range (5k-300k AED/year)
-    if rent_median and 5000 < price < 500000:
-        rent_diff = abs(price - rent_median) / rent_median if rent_median else 1
-        if rent_diff < 0.8:  # within 80% of median rent
-            return 'rent'
-    
-    # If price is close to sale range (100k+ AED)
-    if sale_median and price > 100000:
-        sale_diff = abs(price - sale_median) / sale_median if sale_median else 1
-        if sale_diff < 1.5:  # within 150% of median sale
-            return 'sale'
-    
-    # Fallback by magnitude
-    if price < 200000:
-        return 'rent'
-    if price > 300000:
-        return 'sale'
-    
-    return None
+        return None, 0.0, None
+
+    sale_med = bdata.get('sale_median')
+    rent_med = bdata.get('rent_median_yearly')
+    sale_count = bdata.get('sale_count') or 0
+    # rent_count not yet in JSON, estimate via presence
+    has_rent = bool(rent_med)
+
+    # Need at least decent sale stats to use sale benchmark
+    if sale_count < 5:
+        sale_med = None
+
+    # Distance ratios (smaller = closer)
+    sale_dist = abs(price - sale_med) / sale_med if sale_med else 999
+    rent_dist = abs(price - rent_med) / rent_med if has_rent else 999
+
+    # Case A: rent benchmark available — compare both
+    if has_rent and sale_med:
+        # Price strongly favors rent: close to rent_med, far from sale_med
+        if rent_dist < 0.6 and sale_dist > 0.7:
+            return 'rent', 0.85, f"price ~{price} close to rent median {rent_med}, far from sale median {sale_med}"
+        # Price strongly favors sale
+        if sale_dist < 0.6 and rent_dist > 5:
+            return 'sale', 0.85, f"price ~{price} close to sale median {sale_med}, far from rent median {rent_med}"
+        # Mid range — let other logic decide
+        return None, 0.0, None
+
+    # Case B: only sale benchmark available
+    if sale_med:
+        # If price is within 60% of sale median, very likely sale
+        if sale_dist < 0.6:
+            return 'sale', 0.75, f"price close to sale median {sale_med}"
+        # If price is way below sale median (< 5% of it), almost certainly rent
+        if price < sale_med * 0.05 and price < 500_000:
+            return 'rent', 0.80, f"price << sale median {sale_med} → rent"
+        # If price between 5-15% of sale median — gray zone, let absolute limits decide
+        if price < sale_med * 0.15 and price < 800_000:
+            return 'rent', 0.65, f"price < 15% of sale median → likely rent"
+        return None, 0.0, None
+
+    # Case C: only rent benchmark available
+    if has_rent:
+        if rent_dist < 0.6:
+            return 'rent', 0.75, f"price close to rent median {rent_med}"
+        # Way above rent median → sale
+        if price > rent_med * 10 and price > 500_000:
+            return 'sale', 0.75, f"price >> rent median {rent_med} → sale"
+
+    return None, 0.0, None
