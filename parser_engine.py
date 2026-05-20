@@ -1487,20 +1487,19 @@ def nominatim_lookup(query: str) -> Optional[dict]:
 # PROPERTY DETAILS EXTRACTION
 # ══════════════════════════════════════════════════════════════════════════════
 def extract_bedrooms(text: str) -> Optional[int]:
+    """Bedrooms from FIRST listing block. Numeric patterns (N BR, N Bed)
+    take priority over the 'studio' keyword — a multi-listing where the
+    primary is '4 bedroom' but a later listing is studio used to return 0.
+    """
+    text = _first_listing_block(text)
     tl = text.lower()
-    if re.search(r'\bstudio\b|\bstd\b', tl):
-        return 0
-    # BHK format common in South Asian postings
-    m = re.search(r'(\d)\s*bhk\b', tl)
-    if m:
-        return int(m.group(1))
-    # BR / BED / BEDROOM variants
-    m = re.search(r'(\d)\s*(?:br|bed(?:room)?s?)\b', tl)
-    if m:
-        return int(m.group(1))
-    m = re.search(r'(\d)\s*(?:bedroom|bed)\b', tl)
-    if m:
-        return int(m.group(1))
+    # Numeric patterns FIRST (higher confidence than 'studio')
+    m = re.search(r'(\d+)\s*bhk\b', tl)
+    if m: return int(m.group(1))
+    m = re.search(r'(\d+)\s*(?:br|bed(?:room)?s?)\b', tl)
+    if m: return int(m.group(1))
+    m = re.search(r'(\d+)\s*(?:bedroom|bed)\b', tl)
+    if m: return int(m.group(1))
     m = re.search(r'(\d+)\s*(?:bdr|b/r)\b', tl)
     if m: return int(m.group(1))
     m = re.search(r'bedrooms?\s*[:\-]?\s*(\d+)', tl)
@@ -1509,6 +1508,9 @@ def extract_bedrooms(text: str) -> Optional[int]:
     if m: return int(m.group(1))
     m = re.search(r'rooms?\s*[:\-]\s*(\d+)', tl)
     if m: return int(m.group(1))
+    # Studio only if no numeric pattern found
+    if re.search(r'\bstudio\b|\bstd\b', tl):
+        return 0
     return None
     # "Unit: X Bedroom" format
 def extract_size(text: str) -> dict:
@@ -1633,13 +1635,26 @@ def extract_size(text: str) -> dict:
 
 
 def _parse_amount(s: str) -> Optional[int]:
-    """Parse price strings like '1.5M', '750k', '3.2ML', '1,200,000'."""
+    """Parse price strings like '1.5M', '750k', '3.2ML', '1,200,000', '1,59 M' (European decimal)."""
     if not s:
         return None
-    s = str(s).replace(",", "").replace(" ", "").strip().upper(); s = re.sub(r"\.(\d{3})(?=\.|$)", r"\1", s) if s.count(".") > 1 else s
+    s = str(s).strip().upper().replace(" ", "")
+    # European decimal handling: "1,59" → "1.59" (single comma, 1-2 digits after).
+    # Multiple commas → thousand separators (US style): "1,200,000" → "1200000".
+    if s.count(",") == 1 and "." not in s:
+        head, tail = s.split(",")
+        # Trim any unit suffix from tail to inspect length of digit part
+        tail_digits = re.match(r'(\d+)', tail)
+        if tail_digits and len(tail_digits.group(1)) <= 2:
+            s = head + "." + tail
+        else:
+            s = s.replace(",", "")
+    else:
+        s = s.replace(",", "")
+    # European 1.064.000 → 1064000 (multiple dots act as thousand separator)
+    if s.count(".") > 1:
+        s = re.sub(r"\.(\d{3})(?=\.|$)", r"\1", s)
     try:
-        # ML or M suffix (3.2ML = 3.2M = 3,200,000)
-        # Guard: if base number >= 10000 it's not "Xm" notation (e.g. "21750000 m²")
         if s.endswith("MLN") or s.endswith("ML") or s.endswith("M"):
             v = float(s.rstrip("LMN"))
             if v >= 10000:
@@ -1659,30 +1674,51 @@ def _parse_amount(s: str) -> Optional[int]:
 
 
 def _strip_phones(text: str) -> str:
-    """Remove UAE phone numbers so they can't be mistaken for prices."""
-    # +971XXXXXXXXX, 00971XXXXXXXXX (international format)
-    text = re.sub(r'(?<!\d)(?:\+971|00971)[\s\-]?\d[\d\s\-]{7,12}(?!\d)', ' ', text)
+    """Remove phone numbers so they can't be mistaken for prices."""
+    # ANY international format: +XXX followed by 8-14 digits (with optional spaces/dashes)
+    # Catches +971, +380, +1, +44, +7, etc.
+    text = re.sub(r'(?<!\d)\+\d[\d\s\-\(\)]{8,16}\d(?!\d)', ' ', text)
+    # 00XXX international prefix
+    text = re.sub(r'(?<!\d)00\d{1,3}[\s\-]?\d[\d\s\-]{7,13}(?!\d)', ' ', text)
     # 05X-XXX-XXXX (local UAE mobile)
     text = re.sub(r'(?<!\d)0(?:50|52|54|55|56|58|2|3|4|6|7|9)\d{7}(?!\d)', ' ', text)
     # Bare 971XXXXXXXXX at word boundary (no + prefix)
     text = re.sub(r'(?<!\d)971[5][0-9]{8}(?!\d)', ' ', text)
+    # Bare long digit run >= 10 digits without M/K context (likely phone)
+    text = re.sub(r'(?<![\d.,])\d{10,15}(?!\s*[mkbMKB])', ' ', text)
     return text
 
 
 def extract_price(text: str) -> dict:
+    """Extracts price from FIRST listing block only (multi-listing safety).
+    Caps at 10 billion AED as sanity check (Dubai luxury max is ~1B).
+    """
+    # Use first listing block — multi-listing texts had price bleeding across
+    text = _first_listing_block(text)
+
     result = {"price": None, "currency": "AED",
               "original_price": None, "selling_price": None}
 
-    # Strip phone numbers before any price pattern matching
+    # Strip phone numbers (international + local) before any price pattern matching
     text = _strip_phones(text)
     t = text  # preserve original case for Cash regex
 
-    # -- Original / Purchase price
-    m = re.search(r'(?:op|original\s*price|purchase\s*price|sale\s*price)[\s:]*([\d,\. ]+\s*[mkb]?l?)', t, re.I)
+    # -- Original / Purchase price — ONLY these go to original_price
+    m = re.search(r'(?:\bop\b|original\s*price|purchase\s*price)[\s:]*([\d,\. ]+\s*[mkb]?l?)', t, re.I)
     if m:
         result["original_price"] = _parse_amount(m.group(1))
-        if result["original_price"] and not result["price"]:
-            result["price"] = result["original_price"]
+
+    # -- Selling / Sales / Sale price → these are CURRENT price (priority)
+    m = re.search(r'(?:\bsp\b|sales?\s*price|selling\s*price|sale\s*price)[\s:]*([\d,\. ]+\s*[mkb]?l?)', t, re.I)
+    if m:
+        v = _parse_amount(m.group(1))
+        if v:
+            result["selling_price"] = v
+            result["price"] = v
+
+    # If we still have only original_price, use it as fallback
+    if result["original_price"] and not result["price"]:
+        result["price"] = result["original_price"]
 
 
     m = re.search(r'AED\s*([\d\. ]+\s*M?)\s*\(CASH\)', t, re.I)
@@ -1768,6 +1804,13 @@ def extract_price(text: str) -> dict:
                     break
             if result["price"]:
                 break
+
+    # Sanity cap: price > 10 billion AED is almost certainly a parsing error
+    # (phone number, multiple prices concatenated, etc). Drop suspect values.
+    if result["price"] and result["price"] > 10_000_000_000:
+        result["price"] = None
+    if result["original_price"] and result["original_price"] > 10_000_000_000:
+        result["original_price"] = None
 
     return result
 
