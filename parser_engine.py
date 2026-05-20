@@ -1512,6 +1512,10 @@ def extract_bedrooms(text: str) -> Optional[int]:
     return None
     # "Unit: X Bedroom" format
 def extract_size(text: str) -> dict:
+    """Size from FIRST listing block (multi-listing safety).
+    Different listings have different sizes — we should only extract the first one's.
+    """
+    text = _first_listing_block(text)
     result = {"size_sqft": None, "bua_sqft": None, "plot_sqft": None}
     def _parse_num(s: str) -> Optional[float]:
         try:
@@ -1768,24 +1772,39 @@ def extract_price(text: str) -> dict:
     return result
 
 
-def extract_view(text: str) -> Optional[str]:
+def _first_listing_block(text: str) -> str:
+    """Return first listing's text — up to the first --- separator or 2+ blank lines.
+    For single-listing texts returns the full text unchanged.
+    """
+    return re.split(r'\n\s*[-—–=⸻]{3,}\s*\n|\n\s*\n\s*\n', text, maxsplit=1)[0]
+
+
+def _extract_view_core(text: str) -> Optional[str]:
+    """Inner extractor — applied to first listing block, falls back to full text."""
     tl = text.lower()
-    # Sort by length DESC so "full sea view" beats "sea view"
     for view in sorted(VIEWS, key=len, reverse=True):
         if view in tl:
             return view.title()
-    # Generic fallback: "View: X" or "View - X" (capture next short phrase)
     m = re.search(r'\bview\s*[:\-]\s*([A-Za-z][A-Za-z\s&,/]{2,40})', text, re.I)
     if m:
         val = m.group(1).strip(' ,/&').strip()
-        # Cut at conjunction or newline-like punctuation
         val = re.split(r'\s*(?:,|/|\||\n|—|–|-)\s*', val)[0].strip()
         if 3 <= len(val) <= 40 and not re.search(r'\d|sqft|sq\.|aed|price', val, re.I):
             return val.title() + (" View" if not val.lower().endswith("view") else "")
     return None
 
 
+def extract_view(text: str) -> Optional[str]:
+    """View from the FIRST listing only (multi-listing safety).
+    If first block has no view, return None — don't bleed view from listing #3.
+    """
+    block = _first_listing_block(text)
+    return _extract_view_core(block)
+
+
 def extract_floor(text: str) -> Optional[int]:
+    """Floor from FIRST listing block only (multi-listing safety)."""
+    text = _first_listing_block(text)
     # "Floor: 5", "fl#7", "floor 12"
     m = re.search(r'(?:floor|fl)[:\s#]*(\d+)', text, re.I)
     if m:
@@ -1855,13 +1874,14 @@ def extract_status(text: str) -> Optional[str]:
 
 
 def extract_bathrooms(text: str) -> Optional[int]:
-    """Returns int (1..20) or None.
+    """Returns int (1..20) or None. From FIRST listing block (multi-listing safety).
 
     Patterns recognized:
       - "3 Bathrooms", "4 bath", "5 Bathroom" (number before label)
       - "Bathrooms: 2", "🛁 Bathrooms : 3" (label before number)
       - "2 BA" (rare abbreviation)
     """
+    text = _first_listing_block(text)
     # Number BEFORE label: "3 Bathrooms", "4 bath", "5 Bathroom"
     m = re.search(r'(?<![\d.])(\d{1,2})\s*(?:bathroom|bath)s?\b', text, re.I)
     if m:
@@ -1886,7 +1906,9 @@ def extract_bathrooms(text: str) -> Optional[int]:
 def extract_furnishing(text: str) -> Optional[str]:
     """Order matters: check 'semi-furnished' and 'unfurnished' BEFORE 'furnished',
     otherwise 'Unfurnished' is wrongly matched as 'furnished' (substring trap).
+    Uses FIRST listing block to avoid bleed across multi-listing texts.
     """
+    text = _first_listing_block(text)
     tl = text.lower()
     # semi-furnished (most specific)
     if re.search(r'\bsemi[\s\-]?furnished\b|\bs/f\b', tl):
