@@ -187,6 +187,24 @@ T = {
     "rbtn_ai":       "✦ AI Assistant",
     "rbtn_add":      "➕ List Property",
     "rbtn_lang":     "🌐 Language",
+    # Listing card labels
+    "card_price_request": "Price on request",
+    "card_per_year":   "/year",
+    "card_for_rent":   "For Rent",
+    "card_for_sale":   "For Sale",
+    "card_below_mkt":  "below market",
+    "card_below_op":   "below original price",
+    "card_roi":        "ROI",
+    "card_per_year_short": "/yr",
+    "card_score":      "Investment score",
+    "card_floor":      "Floor",
+    "card_bua":        "BUA",
+    "card_plot":       "Plot",
+    "card_completion": "Handover",
+    "card_developer":  "Developer",
+    "ft_studio":       "Studio",
+    "ft_br":           "BR",
+    "ft_bath":         "BA",
     "emirate_q":  "Select Emirate",
     "e_dubai":    "Dubai",
     "e_abudhabi": "Abu Dhabi",
@@ -348,6 +366,24 @@ T = {
     "rbtn_ai":       "✦ AI Помощник",
     "rbtn_add":      "➕ Разместить",
     "rbtn_lang":     "🌐 Язык",
+    # Listing card labels
+    "card_price_request": "Цена по запросу",
+    "card_per_year":   "/год",
+    "card_for_rent":   "В аренду",
+    "card_for_sale":   "В продажу",
+    "card_below_mkt":  "ниже рынка",
+    "card_below_op":   "ниже исходной цены",
+    "card_roi":        "ROI",
+    "card_per_year_short": "/год",
+    "card_score":      "Инвест-оценка",
+    "card_floor":      "Этаж",
+    "card_bua":        "BUA",
+    "card_plot":       "Участок",
+    "card_completion": "Сдача",
+    "card_developer":  "Застройщик",
+    "ft_studio":       "Студия",
+    "ft_br":           "сп.",
+    "ft_bath":         "вс.",
     "emirate_q":  "Выберите эмират",
     "e_dubai":    "Дубай",
     "e_abudhabi": "Абу-Даби",
@@ -498,6 +534,26 @@ T = {
     "btn_building": "البحث بالمبنى",
     "btn_lang":     "اللغة",
     "btn_add":      "إضافة عقار",
+    # Admin statistics (Arabic translations)
+    "stats_title":       "إحصائيات الإدارة",
+    "stats_total":       "إجمالي العقارات",
+    "stats_hot":         "صفقات ساخنة",
+    "stats_review":      "بحاجة للمراجعة",
+    "stats_pending":     "قيد الاعتماد",
+    "stats_by_emirate":  "حسب الإمارة",
+    "stats_by_quality":  "حسب الجودة",
+    "stats_today":       "اليوم",
+    "stats_new":         "إعلانات جديدة",
+    "stats_dupes":       "نسخ مكررة",
+    "stats_today_hot":   "صفقات ساخنة",
+    "stats_users":       "المستخدمون",
+    "stats_total_users": "إجمالي المستخدمين",
+    "stats_active":      "نشطون اليوم",
+    "stats_searches":    "بحوث اليوم",
+    "stats_views":       "مشاهدات اليوم",
+    "stats_leads_today": "طلبات اليوم",
+    "stats_leads_week":  "طلبات الأسبوع",
+    "stats_last_sync":   "آخر مزامنة",
     # Bottom reply-keyboard (persistent main menu)
     "rbtn_search":   "🔍 بحث",
     "rbtn_hot":      "🔥 صفقات",
@@ -508,6 +564,24 @@ T = {
     "rbtn_ai":       "✦ مساعد AI",
     "rbtn_add":      "➕ إضافة عقار",
     "rbtn_lang":     "🌐 اللغة",
+    # Listing card labels
+    "card_price_request": "السعر عند الطلب",
+    "card_per_year":   "/سنة",
+    "card_for_rent":   "للإيجار",
+    "card_for_sale":   "للبيع",
+    "card_below_mkt":  "أقل من السوق",
+    "card_below_op":   "أقل من السعر الأصلي",
+    "card_roi":        "العائد",
+    "card_per_year_short": "/سنة",
+    "card_score":      "تقييم الاستثمار",
+    "card_floor":      "الطابق",
+    "card_bua":        "المساحة المبنية",
+    "card_plot":       "الأرض",
+    "card_completion": "التسليم",
+    "card_developer":  "المطور",
+    "ft_studio":       "استوديو",
+    "ft_br":           "غرفة",
+    "ft_bath":         "حمام",
     "emirate_q":  "اختر الإمارة",
     "e_dubai":    "دبي",
     "e_abudhabi": "أبوظبي",
@@ -933,42 +1007,71 @@ def get_best_areas_from_db(strategy: str, emirate: str = None, limit: int = 3) -
         return []
 
 # ── Client card ────────────────────────────────────────────────────────────────
+SEPARATOR = "━━━━━━━━━━━━━━━━━━━━━━━"
+
+
+def _fmt_br_local(uid, br):
+    """Localized bedroom display."""
+    if br is None: return ""
+    if br == 0:    return _t(uid, "ft_studio")
+    return f"{br} {_t(uid, 'ft_br')}"
+
+
 def format_card(listing, uid, rank=None):
+    """Professional listing card. Logical order:
+       1. Title:   🏢 Building
+       2. Location: 📍 Area · Emirate
+       ─
+       3. Price:   💰 amount + AED/m²
+       ─
+       4. Specs:   🛏 BR · 🛁 BA · 📐 Size · 🏗 Floor
+       5. Extras:  🌅 View · 🛋 Furn · 🔑 Status
+       ─
+       6. Analytics: market diff / discount / ROI / score
+    """
     emirate   = listing.get("emirate") or ""
     area      = listing.get("area") or ""
     building  = listing.get("building") or ""
     br        = listing.get("bedrooms")
+    bath      = listing.get("bathrooms")
     size      = listing.get("size_sqft")
+    floor     = listing.get("floor")
     view      = listing.get("view")
     status    = listing.get("status")
     furn      = listing.get("furnishing")
     deal_type = listing.get("deal_type", "sale")
+    prop_type = listing.get("property_type") or ""
     price     = listing.get("price")
     ppf       = listing.get("price_per_sqft")
     pct       = listing.get("price_vs_market_percent")
     disc      = listing.get("discount_percent")
     roi       = listing.get("roi_estimate")
     score     = listing.get("investment_score")
+    bua       = listing.get("bua_sqft")
+    plot      = listing.get("plot_sqft")
 
     lines = []
 
-    # Локация
+    # 1. Building (title)
     if building:
         lines.append(f"🏢 *{building}*")
+
+    # 2. Location: Area · Emirate
     loc_parts = [p for p in [area, emirate] if p and p != "UAE"]
     if loc_parts:
         lines.append("📍 " + "  ·  ".join(loc_parts))
     elif not building:
         lines.append("🌍 UAE")
 
-    lines.append("")
+    lines.append(SEPARATOR)
 
-    # Цена
+    # 3. Price block
     if price:
         p_str = f"💰 *{_fmt(price)}*"
         if deal_type == "rent":
-            p_str += " / год"
+            p_str += f"  {_t(uid, 'card_per_year')}"
         lines.append(p_str)
+        # AED/m² breakdown only for sale (rent has yearly amount as-is)
         if deal_type == "sale":
             if ppf:
                 lines.append(f"📐 {int(ppf * 10.764):,} AED/m²".replace(",", " "))
@@ -977,92 +1080,56 @@ def format_card(listing, uid, rank=None):
                 if sqm > 0:
                     lines.append(f"📐 {int(price / sqm):,} AED/m²".replace(",", " "))
     else:
-        lines.append("💰 Цена по запросу")
+        lines.append(f"💰 _{_t(uid, 'card_price_request')}_")
 
-    lines.append("")
+    lines.append(SEPARATOR)
 
-    # Характеристики: спальни + площадь
-    br_str   = _fmt_br(br) if br is not None else ""
-    size_str = _fmt_size(size) if size else ""
-    if br_str and size_str:
-        lines.append(f"🛍 {br_str}  ·  {size_str}")
-    elif br_str:
-        lines.append(f"🛍 {br_str}")
-    elif size_str:
-        lines.append(f"📐 {size_str}")
+    # 4. Specs: BR · BA · Size · Floor — single line
+    spec_parts = []
+    br_str = _fmt_br_local(uid, br)
+    if br_str:
+        spec_parts.append(f"🛏 {br_str}")
+    if bath is not None:
+        spec_parts.append(f"🛁 {bath} {_t(uid, 'ft_bath')}")
+    if size:
+        spec_parts.append(f"📐 {_fmt_size(size)}")
+    if floor is not None:
+        spec_parts.append(f"🏗 {_t(uid, 'card_floor')} {floor}")
+    if spec_parts:
+        lines.append("  ·  ".join(spec_parts))
 
-    # Вид, меблировка, статус — в одну строку
+    # 4b. BUA / Plot (villa/townhouse extra info)
+    bp_parts = []
+    if bua and bua != size:
+        bp_parts.append(f"{_t(uid, 'card_bua')} {_fmt_size(bua)}")
+    if plot:
+        bp_parts.append(f"{_t(uid, 'card_plot')} {_fmt_size(plot)}")
+    if bp_parts:
+        lines.append("📏 " + "  ·  ".join(bp_parts))
+
+    # 5. Extras: View · Furnishing · Status
     extras = []
-    if view:   extras.append(view)
-    if furn:   extras.append(furn.title())
-    if status: extras.append(status.title())
+    if view:   extras.append(f"🌅 {view}")
+    if furn:   extras.append(f"🛋 {furn.title()}")
+    if status: extras.append(f"🔑 {status.title()}")
     if extras:
         lines.append("  ·  ".join(extras))
 
-    if deal_type == "rent":
-        lines.append("🏠 For Rent")
-
-    # Аналитика
+    # 6. Analytics block (separator + items)
     analytics = []
-    if pct and pct < -3:
-        lbl = "% ниже рынка аренды" if deal_type == "rent" else "% below market"
-        analytics.append(f"📉 {abs(round(pct, 1))}{lbl}")
+    if pct is not None and pct < -3:
+        analytics.append(f"📉 {abs(round(pct, 1))}% {_t(uid, 'card_below_mkt')}")
     if disc and disc >= 5:
-        analytics.append(f"🏷 {disc}% below original price")
+        analytics.append(f"🏷 {disc}% {_t(uid, 'card_below_op')}")
     if roi and deal_type == "sale":
-        analytics.append(f"📈 ROI {roi}% / year")
+        analytics.append(f"📈 {_t(uid, 'card_roi')} {roi}%{_t(uid, 'card_per_year_short')}")
     if score:
-        analytics.append(f"⭐ Score {score}/10")
+        analytics.append(f"⭐ {score}/10  ·  {_t(uid, 'card_score')}")
     if analytics:
-        lines.append("")
+        lines.append(SEPARATOR)
         lines.extend(analytics)
 
     return "\n".join(lines)
-
-    # ── Price — always visible ──────────────────────────────────────────────
-    price          = listing.get("price")
-    price_per_sqft = listing.get("price_per_sqft")
-    if price:
-        price_label = f"💰 *{_fmt(price)}*"
-        if deal_type == "rent":
-            price_label += " / год"
-        lines.append(price_label)
-        if price_per_sqft:
-            sqm_price = int(price_per_sqft * 10.764)
-            lines.append(f"📐 {sqm_price:,} AED/m²".replace(",", " "))
-        elif size and size > 0 and deal_type != "rent":
-            sqm = size * 0.0929
-            if sqm > 0:
-                lines.append(f"📐 {int(price / sqm):,} AED/m²".replace(",", " "))
-    else:
-        lines.append("💰 Цена по запросу")
-
-    dq   = listing.get("deal_quality", "normal")
-    pct  = listing.get("price_vs_market_percent")
-    disc = listing.get("discount_percent")
-    roi  = listing.get("roi_estimate")
-    score= listing.get("investment_score")
-
-    if br is not None:
-        lines.append(f"🛏 {_fmt_br(br)}")
-    if size:
-        lines.append(f"📏 {_fmt_size(size)}")
-    if floor:
-        lines.append(f"🏗 Floor {floor}")
-    if view:
-        lines.append(f"🌅 {view}")
-    if furn:
-        lines.append(f"🛋 {furn.title()}")
-    if status:
-        lines.append(f"🔑 {status.title()}")
-    if deal_type == "rent":
-        lines.append("🏷 For Rent")
-
-    if pct and pct < 0:
-        pct_label = "% ниже рынка аренды" if deal_type == "rent" else "% below market"
-        lines.append(f"📉 {abs(round(pct, 1))}{pct_label}")
-    if disc and disc >= 3:
-        lines.append(f"🏷 {disc}% below original price")
     if roi and deal_type == "sale":
         lines.append(f"📈 ROI {roi}% / year")
     if score:
