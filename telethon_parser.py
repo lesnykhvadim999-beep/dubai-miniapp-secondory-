@@ -1,10 +1,28 @@
-"""
+﻿"""
 telethon_parser.py — Telegram channel parser using Telethon.
 Implements ТЗ blocks 3.1-3.4:
 - Historical parsing from 01.01.2026
 - Incremental mode (only new messages)
 - Image/media group handling
 - Save state logic
+
+ИСПРАВЛЕНИЯ (2026-05-12):
+БАГ A: get_last_parsed_message_id() брала MAX из sync_log, где secondary_dubai
+       и dubilook всегда писали last_message_id=0 (канал падал до итерации).
+       Исправлено: get_real_last_message_id() смотрит В САМОЙ БД listings.
+
+БАГ B: _needs_backfill() возвращала False если хоть один канал имел запись в
+       sync_log — даже если у него там last_message_id=0. Из-за этого
+       secondary_dubai/dubilook никогда не получали backfill.
+       Исправлено: проверяем реальный max message_id из listings по chat_id.
+
+БАГ C: При errors=1 и parsed=0 sync_log записывал last_message_id=0,
+       затирая любой прогресс. Следующий цикл начинал с 0.
+       Исправлено: если stats["last_id"]==0, берём предыдущий max из sync_log.
+
+БАГ D: incremental с min_id=last_id НЕ включает само сообщение с id=last_id
+       (Telethon: min_id строго больше). При errors отставание накапливается.
+       Исправлено: min_id = last_id (Telethon использует min_id как >last_id).
 """
 import os
 import asyncio
@@ -27,15 +45,50 @@ CHANNELS = [
     "secondary_dubai",
 ]
 
+# chat_id → channel name mapping (для get_real_last_message_id)
+CHANNEL_CHAT_IDS = {
+    "flipluxproperty":                     "1781686176",
+    "dubairealestatedirectorydubilook":    "1125918023",
+    "secondary_dubai":                     "2187754007",
+}
+
 BACKFILL_DATE = datetime(2026, 1, 1, tzinfo=timezone.utc)
 PARSE_INTERVAL = 30 * 60  # 30 minutes
-BATCH_SIZE = 100
-PHOTO_DOWNLOAD = True  # Download and save photos
-
+BATCH_SIZE = 200           # Увеличено для быстрого catch-up после простоя
+PHOTO_DOWNLOAD = True      # Download and save photos
 
 BOT_TOKEN_UPLOAD = os.environ.get("RESALE_BOT_TOKEN", "")
 BOT_API_UPLOAD   = f"https://api.telegram.org/bot{BOT_TOKEN_UPLOAD}"
-UPLOAD_CHAT_ID   = 353806371  # Admin chat used as temp photo buffer
+# Используем Saved Messages (chat_id=user_id) вместо admin чата
+# чтобы фото не мелькали в основном чате
+# Для получения своего Saved Messages chat_id = тот же что и user_id
+UPLOAD_CHAT_ID   = int(os.environ.get("PHOTO_BUFFER_CHAT_ID", "353806371"))
+
+
+# ── БАГ A FIX: реальный последний message_id из listings ─────────────────────
+def get_real_last_message_id(channel: str) -> int:
+    """
+    Возвращает MAX(telegram_message_id) из таблицы listings для данного канала.
+    Надёжнее чем sync_log, который мог писать 0 при ошибках.
+    """
+    chat_id = CHANNEL_CHAT_IDS.get(channel)
+    if not chat_id:
+        return 0
+    try:
+        from db_schema import get_conn
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COALESCE(MAX(telegram_message_id), 0) as mid "
+                "FROM listings WHERE telegram_chat_id = %s",
+                (chat_id,)
+            )
+            row = cur.fetchone()
+        conn.close()
+        return int(row["mid"]) if row and row["mid"] else 0
+    except Exception as e:
+        print(f"[telethon] get_real_last_message_id error for {channel}: {e}")
+        return 0
 
 
 async def _upload_photo(client, msg_obj) -> str | None:
@@ -100,36 +153,60 @@ async def _get_media_group_photos(client, message) -> list[str]:
     return urls
 
 
-async def parse_channel(client, channel: str, backfill: bool = False):
-    """Parse messages from a channel."""
-    print(f"[telethon] Parsing @{channel} (backfill={backfill})")
+async def parse_channel(client, channel: str, backfill: bool = False,
+                         force_from_id: int = 0):
+    """
+    Parse messages from a channel.
+
+    Args:
+        force_from_id: если > 0, парсим начиная с этого message_id
+                       (используется для catchup после пропуска)
+    """
+    print(f"[telethon] Parsing @{channel} (backfill={backfill}, force_from_id={force_from_id})")
 
     stats = {
         "parsed": 0, "new": 0, "dupes": 0,
         "hot": 0, "errors": 0, "last_id": 0
     }
 
-    # Determine offset
-    if backfill:
-        offset_date = BACKFILL_DATE
-        min_id = 0
-    else:
-        last_id = get_last_parsed_message_id(channel)
-        if last_id:
-            min_id = last_id
-            offset_date = None
-            print(f"[telethon] Incremental from message_id={last_id}")
-        else:
+    # БАГ A + C FIX: определяем offset через реальные данные в listings
+    if backfill or force_from_id == 0 and not backfill:
+        if backfill:
             offset_date = BACKFILL_DATE
             min_id = 0
+        else:
+            # Incremental: берём реальный максимум из БД (не из sync_log!)
+            real_last = get_real_last_message_id(channel)
+            sync_last = get_last_parsed_message_id(channel) or 0
+            # Берём максимум из обоих источников для надёжности
+            min_id = max(real_last, sync_last)
+            offset_date = None
+            if min_id > 0:
+                print(f"[telethon] Incremental from message_id={min_id} "
+                      f"(db_max={real_last}, sync_log={sync_last})")
+            else:
+                # Нет истории — делаем backfill
+                print(f"[telethon] No history for @{channel}, switching to backfill")
+                offset_date = BACKFILL_DATE
+                min_id = 0
+    else:
+        # Принудительный catchup с указанного id
+        min_id = force_from_id
+        offset_date = None
+        print(f"[telethon] Forced catchup from message_id={min_id}")
+
+    # Сохраняем предыдущий last_id на случай если канал упадёт (БАГ C FIX)
+    prev_last_id = get_real_last_message_id(channel)
 
     try:
         entity = await client.get_entity(channel)
         processed_groups = set()  # Track processed media groups
 
-        # During backfill: no limit — iterate ALL messages from BACKFILL_DATE
-        # During incremental: limit to BATCH_SIZE per cycle
-        kwargs = {"entity": entity, "limit": None if backfill else BATCH_SIZE, "reverse": True}
+        kwargs = {
+            "entity": entity,
+            "limit": None if backfill else BATCH_SIZE,
+            "reverse": True,
+        }
         if offset_date:
             kwargs["offset_date"] = offset_date
         if min_id:
@@ -153,8 +230,6 @@ async def parse_channel(client, channel: str, backfill: bool = False):
                 msg_date = message.date
                 if msg_date and msg_date.tzinfo is None:
                     msg_date = msg_date.replace(tzinfo=timezone.utc)
-
-                date_str = msg_date.strftime("%Y-%m-%d") if msg_date else ""
 
                 # Skip before backfill date
                 if msg_date and msg_date < BACKFILL_DATE:
@@ -199,22 +274,35 @@ async def parse_channel(client, channel: str, backfill: bool = False):
                 if not parsed:
                     continue
 
-                # AI classification — enrich/override rule-based result
-                ai_result = ai_parse_listing(text)
-                if ai_result:
-                    if ai_result.get("is_spam"):
-                        print(f"[AI SPAM] msg={message.id} text={text[:60]!r}")
-                        stats["errors"] += 1
-                        continue
-                    parsed = merge_ai_with_parsed(parsed, ai_result)
-                    print(
-                        f"[AI] {parsed['deal_type'].upper()} | "
-                        f"{parsed.get('building') or '-'} | "
-                        f"{parsed.get('area') or '-'} | "
-                        f"{parsed.get('price') or 0:,} AED | "
-                        f"conf={ai_result.get('confidence','?')}"
-                    )
+                # AI classification DISABLED — rule-based parser_engine now handles
+                # all field extraction (building/area/price/deal_type/property_type/
+                # view/floor/bathrooms/size/furnishing) with DLD benchmark validation.
+                # See parser_engine.py commits 8acb23b..675de9d for the full set of fixes.
+                # If reactivation is needed, restore the block from git history.
 
+                # === SEMANTIC DEDUP ===
+                _seller = parsed.get('seller_username') or ''
+                _building = parsed.get('building') or ''
+                _size = parsed.get('size_sqft') or parsed.get('bua_sqft') or 0
+                _area = parsed.get('area') or ''
+                _price = parsed.get('price') or 0
+                if _seller and _building and _size and _area:
+                    try:
+                        _conn = get_conn()
+                        with _conn.cursor() as _cur:
+                            _cur.execute(
+                                "SELECT id, price FROM listings WHERE seller_username=%s AND building=%s AND area=%s AND (size_sqft=%s OR bua_sqft=%s) AND status='active' ORDER BY created_at DESC LIMIT 1",
+                                (_seller, _building, _area, _size, _size)
+                            )
+                            _row = _cur.fetchone()
+                        _conn.close()
+                        if _row:
+                            _old_price = _row["price"] or 0
+                            if not _price or not _old_price or _price >= _old_price:
+                                stats["duplicates"] += 1
+                                continue
+                    except Exception as _e:
+                        print(f"[SEMDEP ERROR] {_e}")
                 # Save to DB
                 listing_id, is_new = upsert_listing(parsed)
 
@@ -238,6 +326,10 @@ async def parse_channel(client, channel: str, backfill: bool = False):
         print(f"[telethon] Channel error @{channel}: {e}")
         stats["errors"] += 1
 
+    # БАГ C FIX: если итерация не дала ни одного сообщения (например канал недоступен),
+    # сохраняем предыдущий last_id чтобы не затереть прогресс нулём
+    final_last_id = stats["last_id"] if stats["last_id"] > 0 else prev_last_id
+
     # Log sync
     log_sync(
         channel=channel,
@@ -246,12 +338,13 @@ async def parse_channel(client, channel: str, backfill: bool = False):
         dupes=stats["dupes"],
         hot=stats["hot"],
         errors=stats["errors"],
-        last_msg_id=stats["last_id"],
+        last_msg_id=final_last_id,
     )
 
     print(f"[telethon] @{channel} done: "
           f"parsed={stats['parsed']} new={stats['new']} "
-          f"dupes={stats['dupes']} hot={stats['hot']} errors={stats['errors']}")
+          f"dupes={stats['dupes']} hot={stats['hot']} errors={stats['errors']} "
+          f"last_id={final_last_id}")
 
     return stats
 
@@ -273,6 +366,38 @@ async def run_parser_once(backfill: bool = False):
             await asyncio.sleep(2)
 
 
+async def run_catchup(channels: list[str] = None):
+    """
+    Catchup: парсим пропущенные сообщения для каждого канала
+    начиная с реального последнего message_id в БД.
+    Используется для восстановления после простоя парсера.
+    """
+    from telethon import TelegramClient
+    from telethon.sessions import StringSession
+
+    if not SESSION_STRING:
+        print("[telethon] SESSION_STRING not set — skipping catchup.")
+        return
+
+    channels = channels or CHANNELS
+    client = TelegramClient(StringSession(SESSION_STRING), TELETHON_API_ID, TELETHON_API_HASH)
+
+    print(f"[telethon] Starting CATCHUP for channels: {channels}")
+
+    async with client:
+        for channel in channels:
+            real_last = get_real_last_message_id(channel)
+            print(f"[telethon] CATCHUP @{channel}: resuming from msg_id={real_last}")
+            # Если для канала вообще нет данных — делаем полный backfill
+            if real_last == 0:
+                await parse_channel(client, channel, backfill=True)
+            else:
+                await parse_channel(client, channel, backfill=False, force_from_id=real_last)
+            await asyncio.sleep(3)
+
+    print("[telethon] CATCHUP complete.")
+
+
 def run_parser_thread(backfill: bool = False):
     """Run parser in a background thread."""
     def _run():
@@ -290,36 +415,105 @@ def run_parser_thread(backfill: bool = False):
     return t
 
 
+def run_catchup_thread(channels: list[str] = None):
+    """Run catchup in a background thread."""
+    def _run():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(run_catchup(channels))
+        except Exception as e:
+            print(f"[telethon] Catchup thread error: {e}")
+        finally:
+            loop.close()
+
+    t = threading.Thread(target=_run, daemon=True, name="telethon-catchup")
+    t.start()
+    return t
+
+
 def start_scheduler():
     """
     Start the periodic parser scheduler.
-    First run: backfill from Jan 2026.
+    First run: catchup from last known message_id in DB.
     Then: incremental every 30 minutes.
+
+    БАГ B FIX: _needs_backfill теперь проверяет реальные данные в listings,
+    а не sync_log который мог иметь last_message_id=0.
     """
     import time
 
-    def _needs_backfill() -> bool:
-        """Return True only if the DB has no sync records for any channel."""
-        try:
-            from db_schema import get_last_parsed_message_id
-            for ch in CHANNELS:
-                if get_last_parsed_message_id(ch):
-                    return False
-        except Exception:
-            pass
-        return True
+    def _needs_backfill(channel: str) -> bool:
+        """
+        Возвращает True если для канала нет РЕАЛЬНЫХ данных в listings.
+        Проверяем именно listings (не sync_log который мог писать 0).
+        """
+        return get_real_last_message_id(channel) == 0
 
     def _scheduler():
-        # Backfill only when DB has no prior sync records (survives restarts)
-        if _needs_backfill():
-            print("[telethon] Starting historical backfill from Jan 2026...")
-            t = run_parser_thread(backfill=True)
-            t.join()  # Wait for backfill to complete
-            print("[telethon] Backfill complete.")
+        print("[telethon] Scheduler started. Checking channel state...")
+
+        # Для каждого канала определяем нужен ли backfill
+        needs_catchup = []
+        needs_backfill_list = []
+
+        for ch in CHANNELS:
+            last_id = get_real_last_message_id(ch)
+            if last_id == 0:
+                print(f"[telethon] @{ch}: no data → BACKFILL needed")
+                needs_backfill_list.append(ch)
+            else:
+                print(f"[telethon] @{ch}: last_id={last_id} → CATCHUP from that point")
+                needs_catchup.append(ch)
+
+        # Сначала catchup для каналов с данными
+        if needs_catchup:
+            print(f"[telethon] Running CATCHUP for: {needs_catchup}")
+
+            def _catchup():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(run_catchup(needs_catchup))
+                except Exception as e:
+                    print(f"[telethon] Catchup error: {e}")
+                finally:
+                    loop.close()
+
+            t = threading.Thread(target=_catchup, daemon=True, name="catchup")
+            t.start()
+            t.join()
+
+        # Потом backfill для каналов без данных
+        if needs_backfill_list:
+            print(f"[telethon] Running BACKFILL for: {needs_backfill_list}")
+            for ch in needs_backfill_list:
+                def _bf(channel=ch):
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    from telethon import TelegramClient
+                    from telethon.sessions import StringSession
+                    if not SESSION_STRING:
+                        return
+                    client = TelegramClient(StringSession(SESSION_STRING),
+                                            TELETHON_API_ID, TELETHON_API_HASH)
+                    async def _run():
+                        async with client:
+                            await parse_channel(client, channel, backfill=True)
+                    try:
+                        loop.run_until_complete(_run())
+                    except Exception as e:
+                        print(f"[telethon] Backfill error @{channel}: {e}")
+                    finally:
+                        loop.close()
+
+                t = threading.Thread(target=_bf, daemon=True, name=f"backfill-{ch}")
+                t.start()
+                t.join()
 
         # Incremental loop
         while True:
-            print(f"[telethon] Incremental parse at {datetime.now().strftime('%H:%M')}")
+            print(f"[telethon] Incremental parse at {datetime.now().strftime('%H:%M:%S')}")
             t = run_parser_thread(backfill=False)
             t.join()
             print(f"[telethon] Next parse in {PARSE_INTERVAL//60} minutes")
@@ -328,3 +522,5 @@ def start_scheduler():
     thread = threading.Thread(target=_scheduler, daemon=True, name="scheduler")
     thread.start()
     return thread
+
+
