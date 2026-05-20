@@ -497,14 +497,32 @@ COMMERCIAL_KEYWORDS = [
 ]
 
 # Property types
+# Order matters — more specific types FIRST so they win over generic ones.
+# Iteration: penthouse > hotel apartment > serviced apartment > villa > townhouse > duplex >
+# > commercial types > land/plot > studio > apartment.
 PROP_TYPE_MAP = {
-    "studio":     ["studio"],
-    "apartment":  ["apartment", "apt", "flat", "unit", "residence"],
-    "villa":      ["villa", "villas", "detached villa", "independent villa"],
-    "townhouse":  ["townhouse", "town house", "townhome"],
-    "penthouse":  ["penthouse", "ph", "pent house"],
-    "duplex":     ["duplex"],
-    "plot":       ["plot", "land for sale"],
+    # Specific residential types (check FIRST)
+    "penthouse":         ["penthouse", "pent house", "пентхаус"],
+    "hotel_apartment":   ["hotel apartment", "hotel apt", "hotel residence", "hotel residences"],
+    "serviced_apartment":["serviced apartment", "serviced apt", "serviced residence"],
+    "villa":             ["villa", "villas", "detached villa", "independent villa", "вилла", "виллы"],
+    "townhouse":         ["townhouse", "town house", "townhome", "таунхаус", "таунхауc"],
+    "duplex":            ["duplex", "дуплекс"],
+    # Commercial — keywords must be in specific commercial-context phrases, not casual mentions
+    "hotel":             ["hotel for sale", "hotel for lease", "branded hotel", "boutique hotel"],
+    "office":            ["office for sale", "office for rent", "office sale", "for sale | office",
+                          "for rent | office", "office space for sale", "office space for rent", "офис на продажу"],
+    "retail":            ["retail for sale", "retail for rent", "retail unit",
+                          "retail space", "shop for sale", "shop for rent"],
+    "warehouse":         ["warehouse for sale", "warehouse for rent", "warehouse unit", "storage facility"],
+    # Land — must be in explicit plot/land offer context, not just "Plot: 1,873 sq.ft" size field
+    "plot":              ["plot for sale", "plot for rent", "plot for lease", "land for sale",
+                          "land for lease", "freehold plot", "building plot", "development plot",
+                          "industrial plot", "commercial plot", "residential plot",
+                          "земельный участок"],
+    # Generic residential (LAST so they don't beat specific ones)
+    "studio":            ["studio", "студия"],
+    "apartment":         ["apartment", "apt", "flat", "unit", "residence", "квартира"],
 }
 
 # Views
@@ -1774,11 +1792,27 @@ def extract_unit_number(text: str) -> Optional[str]:
 
 
 def extract_property_type(text: str, bedrooms: Optional[int] = None) -> str:
-    tl = text.lower()
+    """Returns property type code.
+    Iteration order in PROP_TYPE_MAP is SIGNIFICANT — specific types are checked first.
+    For multi-listing texts, parse only the FIRST BLOCK (before --- separator) to bias
+    to the primary listing rather than catching a type from listing #3.
+    """
+    # First listing block: up to first horizontal separator or blank-blank
+    first_block = re.split(r'\n\s*[-—–=]{3,}\s*\n|\n\s*\n\s*\n', text, maxsplit=1)[0]
+    head = first_block[:500].lower()
+    full = text.lower()
+
+    # Pass 1: check first listing block (most reliable)
     for ptype, keywords in PROP_TYPE_MAP.items():
         for kw in keywords:
-            if re.search(r'\b' + re.escape(kw) + r'\b', tl):
+            pat = kw if kw.endswith('\\b') else r'\b' + re.escape(kw) + r'\b'
+            if re.search(pat, head):
                 return ptype
+
+    # No Pass 2 — single-pass on first block. Pass 2 over full text caused false positives
+    # (e.g. "Office Room" in a villa caused property_type=office).
+
+    # Fallback
     if bedrooms == 0:
         return "studio"
     return "apartment"
