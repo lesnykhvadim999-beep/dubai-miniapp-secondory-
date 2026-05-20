@@ -1231,6 +1231,9 @@ def _clean_building_candidate(s: str) -> Optional[str]:
     # Reject generic property-type and description words alone
     if re.search(r'\b(?:villa|townhouse|apartment|penthouse|office|studio|duplex|loft|land|spacious|layout|amenities|features|brand\s*new|vacant|rented|tenanted|ready)\b', s, re.I):
         return None
+    # Reject floor/view/price/size descriptors masquerading as building names
+    if re.search(r'\b(?:high\s+floor|low\s+floor|mid(?:dle)?\s+floor|ground\s+floor|top\s+floor|penthouse\s+floor|sea\s+view|park\s+view|pool\s+view|burj\s+(?:khalifa\s+)?view|community\s+view|canal\s+view|garden\s+view|city\s+view|skyline\s+view|partial\s+view|full\s+view)\b', s, re.I):
+        return None
     # Reject marketing phrases / buyer-status / channel-spam
     if re.search(r'\b(?:subscribe|channel|members?|message|please|hassle|perfect\s+for|move\s+in|investors?|end\s*users?|star\s+rating|net\s+to\s+the?\s+owner|long\s+lease|cluster|corner\s+unit|single\s+row|fully\s+upgraded)\b', s, re.I):
         return None
