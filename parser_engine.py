@@ -16,7 +16,6 @@ parser_engine.py — Smart Entity Recognition & Validation Engine
 - Если район из текста не совпадает с базой → низкий confidence
 - Если здание не в базе → Nominatim
 """
-from __future__ import annotations
 import re
 import os
 import json
@@ -26,6 +25,29 @@ from typing import Optional
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. EMIRATES
 # ══════════════════════════════════════════════════════════════════════════════
+
+import json as _json
+import os as _os
+
+def _load_rules() -> dict:
+    path = _os.path.join(_os.path.dirname(__file__), 'parsing_rules.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            return _json.load(f)
+    except Exception as e:
+        print(f'[rules] Failed to load parsing_rules.json: {e}')
+        return {}
+
+RULES = _load_rules()
+
+def _get_abbr(text: str) -> str:
+    abbr = RULES.get('abbreviations', {})
+    words = text.split()
+    result = []
+    for w in words:
+        result.append(abbr.get(w.upper(), w))
+    return ' '.join(result)
+
 EMIRATES = {
     "Dubai":           ["dubai", "dxb", "dbx", "دبي", "dubay"],
     "Abu Dhabi":       ["abu dhabi", "abudhabi", "auh", "ad", "أبوظبي", "abu-dhabi"],
@@ -43,7 +65,7 @@ EMIRATES = {
 AREAS = {
     # Dubai
     "Downtown Dubai":            {"emirate": "Dubai",     "aliases": ["downtown", "dt", "dtdxb", "burj khalifa area", "old town"]},
-    "Business Bay":              {"emirate": "Dubai",     "aliases": ["bb", "biz bay", "businessbay"]},
+    "Business Bay":              {"emirate": "Dubai",     "aliases": ["bb", "biz bay", "businessbay", "бизнес бей", "бизнес-бей", "бизнес бэй"]},
     "Dubai Marina":              {"emirate": "Dubai",     "aliases": ["marina", "dm", "the marina"]},
     "Palm Jumeirah":             {"emirate": "Dubai",     "aliases": ["palm", "pj", "the palm", "palm jumeriah", "palm jumeira"]},
     "Jumeirah Village Circle":   {"emirate": "Dubai",     "aliases": ["jvc", "jumeirah village", "jumeirah village circle"]},
@@ -132,6 +154,16 @@ AREAS = {
     "Al Safa":                   {"emirate": "Dubai",     "aliases": ["al safa"]},
     "Creek Beach":               {"emirate": "Dubai",     "aliases": ["creek beach", "creek island"]},
     "Mina Rashid":               {"emirate": "Dubai",     "aliases": ["mina rashid", "rashid harbour"]},
+    # Dubai — new areas/communities (added 2026-05-20)
+    "Dubai Islands":             {"emirate": "Dubai",     "aliases": ["dubai islands", "dubai island"]},
+    "District One":              {"emirate": "Dubai",     "aliases": ["district one", "d1", "district 1"]},
+    "NARA":                      {"emirate": "Dubai",     "aliases": ["nara"]},
+    "The Wilds":                 {"emirate": "Dubai",     "aliases": ["the wilds", "wilds 1", "wilds 2"]},
+    "Wadi Al Safa":              {"emirate": "Dubai",     "aliases": ["wadi al safa", "wadi safa"]},
+    "Emaar Beachfront":          {"emirate": "Dubai",     "aliases": ["emaar beachfront", "beachfront emaar", "beachfront"]},
+    "Peninsula":                 {"emirate": "Dubai",     "aliases": ["peninsula"]},
+    # Ambiguous — exists in multiple emirates
+    "Al Mamzar":                 {"emirate": None, "ambiguous": True, "possible": ["Dubai", "Sharjah"], "aliases": ["al mamzar", "mamzar", "al-mamzar"]},
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -179,6 +211,23 @@ BUILDINGS_DB = {
     "The Address Downtown":            {"area": "Downtown Dubai", "emirate": "Dubai", "developer": "Emaar"},
     "The Address Boulevard":           {"area": "Downtown Dubai", "emirate": "Dubai", "developer": "Emaar"},
     "The Grande":                      {"area": "Downtown Dubai", "emirate": "Dubai", "developer": "Emaar"},
+    "W Residence":           {"area": "Downtown Dubai", "emirate": "Dubai", "developer": "Marriott"},
+    "W Residences":          {"area": "Downtown Dubai", "emirate": "Dubai", "developer": "Marriott"},
+    "Sobha One":             {"area": "Sobha Hartland", "emirate": "Dubai", "developer": "Sobha"},
+    "Creek Horizon":         {"area": "Dubai Creek Harbour", "emirate": "Dubai", "developer": "Emaar"},
+    "Creek Gate":            {"area": "Dubai Creek Harbour", "emirate": "Dubai", "developer": "Emaar"},
+    "Island Park":           {"area": "Dubai Creek Harbour", "emirate": "Dubai", "developer": "Emaar"},
+    "Golf Place":            {"area": "Dubai Hills Estate", "emirate": "Dubai", "developer": "Emaar"},
+    "Maple":                 {"area": "Dubai Hills Estate", "emirate": "Dubai", "developer": "Emaar"},
+    "Sidra":                 {"area": "Dubai Hills Estate", "emirate": "Dubai", "developer": "Emaar"},
+    "Elara":                 {"area": "Palm Jumeirah", "emirate": "Dubai", "developer": "Nakheel"},
+    "Oceana":                {"area": "Palm Jumeirah", "emirate": "Dubai", "developer": "Nakheel"},
+    "Shoreline":             {"area": "Palm Jumeirah", "emirate": "Dubai", "developer": "Nakheel"},
+    "The 8":                 {"area": "Palm Jumeirah", "emirate": "Dubai", "developer": "Nakheel"},
+    "One at Palm":           {"area": "Palm Jumeirah", "emirate": "Dubai", "developer": "Omniyat"},
+    "Dorchester":            {"area": "Business Bay", "emirate": "Dubai", "developer": "Omniyat"},
+    "The Opus":              {"area": "Business Bay", "emirate": "Dubai", "developer": "Omniyat"},
+    "Aykon City":            {"area": "Business Bay", "emirate": "Dubai", "developer": "DAMAC"},
     "IL Primo":                        {"area": "Downtown Dubai", "emirate": "Dubai", "developer": "Emaar"},
     "Opera Grand":                     {"area": "Downtown Dubai", "emirate": "Dubai", "developer": "Emaar"},
     "Burj Crown":                      {"area": "Downtown Dubai", "emirate": "Dubai", "developer": "Emaar"},
@@ -232,6 +281,7 @@ BUILDINGS_DB = {
     "LIV Marina":                      {"area": "Dubai Marina",   "emirate": "Dubai", "developer": "LIV"},
     "LIV Residence":                   {"area": "Dubai Marina",   "emirate": "Dubai", "developer": "LIV"},
     "Address Beach Resort":            {"area": "Dubai Marina",   "emirate": "Dubai", "developer": "Emaar"},
+    "Address Dubai Marina": {"area": "Dubai Marina", "emirate": "Dubai", "developer": "Address Hotels", "aliases": ["address marina", "address dxb marina"]},
     "Grosvenor House":                 {"area": "Dubai Marina",   "emirate": "Dubai", "developer": "Grosvenor"},
     "Five Marina":                     {"area": "Dubai Marina",   "emirate": "Dubai", "developer": "Five Holdings"},
     "Emaar 6 Tower":                   {"area": "Dubai Marina",   "emirate": "Dubai", "developer": "Emaar"},
@@ -505,6 +555,30 @@ def clean_text(text: str) -> str:
     return text
 
 
+
+def split_into_blocks(text: str) -> list:
+    import re
+    # Берём разделители из rules файла + базовые
+    rule_seps = RULES.get('block_separators', [])
+    separators = [r'-{4,}', r'_{4,}', r'={4,}', r'\*{4,}']
+    for sep in rule_seps:
+        escaped = re.escape(sep)
+        if escaped not in separators:
+            separators.append(escaped)
+    pattern = '|'.join(separators)
+    blocks = re.split(pattern, text)
+    result = []
+    for block in blocks:
+        block = block.strip()
+        if len(block) < 30:
+            continue
+        # Проверяем что блок похож на объявление
+        bl = block.lower()
+        has_price = bool(re.search(r'aed|price|sp:|\d+[mk]\b|\d{6,}', bl))
+        has_prop = bool(re.search(r'bed|br|bhk|studio|villa|apartment|sqft|sq\.ft', bl))
+        if has_price or has_prop:
+            result.append(block)
+    return result if result else [text]
 def is_spam(text: str) -> bool:
     if len(text.strip()) < 25:
         return True
@@ -609,6 +683,9 @@ def validate_deal_type_by_price(
     # ── 1 & 2: keyword overrides ──────────────────────────────────────────
     if text:
         t = text.lower()
+        # Buyer request = always sale/buy
+        if re.search(r'buyer.{0,10}request|looking.{0,20}(buy|purchase)', t, re.IGNORECASE):
+            return "sale"
         if any(re.search(p, t, re.IGNORECASE) for p in _HARD_RENT_KW_PE):
             deal_type = "rent"
         elif any(re.search(p, t, re.IGNORECASE) for p in _HARD_SALE_KW_PE):
@@ -860,6 +937,11 @@ def extract_from_header_lines(text: str) -> dict:
                         result["building"] = cand
                     break
 
+    # Validate building field - clear if contains phone/email/digits
+    import re as _re
+    if result.get('building') and (_re.search(r'\+?\d{7,}|@|\bhttp', result['building']) or any(w in result['building'].lower() for w in ['prices are', 'net to', 'owner', 'commission', 'contact', 'whatsapp', 'call us', 'click'])):
+        result['building'] = None
+        result['building_conf'] = 0.0
     return result
 
 
@@ -899,6 +981,24 @@ def detect_area(text: str, known_emirate: Optional[str] = None) -> tuple[Optiona
                     return area_name, 0.60, None, possible
                 conf = 0.95 if area_name.lower() in tl else 0.85
                 return area_name, conf, area_emirate, []
+
+    # Fallback: emirate-only mention (e.g. "Layla Residences, Sharjah" with no recognized district)
+    # Returns area=<Emirate name>, emirate=<Emirate>, low confidence
+    EMIRATE_FALLBACK = [
+        ("Dubai",          ["dubai", "dxb"]),
+        ("Abu Dhabi",      ["abu dhabi", "abudhabi", "auh"]),
+        ("Sharjah",        ["sharjah", "shj"]),
+        ("Ras Al Khaimah", ["ras al khaimah", "ras al-khaimah", "ras al khaima", "rak"]),
+        ("Ajman",          ["ajman"]),
+        ("Fujairah",       ["fujairah", "fuj"]),
+        ("Umm Al Quwain",  ["umm al quwain", "uaq"]),
+    ]
+    for emirate_name, emirate_aliases in EMIRATE_FALLBACK:
+        if known_emirate and emirate_name != known_emirate:
+            continue
+        for name in emirate_aliases:
+            if re.search(r'\b' + re.escape(name) + r'\b', tl):
+                return emirate_name, 0.40, emirate_name, []
 
     return None, 0.0, None, []
 
@@ -950,7 +1050,157 @@ def detect_building(text: str) -> tuple[Optional[str], float, Optional[str], Opt
     except Exception:
         pass
 
+    # 4. Heuristic regex — typical "📍 X, Emirate" / "🏢 Project: X" / "X in Y" patterns
+    heur = _extract_building_heuristic(text)
+    if heur:
+        return heur, 0.60, None, None, None
+
     return None, 0.0, None, None, None
+
+
+# Stopwords for heuristic building extraction — area names, emirates, generic words
+# that should NOT be treated as buildings.
+_BUILDING_HEUR_STOPWORDS = {
+    # Emirates
+    "dubai", "abu dhabi", "sharjah", "ras al khaimah", "ras al-khaimah",
+    "ajman", "fujairah", "umm al quwain", "rak", "uae",
+    # Common generic words
+    "for sale", "for rent", "hot deal", "hot offer", "distress deal", "unit for sale",
+    "units for sale", "buyer request", "cash buyer", "very hot offer", "hot offers",
+    "looking for", "seeking", "sale price", "selling price", "original price",
+    "apartment", "villa", "townhouse", "studio", "penthouse", "office",
+    "address", "location", "developer", "project", "rooms",
+    "category", "area", "bedrooms", "bathrooms", "parking", "furnished",
+    "availability", "balcony", "floor", "plot",
+    # Pure marketing
+    "luxury premium branded hotels", "branded hotels", "real estate",
+}
+
+
+def _is_building_stopword(s: str) -> bool:
+    """Check if s is a stopword or looks like one (area name, emirate, marketing phrase)."""
+    sl = s.strip().lower()
+    if not sl or len(sl) < 3:
+        return True
+    if sl in _BUILDING_HEUR_STOPWORDS:
+        return True
+    # Check against AREAS keys/aliases — area names are not buildings
+    for area_name, info in AREAS.items():
+        if sl == area_name.lower():
+            return True
+        if sl in [a.lower() for a in info.get("aliases", [])]:
+            return True
+    return False
+
+
+def _clean_building_candidate(s: str) -> Optional[str]:
+    """Strip emoji/punctuation, validate, return canonical or None."""
+    if not s:
+        return None
+    # Remove emoji and common decorative chars
+    s = re.sub(r'[📍🏡🏢💰🔥✨⭐️🌊🛏🛁🚘🪑🔑🪴📐☎️📞📩‼️🟥🟨🟩‍♂️‍♀️]', '', s)
+    # Remove markdown
+    s = re.sub(r'\*+|_+|~+|`+', '', s)
+    # Reject if contains key:value separator (likely a service line like "Property type: townhouse")
+    if re.search(r'[:=]', s):
+        return None
+    # If trailing ", X" where X is shorter than 4 chars — drop the tail (e.g. "Sobha The Crest, B" → "Sobha The Crest")
+    s = re.sub(r',\s*[A-Z0-9]{1,3}\s*$', '', s)
+    # Collapse whitespace and strip junk
+    s = re.sub(r'\s+', ' ', s).strip(' ,.-–—:|')
+    if not s:
+        return None
+    # Length: minimum 4 chars (was 3 — too short caught "1BR")
+    if len(s) < 4 or len(s) > 60:
+        return None
+    if _is_building_stopword(s):
+        return None
+    # Must contain at least one letter
+    if not re.search(r'[A-Za-zА-Яа-я]', s):
+        return None
+    # Reject bedrooms/property service fragments
+    if re.search(r'\b(?:\d+\s*br|\d+\s*bhk|\d+\s*bed(?:room)?s?|property\s+type|rooms?|bedrooms?|bathrooms?|parking|furnished|availability|balcony|floor|plot|category|size|price|view|completion|developer|status)\b', s, re.I):
+        return None
+    # Must not be all digits + punct
+    if re.fullmatch(r'[\d\s.,\-+]+', s):
+        return None
+    # Filter price/size fragments
+    if re.search(r'\b(aed|sqft|sq\.?\s?ft|sqm|sq\.?\s?m|m2|ft²|/month|/m|million|mln)\b', s, re.I):
+        return None
+    # Filter phone numbers
+    if re.search(r'\+?\d{6,}', s):
+        return None
+    # Filter URLs/handles
+    if re.search(r'https?://|@\w+', s, re.I):
+        return None
+    # Too many words → probably a sentence
+    if len(s.split()) > 6:
+        return None
+    return s
+
+
+def _extract_building_heuristic(text: str) -> Optional[str]:
+    """
+    Heuristic fallback when building is not in DB.
+    Returns canonical building name or None.
+
+    Patterns recognized:
+      1) 📍 <Name>, <Emirate>       e.g. "📍 Sea la vie, Abu Dhabi"
+      2) 🏢 Project: <Name>          e.g. "🏢 Project: Ellington Views I"
+      3) 🏡 <Name>                   on its own line, after Area: ...
+      4) (Studio|N BR|N bedroom) in <Name>   e.g. "STUDIO in DG1 Living"
+      5) <Name>, <KnownArea>         e.g. "Nobles Tower, Business Bay"
+    """
+    if not text:
+        return None
+
+    # Skip buyer requests entirely — they don't have a "their" building
+    head = text[:300].lower()
+    if re.search(r'\bbuyer\s*request\b|\bcash\s*buyer\b|\blooking\s*for\s*(?:a|my|the|an)?\s*\d?\s*(?:bedroom|br|bhk|studio|villa|apartment|townhouse|plot|residence)', head):
+        return None
+    if re.search(r'\bseeking\s+a\s+\d?\s*(?:bedroom|br|bhk|studio|villa|apartment)', head):
+        return None
+
+    emirate_pat = r'(?:Dubai|Abu Dhabi|Sharjah|Ras\s+Al\s+Khaimah|Ajman|Fujairah|Umm\s+Al\s+Quwain)'
+
+    # Pattern 1: 📍 <Name>, <Emirate>
+    for m in re.finditer(r'📍\s*([^\n,–\-📍🏡🏢]{3,50})\s*[,–\-]\s*' + emirate_pat, text, re.IGNORECASE):
+        cand = _clean_building_candidate(m.group(1))
+        if cand:
+            return cand
+
+    # Pattern 2: 🏢 Project: <Name>  (also "Project:" without emoji)
+    for m in re.finditer(r'(?:🏢\s*)?Project\s*[:：]\s*([^\n]{3,60})', text, re.IGNORECASE):
+        cand = _clean_building_candidate(m.group(1))
+        if cand:
+            return cand
+
+    # Pattern 3: 🏡 <Name> on its own line  (one short line, just a name)
+    for m in re.finditer(r'🏡\s*([^\n]{3,50})', text):
+        cand = _clean_building_candidate(m.group(1))
+        if cand:
+            return cand
+
+    # Pattern 4: (Studio|N BR|N bedroom) in <Name>  — bounded to current line
+    for m in re.finditer(r'\b(?:studio|\d+\s*(?:br|bhk|bedroom|bed))\s+in\s+([A-Z][^\n]{2,40})', text, re.IGNORECASE):
+        cand = _clean_building_candidate(m.group(1))
+        if cand:
+            return cand
+
+    # Pattern 5: <Name>, <KnownArea>  (line starts with name, area follows after comma)
+    known_area_names = []
+    for area_name, info in AREAS.items():
+        known_area_names.append(re.escape(area_name))
+        for a in info.get("aliases", []):
+            known_area_names.append(re.escape(a))
+    area_pat = '|'.join(sorted(known_area_names, key=len, reverse=True))
+    if area_pat:
+        for m in re.finditer(r'(?:^|\n)\s*🏡?\s*([A-Z][^\n,]{2,40})\s*,\s*(?:' + area_pat + r')\b', text, re.IGNORECASE):
+            cand = _clean_building_candidate(m.group(1))
+            if cand:
+                return cand
+
+    return None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1078,38 +1328,20 @@ def extract_bedrooms(text: str) -> Optional[int]:
     m = re.search(r'(\d)\s*(?:bedroom|bed)\b', tl)
     if m:
         return int(m.group(1))
-    # "X Bedrooms+maid" / "4bed Townhouse"
-    m = re.search(r'\b(\d)\s*bed\b', tl)
-    if m:
-        return int(m.group(1))
-    # "Unit: X Bedroom" format
-    m = re.search(r'unit\s*:\s*(\d)\s*bed(?:room)?', tl)
-    if m:
-        return int(m.group(1))
+    m = re.search(r'(\d+)\s*(?:bdr|b/r)\b', tl)
+    if m: return int(m.group(1))
+    m = re.search(r'bedrooms?\s*[:\-]?\s*(\d+)', tl)
+    if m: return int(m.group(1))
+    m = re.search(r'(\d+)\s*bedrooms?', tl)
+    if m: return int(m.group(1))
+    m = re.search(r'rooms?\s*[:\-]\s*(\d+)', tl)
+    if m: return int(m.group(1))
     return None
-
-
-def extract_bathrooms(text: str) -> Optional[int]:
-    m = re.search(r'(\d)\s*(?:bath(?:room)?s?|ba\b)', text, re.I)
-    return int(m.group(1)) if m else None
-
-
+    # "Unit: X Bedroom" format
 def extract_size(text: str) -> dict:
     result = {"size_sqft": None, "bua_sqft": None, "plot_sqft": None}
-
     def _parse_sqft(s: str) -> float:
-        return float(s.replace(",", "").replace(" ", ""))
-
-    # BUA (Built-up Area) — most specific
-    m = re.search(r'BUA[^:]*:\s*([\d,]+\.?\d*)\s*sq', text, re.I)
-    if m:
-        result["bua_sqft"] = _parse_sqft(m.group(1))
-
-    # Plot area
-    m = re.search(r'plot[:\s]*([\d,]+\.?\d*)\s*(?:sq\.?\s*ft|sqft|sft|ft²)', text, re.I)
-    if m:
-        result["plot_sqft"] = _parse_sqft(m.group(1))
-
+        return float(str(s).replace(",", "").replace(" ", "").strip())
     # Size label first (more specific → less specific)
     sqft_patterns = [
         r'Size\s*:?\s*([\d,]+\.?\d*)\s*sq',
@@ -1128,6 +1360,27 @@ def extract_size(text: str) -> dict:
                 result["size_sqft"] = val
                 break
 
+        # ft² or ft* format
+        m = re.search(r'([\d,]+\.?\d*)\s*ft[²*2]', text, re.I)
+        if m:
+            v = float(m.group(1).replace(',', ''))
+            if 50 <= v <= 100_000:
+                result["size_sqft"] = v
+                return result
+        # SQM/sqm - convert to sqft (1 sqm = 10.764 sqft)
+        m = re.search(r'([\d,]+\.?\d*)\s*(?:sqm|sq\.?\s*m\b|m2)', text, re.I)
+        if m:
+            v = float(m.group(1).replace(',', '')) * 10.764
+            if 50 <= v <= 100_000:
+                result["size_sqft"] = round(v, 1)
+                return result
+        # Area/Plot: X SQM
+        m = re.search(r'(?:area|plot)\s*[:\-]?\s*([\d,]+\.?\d*)\s*(?:sqm|sq\.?m)', text, re.I)
+        if m:
+            v = float(m.group(1).replace(',', '')) * 10.764
+            if 50 <= v <= 100_000:
+                result["size_sqft"] = round(v, 1)
+                return result
     return result
 
 
@@ -1135,12 +1388,12 @@ def _parse_amount(s: str) -> Optional[int]:
     """Parse price strings like '1.5M', '750k', '3.2ML', '1,200,000'."""
     if not s:
         return None
-    s = str(s).replace(",", "").replace(" ", "").strip().upper()
+    s = str(s).replace(",", "").replace(" ", "").strip().upper(); s = re.sub(r"\.(\d{3})(?=\.|$)", r"\1", s) if s.count(".") > 1 else s
     try:
         # ML or M suffix (3.2ML = 3.2M = 3,200,000)
         # Guard: if base number >= 10000 it's not "Xm" notation (e.g. "21750000 m²")
-        if s.endswith("ML") or s.endswith("M"):
-            v = float(s.rstrip("LM"))
+        if s.endswith("MLN") or s.endswith("ML") or s.endswith("M"):
+            v = float(s.rstrip("LMN"))
             if v >= 10000:
                 return None
             return int(v * 1_000_000)
@@ -1176,13 +1429,15 @@ def extract_price(text: str) -> dict:
     text = _strip_phones(text)
     t = text  # preserve original case for Cash regex
 
-    # ── Original / Purchase price ─────────────────────────────────────────────
-    m = re.search(r'(?:op|original\s*price|purchase\s*price)[:\s]*([\d,\.]+\s*[mbk]?l?)', t, re.I)
+    # -- Original / Purchase price
+    m = re.search(r'(?:op|original\s*price|purchase\s*price|sale\s*price)[\s:]*([\d,\. ]+\s*[mkb]?l?)', t, re.I)
     if m:
         result["original_price"] = _parse_amount(m.group(1))
+        if result["original_price"] and not result["price"]:
+            result["price"] = result["original_price"]
 
-    # ── Cash price — take priority if both Mortgage+Cash present ─────────────
-    m = re.search(r'AED\s*([\d\.]+\s*M?)\s*\(CASH\)', t, re.I)
+
+    m = re.search(r'AED\s*([\d\. ]+\s*M?)\s*\(CASH\)', t, re.I)
     if m:
         raw = m.group(1).strip()
         # ensure M suffix handled
@@ -1197,17 +1452,29 @@ def extract_price(text: str) -> dict:
             result["selling_price"] = v
             return result
 
+    if not result["price"]:
+        m = re.search(r'(?:price|asking price)\s*[:\-]?\s*([\d,\. ]+\s*(?:mln|m|k)?)', t, re.I)
+        if m:
+            v = _parse_amount(m.group(1))
+            if v: result["price"] = v
     # ── SP / Selling price / Asking / PP ─────────────────────────────────────
     m = re.search(
-        r'(?:sp|pp|selling\s*price|asking\s*price|ask)\s*:?\s*([\d,\.]+\s*[mbk]?l?)',
+        r'(?:sp|pp|selling\s*price|asking\s*price|ask)\s*:?\s*(?:aed|usd)?\s*([\d,. ]+\s*[mbk]?)',
         t, re.I)
     if m:
         v = _parse_amount(m.group(1))
         if v:
             result["selling_price"] = v
             result["price"] = v
-
-    # ── Rent / For rent label ─────────────────────────────────────────────────
+        # Slash price: 8,000/m or 8000/month
+        m = re.search(r'([\d][\d,\. ]*)/(?:m\b|mo\b|month)', t, re.I)
+    # Slash price: 8,000/m or 8000/month
+    m = re.search(r'([\d][\d,\. ]*)/(?:m\b|mo\b|month)', t, re.I)
+    if m:
+        v = _parse_amount(m.group(1).replace(" ", ""))
+        if v and v > 1000:
+            result["price"] = v
+            return result
     if not result["price"]:
         m = re.search(r'(?:rent|for\s+rent)\s*:?\s*([\d,\.]+\s*[mkb]?l?)', t, re.I)
         if m:
@@ -1220,6 +1487,20 @@ def extract_price(text: str) -> dict:
         m = re.search(r'AED\s*([\d\.]+)\s*M\b', t, re.I)
         if m:
             result["price"] = int(float(m.group(1)) * 1_000_000)
+
+    # ── X.Xmln / X.Xmillion standalone ──────────────────────────────────────
+    if not result["price"]:
+        m = re.search(r'([\d\.]+)\s*(?:mln|million)\b', t, re.I)
+        if m:
+            v = _parse_amount(m.group(1) + 'M')
+            if v: result["price"] = v
+
+    # ── Русская цена: Цена XXXXX ─────────────────────────────────────────────
+    if not result["price"]:
+        m = re.search(r'(?:цена|стоимость)\s*[:\-]?\s*([\d,\.\s]+)', t, re.I)
+        if m:
+            v = _parse_amount(m.group(1).replace(' ', ''))
+            if v: result["price"] = v
 
     # ── Generic: number + K/M/ML ──────────────────────────────────────────────
     if not result["price"]:
@@ -1481,6 +1762,17 @@ def parse_message(
     """
     original_text = text
     clean = clean_text(text)
+    
+    # --- DLD pre-lookup: find building from first lines before heavy detection ---
+    _dld_building = None
+    _dld_area = None
+    _first_lines = [l.strip() for l in text.split('\n')[:4] if l.strip() and len(l.strip()) > 3 and not any(c.isdigit() for c in l.strip()[:5])]
+    for _line in _first_lines:
+        _dld_r = dld_lookup(_line)
+        if _dld_r:
+            _dld_building = _dld_r.get('building')
+            _dld_area = _dld_r.get('area')
+            break
 
     # Step 2: Spam check
     if is_spam(clean):
@@ -1584,6 +1876,27 @@ def parse_message(
             review_reason = f"Area '{area}' exists in multiple emirates: {possible_emirates}"
 
     # ── Step 6: Nominatim fallback ────────────────────────────────────────────
+    # DLD lookup by first lines when building not found
+    if not building:
+        first_lines = [l.strip() for l in original_text.split('\n')[:3] if l.strip() and len(l.strip()) > 3]
+        for line in first_lines:
+            if not any(c.isdigit() for c in line[:5]):  # не начинается с цифр
+                dld_r = dld_lookup(line)
+                if dld_r:
+                    building = dld_r.get('building')
+                    if not area:
+                        area = dld_r.get('area')
+                    break
+    if building and not area:
+        dld = dld_lookup(building)
+        if dld:
+            area = dld.get("area") or area
+    # Apply DLD pre-lookup results - DLD has priority over weak detection
+    if _dld_building:
+        building = _dld_building
+        building_conf = 0.75
+    if not area and _dld_area:
+        area = _dld_area
     if building and not area and building_conf < 0.80:
         nom = nominatim_lookup(building)
         if nom:
@@ -1837,3 +2150,162 @@ def merge_ai_with_parsed(parsed: dict, ai: dict) -> dict:
     parsed["ai_confidence"] = ai.get("confidence", "medium")
 
     return parsed
+
+
+def extract_building_from_rules(text):
+    if not text or not BUILDINGS_DB:
+        return None
+    text_lower = text.lower()
+    # Сортируем по длине названия (длинные первыми - более точное совпадение)
+    for bname, bdata in sorted(BUILDINGS_DB.items(), key=lambda x: len(x[0]), reverse=True):
+        if bname.lower() in text_lower:
+            return bname
+        # Проверяем aliases если есть
+        aliases = bdata.get('aliases', [])
+        for alias in aliases:
+            if alias.lower() in text_lower:
+                return bname
+    return None
+
+
+def extract_area_from_rules(text):
+    if not text or not AREAS:
+        return None
+    text_lower = text.lower()
+    for aname, adata in sorted(AREAS.items(), key=lambda x: len(x[0]), reverse=True):
+        if aname.lower() in text_lower:
+            return aname
+        aliases = adata.get('aliases', [])
+        for alias in aliases:
+            if alias.lower() in text_lower:
+                return aname
+    return None
+
+
+def expand_abbreviations(text):
+    if not text or not RULES:
+        return text
+    abbrevs = RULES.get('abbreviations', {})
+    for abbr, full in abbrevs.items():
+        import re
+        text = re.sub(r'\b' + re.escape(abbr) + r'\b', full, text, flags=re.IGNORECASE)
+    return text
+
+
+DLD_DB_URL = "postgresql://postgres:REDACTED_ARCHIVE_DB_PASSWORD@switchback.proxy.rlwy.net:23244/railway"
+
+def dld_lookup(building_name):
+    if not building_name or len(building_name) < 3:
+        return None
+    try:
+        import psycopg2
+        url = "postgresql://postgres:REDACTED_ARCHIVE_DB_PASSWORD@switchback.proxy.rlwy.net:23244/railway"
+        conn = psycopg2.connect(url, connect_timeout=5)
+        cur = conn.cursor()
+        cur.execute("SELECT building_name_en, area_name_en FROM dld_sales_unified WHERE UPPER(building_name_en) = UPPER(%s) AND building_name_en != '' LIMIT 1", (building_name,))
+        row = cur.fetchone()
+        if not row:
+            cur.execute("SELECT building_name_en, area_name_en FROM dld_sales_unified WHERE building_name_en ILIKE %s AND building_name_en != '' ORDER BY (SELECT COUNT(*) FROM dld_sales_unified s2 WHERE s2.building_name_en=dld_sales_unified.building_name_en) DESC LIMIT 1", ('%' + building_name + '%',))
+            row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row:
+            return {"building": row[0], "area": row[1]}
+    except Exception as e:
+        pass
+    return None
+    try:
+        import psycopg2
+        conn = psycopg2.connect(DLD_DB_URL, connect_timeout=3)
+        with conn.cursor() as c:
+            # ?????? ??????????
+            c.execute("""
+                SELECT building_name_en, area_name_en, 
+                       AVG(actual_worth) as avg_price,
+                       COUNT(*) as cnt
+                FROM dld_sales_unified
+                WHERE UPPER(building_name_en) = UPPER(%s)
+                AND building_name_en != ''
+                GROUP BY building_name_en, area_name_en
+                ORDER BY cnt DESC LIMIT 1
+            """, (building_name,))
+            row = c.fetchone()
+            if row:
+                conn.close()
+                return {"building": row[0], "area": row[1], "avg_price": float(row[2]) if row[2] else None}
+            
+            # ???????? ?????????? - ILIKE
+            c.execute("""
+                SELECT building_name_en, area_name_en,
+                       AVG(actual_worth) as avg_price,
+                       COUNT(*) as cnt
+                FROM dld_sales_unified
+                WHERE building_name_en ILIKE %s
+                AND building_name_en != ''
+                GROUP BY building_name_en, area_name_en
+                ORDER BY cnt DESC LIMIT 1
+            """, (f"%{building_name}%",))
+            row = c.fetchone()
+            conn.close()
+            if row:
+                return {"building": row[0], "area": row[1], "avg_price": float(row[2]) if row[2] else None}
+    except Exception as e:
+        pass
+    return None
+
+
+# Load price benchmarks
+import os as _os
+_BENCHMARKS_PATH = _os.path.join(_os.path.dirname(__file__), 'price_benchmarks.json')
+try:
+    with open(_BENCHMARKS_PATH, 'r', encoding='utf-8') as _f:
+        PRICE_BENCHMARKS = json.load(_f)
+    print(f'[parser] Price benchmarks loaded: {len(PRICE_BENCHMARKS)} buildings')
+except:
+    PRICE_BENCHMARKS = {}
+    print('[parser] Price benchmarks not found')
+
+
+def classify_deal_by_price(building, price):
+    """
+    Returns 'sale', 'rent', or None based on price vs DLD benchmarks.
+    price - raw number from message (AED)
+    """
+    if not building or not price or not PRICE_BENCHMARKS:
+        return None
+    
+    # Try exact match first, then case-insensitive
+    bdata = PRICE_BENCHMARKS.get(building) or PRICE_BENCHMARKS.get(building.upper())
+    if not bdata:
+        # Try partial match
+        bname_lower = building.lower()
+        for k, v in PRICE_BENCHMARKS.items():
+            if bname_lower in k.lower() or k.lower() in bname_lower:
+                bdata = v
+                break
+    
+    if not bdata:
+        return None
+    
+    sale_median = bdata.get('sale_median')
+    rent_median = bdata.get('rent_median_yearly')
+    
+    # If price is close to rent range (5k-300k AED/year)
+    if rent_median and 5000 < price < 500000:
+        rent_diff = abs(price - rent_median) / rent_median if rent_median else 1
+        if rent_diff < 0.8:  # within 80% of median rent
+            return 'rent'
+    
+    # If price is close to sale range (100k+ AED)
+    if sale_median and price > 100000:
+        sale_diff = abs(price - sale_median) / sale_median if sale_median else 1
+        if sale_diff < 1.5:  # within 150% of median sale
+            return 'sale'
+    
+    # Fallback by magnitude
+    if price < 200000:
+        return 'rent'
+    if price > 300000:
+        return 'sale'
+    
+    return None
