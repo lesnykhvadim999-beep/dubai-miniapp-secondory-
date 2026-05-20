@@ -1,4 +1,4 @@
-"""
+﻿"""
 resale_bot.py — Dubai Resale Intelligence Bot v5
 All fixes applied:
 1. Rent filter working
@@ -28,6 +28,124 @@ LEAD_BOT_TOKEN = os.environ.get("LEAD_BOT_TOKEN", "REDACTED_LEAD_BOT_TOKEN")
 ANTHROPIC_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
 API            = f"https://api.telegram.org/bot{BOT_TOKEN}"
 PER_PAGE       = 10
+
+# ── Logo ─────────────────────────────────────────────────────────────────────
+_LOGO_FILE_ID_PATH = os.path.join(os.path.dirname(__file__), "logo_file_id.txt")
+_LOGO_JPG_PATH     = os.path.join(os.path.dirname(__file__), "logo.jpg")
+_logo_file_id: str = ""  # cached in memory after first load
+
+
+def _load_logo_file_id() -> str:
+    """Read logo file_id from DB (_auth_kv table)."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT v FROM _auth_kv WHERE k='logo_file_id'")
+            row = cur.fetchone()
+        conn.close()
+        return row["v"] if row and row["v"] else ""
+    except Exception as e:
+        print(f"[logo] read error: {e}")
+    return ""
+
+
+def _save_logo_file_id(fid: str):
+    """Persist file_id to DB (_auth_kv table)."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO _auth_kv(k,v) VALUES('logo_file_id',%s) "
+                "ON CONFLICT(k) DO UPDATE SET v=%s",
+                (fid, fid)
+            )
+        conn.commit()
+        conn.close()
+        print(f"[logo] Saved file_id to DB: {fid[:30]}...")
+    except Exception as e:
+        print(f"[logo] save error: {e}")
+
+
+def _upload_logo_once() -> str:
+    """
+    Upload logo.jpg to Telegram once, return file_id.
+    Sends to ADMIN_ID chat as a silent message.
+    """
+    global _logo_file_id
+    if not os.path.exists(_LOGO_JPG_PATH):
+        print("[logo] logo.jpg not found — skipping upload")
+        return ""
+    if not BOT_TOKEN:
+        return ""
+    try:
+        with open(_LOGO_JPG_PATH, "rb") as f:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+                files={"photo": ("logo.jpg", f, "image/jpeg")},
+                data={"chat_id": str(ADMIN_ID), "disable_notification": "true",
+                      "caption": "✅ Logo uploaded"},
+                timeout=30,
+            )
+        data = resp.json()
+        if data.get("ok"):
+            fid = data["result"]["photo"][-1]["file_id"]
+            _logo_file_id = fid
+            _save_logo_file_id(fid)
+            print(f"[logo] Uploaded successfully, file_id={fid[:30]}...")
+            return fid
+        else:
+            print(f"[logo] Upload failed: {data.get('description')}")
+    except Exception as e:
+        print(f"[logo] Upload error: {e}")
+    return ""
+
+
+def get_logo_file_id() -> str:
+    """Return logo file_id (from cache, disk, or upload)."""
+    global _logo_file_id
+    if _logo_file_id:
+        return _logo_file_id
+    # Try disk
+    fid = _load_logo_file_id()
+    if fid:
+        _logo_file_id = fid
+        return fid
+    # Upload once
+    return _upload_logo_once()
+
+
+def send_welcome_with_logo(cid: int, uid: int):
+    """
+    Send welcome message with logo on top.
+    Priority: photo + caption in one message.
+    Fallback: text-only welcome if logo unavailable.
+    """
+    welcome_text = _t(uid, "welcome")
+    kb = kb_lang()
+    fid = get_logo_file_id()
+
+    if fid:
+        # Try photo + caption (Telegram caption limit = 1024 chars)
+        caption = welcome_text[:1024]
+        try:
+            resp = _api("sendPhoto",
+                        chat_id=cid,
+                        photo=fid,
+                        caption=caption,
+                        parse_mode="Markdown",
+                        reply_markup=kb)
+            if resp.get("ok"):
+                print(f"[logo] Welcome sent with logo to {cid}")
+                return
+            else:
+                print(f"[logo] sendPhoto failed: {resp.get('description')} — fallback to text")
+        except Exception as e:
+            print(f"[logo] sendPhoto error: {e} — fallback to text")
+    else:
+        print(f"[logo] No logo file_id — sending text-only welcome")
+
+    # Fallback: text only
+    _send(cid, welcome_text, kb)
 
 # ── Translations ──────────────────────────────────────────────────────────────
 T = {
@@ -59,6 +177,16 @@ T = {
     "btn_building": "Search by Building",
     "btn_lang":     "Language",
     "btn_add":      "List My Property",
+    # Bottom reply-keyboard (persistent main menu)
+    "rbtn_search":   "🔍 Search",
+    "rbtn_hot":      "🔥 Hot Deals",
+    "rbtn_area":     "🏘 By Area",
+    "rbtn_building": "🏢 By Building",
+    "rbtn_budget":   "💰 By Budget",
+    "rbtn_new":      "🆕 New",
+    "rbtn_ai":       "✦ AI Assistant",
+    "rbtn_add":      "➕ List Property",
+    "rbtn_lang":     "🌐 Language",
     "emirate_q":  "Select Emirate",
     "e_dubai":    "Dubai",
     "e_abudhabi": "Abu Dhabi",
@@ -210,6 +338,16 @@ T = {
     "btn_building": "Поиск по зданию",
     "btn_lang":     "Язык",
     "btn_add":      "Разместить объект",
+    # Bottom reply-keyboard (persistent main menu)
+    "rbtn_search":   "🔍 Подбор",
+    "rbtn_hot":      "🔥 Горячие",
+    "rbtn_area":     "🏘 По району",
+    "rbtn_building": "🏢 По зданию",
+    "rbtn_budget":   "💰 По бюджету",
+    "rbtn_new":      "🆕 Новые",
+    "rbtn_ai":       "✦ AI Помощник",
+    "rbtn_add":      "➕ Разместить",
+    "rbtn_lang":     "🌐 Язык",
     "emirate_q":  "Выберите эмират",
     "e_dubai":    "Дубай",
     "e_abudhabi": "Абу-Даби",
@@ -360,6 +498,16 @@ T = {
     "btn_building": "البحث بالمبنى",
     "btn_lang":     "اللغة",
     "btn_add":      "إضافة عقار",
+    # Bottom reply-keyboard (persistent main menu)
+    "rbtn_search":   "🔍 بحث",
+    "rbtn_hot":      "🔥 صفقات",
+    "rbtn_area":     "🏘 المنطقة",
+    "rbtn_building": "🏢 المبنى",
+    "rbtn_budget":   "💰 الميزانية",
+    "rbtn_new":      "🆕 جديد",
+    "rbtn_ai":       "✦ مساعد AI",
+    "rbtn_add":      "➕ إضافة عقار",
+    "rbtn_lang":     "🌐 اللغة",
     "emirate_q":  "اختر الإمارة",
     "e_dubai":    "دبي",
     "e_abudhabi": "أبوظبي",
@@ -563,6 +711,45 @@ def _kb(*rows):
     Universal/Back buttons always get their own full-width row."""
     return {"inline_keyboard": list(rows)}
 
+
+def _reply_kb(rows, persistent=True):
+    """Bottom reply keyboard — stays visible under the message input.
+    rows: list of lists of label strings."""
+    return {
+        "keyboard": [[{"text": label} for label in row] for row in rows],
+        "resize_keyboard": True,
+        "is_persistent": persistent,
+    }
+
+
+def _reply_remove():
+    """Hide the reply keyboard."""
+    return {"remove_keyboard": True}
+
+
+def kb_main_reply(uid):
+    """Persistent bottom menu — always visible.
+    Logical grouping: search-first (Подбор / Hot), then by-filter (Area/Building/Budget),
+    then alternative entry points (AI, Add), then settings."""
+    return _reply_kb([
+        [_t(uid, "rbtn_search"),   _t(uid, "rbtn_hot")],
+        [_t(uid, "rbtn_area"),     _t(uid, "rbtn_building")],
+        [_t(uid, "rbtn_budget"),   _t(uid, "rbtn_new")],
+        [_t(uid, "rbtn_ai"),       _t(uid, "rbtn_add")],
+        [_t(uid, "rbtn_lang")],
+    ])
+
+
+def is_main_menu_text(text: str):
+    """Returns the rbtn_* key if `text` matches any reply-keyboard label
+    in any language. Used to dispatch text presses to handlers."""
+    if not text: return None
+    for lang_code, strings in T.items():
+        for k, v in strings.items():
+            if k.startswith("rbtn_") and v == text:
+                return k
+    return None
+
 # ── Keyboards ─────────────────────────────────────────────────────────────────
 def kb_lang():
     return _kb(
@@ -640,11 +827,11 @@ def kb_areas(uid):
 
 # ── Format helpers ────────────────────────────────────────────────────────────
 def _fmt(price):
-    if not price: return "—"
-    if price >= 1_000_000:
-        m = price / 1_000_000
-        return f"{m:.2f}M AED" if m % 1 else f"{int(m)}M AED"
-    return f"{price:,} AED".replace(",", " ")
+    if not price: return "-"
+    return f"{int(price):,} AED".replace(",", " ")
+
+
+
 
 def _fmt_size(sqft):
     if not sqft: return ""
@@ -745,31 +932,92 @@ def get_best_areas_from_db(strategy: str, emirate: str = None, limit: int = 3) -
     except:
         return []
 
-# ── Client card (NO PRICE) ────────────────────────────────────────────────────
+# ── Client card ────────────────────────────────────────────────────────────────
 def format_card(listing, uid, rank=None):
-    lines = []
-    emirate  = listing.get("emirate") or "UAE"
-    area     = listing.get("area") or ""
-    building = listing.get("building") or ""
-    br       = listing.get("bedrooms")
-    size     = listing.get("size_sqft")
-    view     = listing.get("view")
-    status   = listing.get("status")
-    furn     = listing.get("furnishing")
-    floor    = listing.get("floor")
+    emirate   = listing.get("emirate") or ""
+    area      = listing.get("area") or ""
+    building  = listing.get("building") or ""
+    br        = listing.get("bedrooms")
+    size      = listing.get("size_sqft")
+    view      = listing.get("view")
+    status    = listing.get("status")
+    furn      = listing.get("furnishing")
     deal_type = listing.get("deal_type", "sale")
+    price     = listing.get("price")
+    ppf       = listing.get("price_per_sqft")
+    pct       = listing.get("price_vs_market_percent")
+    disc      = listing.get("discount_percent")
+    roi       = listing.get("roi_estimate")
+    score     = listing.get("investment_score")
 
-    lines.append(_sep())
-    if building and area:
-        loc = f"  {building.upper()}  ·  {area.upper()}"
-        if emirate: loc += f"  ·  {emirate}"
-    elif area:
-        loc = f"  {area.upper()}"
-        if emirate: loc += f"  ·  {emirate}"
+    lines = []
+
+    # Локация
+    if building:
+        lines.append(f"🏢 *{building}*")
+    loc_parts = [p for p in [area, emirate] if p and p != "UAE"]
+    if loc_parts:
+        lines.append("📍 " + "  ·  ".join(loc_parts))
+    elif not building:
+        lines.append("🌍 UAE")
+
+    lines.append("")
+
+    # Цена
+    if price:
+        p_str = f"💰 *{_fmt(price)}*"
+        if deal_type == "rent":
+            p_str += " / год"
+        lines.append(p_str)
+        if deal_type == "sale":
+            if ppf:
+                lines.append(f"📐 {int(ppf * 10.764):,} AED/m²".replace(",", " "))
+            elif size and size > 0:
+                sqm = size * 0.0929
+                if sqm > 0:
+                    lines.append(f"📐 {int(price / sqm):,} AED/m²".replace(",", " "))
     else:
-        loc = f"  {emirate.upper()}"
-    lines.append(loc)
-    lines.append(_sep())
+        lines.append("💰 Цена по запросу")
+
+    lines.append("")
+
+    # Характеристики: спальни + площадь
+    br_str   = _fmt_br(br) if br is not None else ""
+    size_str = _fmt_size(size) if size else ""
+    if br_str and size_str:
+        lines.append(f"🛍 {br_str}  ·  {size_str}")
+    elif br_str:
+        lines.append(f"🛍 {br_str}")
+    elif size_str:
+        lines.append(f"📐 {size_str}")
+
+    # Вид, меблировка, статус — в одну строку
+    extras = []
+    if view:   extras.append(view)
+    if furn:   extras.append(furn.title())
+    if status: extras.append(status.title())
+    if extras:
+        lines.append("  ·  ".join(extras))
+
+    if deal_type == "rent":
+        lines.append("🏠 For Rent")
+
+    # Аналитика
+    analytics = []
+    if pct and pct < -3:
+        lbl = "% ниже рынка аренды" if deal_type == "rent" else "% below market"
+        analytics.append(f"📉 {abs(round(pct, 1))}{lbl}")
+    if disc and disc >= 5:
+        analytics.append(f"🏷 {disc}% below original price")
+    if roi and deal_type == "sale":
+        analytics.append(f"📈 ROI {roi}% / year")
+    if score:
+        analytics.append(f"⭐ Score {score}/10")
+    if analytics:
+        lines.append("")
+        lines.extend(analytics)
+
+    return "\n".join(lines)
 
     # ── Price — always visible ──────────────────────────────────────────────
     price          = listing.get("price")
@@ -789,41 +1037,37 @@ def format_card(listing, uid, rank=None):
     else:
         lines.append("💰 Цена по запросу")
 
-    details = []
-    if br is not None: details.append(_fmt_br(br))
-    if size: details.append(_fmt_size(size))
-    if floor: details.append(f"Floor {floor}")
-    if details: lines.append("  " + "  ·  ".join(details))
-
-    if view: lines.append(f"  {view}")
-
-    sp = []
-    if deal_type == "rent": sp.append("For Rent")
-    if status: sp.append(status.title())
-    if furn: sp.append(furn.title())
-    if sp: lines.append("  " + "  ·  ".join(sp))
-
     dq   = listing.get("deal_quality", "normal")
     pct  = listing.get("price_vs_market_percent")
     disc = listing.get("discount_percent")
     roi  = listing.get("roi_estimate")
     score= listing.get("investment_score")
 
-    if dq in ("very_good", "good", "interesting"):
-        lines.append("")
-        lines.append(_sep())
-        if dq == "very_good":   lines.append("  ▸ VERY GOOD DEAL")
-        elif dq == "good":      lines.append("  ▸ GOOD DEAL")
-        else:                   lines.append("  ▸ INTERESTING OFFER")
-        if pct and pct < 0:
-            pct_label = "% ниже рынка аренды" if deal_type == "rent" else "% below market average"
-            lines.append(f"  {abs(round(pct,1))}{pct_label}")
-        if disc and disc >= 3:  lines.append(f"  {disc}% below original price")
+    if br is not None:
+        lines.append(f"🛏 {_fmt_br(br)}")
+    if size:
+        lines.append(f"📏 {_fmt_size(size)}")
+    if floor:
+        lines.append(f"🏗 Floor {floor}")
+    if view:
+        lines.append(f"🌅 {view}")
+    if furn:
+        lines.append(f"🛋 {furn.title()}")
+    if status:
+        lines.append(f"🔑 {status.title()}")
+    if deal_type == "rent":
+        lines.append("🏷 For Rent")
 
+    if pct and pct < 0:
+        pct_label = "% ниже рынка аренды" if deal_type == "rent" else "% below market"
+        lines.append(f"📉 {abs(round(pct, 1))}{pct_label}")
+    if disc and disc >= 3:
+        lines.append(f"🏷 {disc}% below original price")
     if roi and deal_type == "sale":
-        lines.append(f"  ROI  {roi}% yearly")
-    if score: lines.append(f"  Score  {score} / 10")
-    lines.append(_sep())
+        lines.append(f"📈 ROI {roi}% / year")
+    if score:
+        lines.append(f"⭐ Score {score}/10")
+
     return "\n".join(lines)
 
 
@@ -1303,8 +1547,10 @@ def send_results(cid, uid, mid=None):
     if remaining > 0:
         s["page"] += 1
         nav.append([_btn(_t(uid, "btn_more", n=remaining), "results|more")])
+    nav.append([_btn("← " + _t(uid, "deal_q"), "filter|deal_type_reset")])
+    nav.append([_btn(_t(uid, "btn_back"), "results|back")])
     nav.append([_btn(_t(uid, "btn_menu"), "menu|main")])
-    _send(cid, _sep(), {"inline_keyboard": nav})  # nav already built as list of rows
+    _send(cid, _sep(), {"inline_keyboard": nav})
 
 
 # ── Natural language + Claude ─────────────────────────────────────────────────
@@ -1543,14 +1789,26 @@ def show_detail(cid, uid, mid, lid):
 def show_stats(cid, uid):
     if uid != ADMIN_ID:
         _send(cid, "Access denied."); return
-    s = get_full_stats()
-    last = s.get("last_sync")
-    last_str = last.strftime("%d.%m.%Y %H:%M UTC") if last else "—"
-    by_em = "\n".join(f"  {em}  {cnt}" for em, cnt in s.get("by_emirate", {}).items())
-    by_q  = "\n".join(f"  {q}  {cnt}" for q, cnt in s.get("by_quality", {}).items())
 
-    sale_cnt = rent_cnt = sale_avg = rent_avg = 0
-    sale_hot = rent_hot = 0
+    try:
+        s = get_full_stats()
+    except Exception as e:
+        _send(cid, f"⚠️ Stats error: {e}")
+        return
+
+    def _fmt_m(v):
+        if not v or v == 0: return "—"
+        if v >= 1_000_000: return f"{v/1_000_000:.1f}M AED"
+        if v >= 1_000:     return f"{v/1_000:.0f}K AED"
+        return f"{v:,} AED"
+
+    def _fmt_dt(dt):
+        if not dt: return "—"
+        try: return dt.strftime("%d.%m.%Y %H:%M")
+        except: return str(dt)
+
+    # Extra DB queries (active users, views, searches)
+    active_today = views_today = searches_today = 0
     try:
         conn = get_conn()
         with conn.cursor() as cur:
@@ -1560,61 +1818,75 @@ def show_stats(cid, uid):
             views_today = cur.fetchone()["cnt"]
             cur.execute("SELECT COALESCE(SUM(searches_count),0) as cnt FROM users WHERE last_seen >= NOW() - INTERVAL '24 hours'")
             searches_today = cur.fetchone()["cnt"]
-            cur.execute("SELECT COUNT(*) as cnt FROM leads WHERE created_at >= NOW() - INTERVAL '7 days' AND action='book'")
-            leads_week = cur.fetchone()["cnt"]
-            cur.execute("SELECT COUNT(*) as cnt FROM pending_listings WHERE status='pending'")
-            pending = cur.fetchone()["cnt"]
-            # Deal type breakdown
-            cur.execute("""
-                SELECT deal_type,
-                       COUNT(*) as cnt,
-                       ROUND(AVG(price) FILTER (WHERE price > 0)) as avg_price,
-                       COUNT(*) FILTER (WHERE deal_quality IN ('good','very_good')) as hot
-                FROM listings WHERE is_active=TRUE
-                GROUP BY deal_type
-            """)
-            for row in cur.fetchall():
-                if row["deal_type"] == "sale":
-                    sale_cnt = row["cnt"]; sale_avg = int(row["avg_price"] or 0); sale_hot = row["hot"]
-                elif row["deal_type"] == "rent":
-                    rent_cnt = row["cnt"]; rent_avg = int(row["avg_price"] or 0); rent_hot = row["hot"]
         conn.close()
-    except:
-        active_today = views_today = searches_today = leads_week = pending = 0
+    except Exception as e:
+        print(f"[stats] extra query error: {e}")
 
-    def sl(key):
-        return _t(uid, key)
+    by_em = "\n".join(f"  {em or 'Unknown':<22}{cnt}" for em, cnt in s.get("by_emirate", {}).items())
+    by_q  = "\n".join(f"  {q:<22}{cnt}" for q, cnt in s.get("by_quality", {}).items())
 
-    def _fmt_m(v):
-        if v >= 1_000_000: return f"{v/1_000_000:.1f}M"
-        if v >= 1_000:     return f"{v/1_000:.0f}K"
-        return str(v)
+    channel_lines = []
+    for ch, info in s.get("by_channel", {}).items():
+        last = _fmt_dt(info.get("last"))
+        lid  = info.get("last_id") or 0
+        channel_lines.append(f"  {ch[:20]:<22}msg {lid}  ({last})")
+    by_channel = "\n".join(channel_lines)
+
+    corrupt = s.get("corrupt_prices", 0)
+    corrupt_warn = f"\n  ⚠️  Corrupt prices:      {corrupt}" if corrupt else ""
 
     text = (
-        f"{_sep()}\n  {sl('stats_title')}\n{_sep()}\n\n"
-        f"  {sl('stats_total'):<26}{s['total']}\n"
-        f"  {sl('stats_hot'):<26}{s['hot_deals']}\n"
-        f"  {sl('stats_review'):<26}{s['needs_review']}\n"
-        f"  {sl('stats_pending'):<26}{pending}\n\n"
-        f"{_sep()}\n  {sl('stats_by_deal')}\n{_sep()}\n"
-        f"  🏠 {sl('stats_sale_cnt'):<22}{sale_cnt}  ({sale_hot} hot)\n"
-        f"     {sl('stats_sale_avg'):<22}{_fmt_m(sale_avg)} AED\n"
-        f"  🔑 {sl('stats_rent_cnt'):<22}{rent_cnt}  ({rent_hot} hot)\n"
-        f"     {sl('stats_rent_avg'):<22}{_fmt_m(rent_avg)} AED\n\n"
-        f"{_sep()}\n  {sl('stats_by_emirate')}\n{_sep()}\n{by_em}\n\n"
-        f"{_sep()}\n  {sl('stats_by_quality')}\n{_sep()}\n{by_q}\n\n"
-        f"{_sep()}\n  {sl('stats_today')} ({s.get('syncs_today',0)} syncs)\n{_sep()}\n"
-        f"  {sl('stats_new'):<26}{s['today_new']}\n"
-        f"  {sl('stats_dupes'):<26}{s['today_dupes']}\n"
-        f"  {sl('stats_today_hot'):<26}{s['today_hot']}\n\n"
-        f"{_sep()}\n  {sl('stats_users')}\n{_sep()}\n"
-        f"  {sl('stats_total_users'):<26}{s.get('users_total',0)}\n"
-        f"  {sl('stats_active'):<26}{active_today}\n"
-        f"  {sl('stats_searches'):<26}{searches_today}\n"
-        f"  {sl('stats_views'):<26}{views_today}\n"
-        f"  {sl('stats_leads_today'):<26}{s.get('leads_today',0)}\n"
-        f"  {sl('stats_leads_week'):<26}{leads_week}\n\n"
-        f"  {sl('stats_last_sync'):<26}{last_str}\n"
+        f"{_sep()}\n  ADMIN STATISTICS  ·  Dubai Resale Bot\n{_sep()}\n\n"
+
+        f"  Total listings:        {s['total']}\n"
+        f"  For Sale:              {s['sale_total']}  ({s['sale_clean']} clean)\n"
+        f"  For Rent:              {s['rent_total']}  ({s['rent_clean']} clean)\n"
+        f"  Hot deals:             {s['hot_deals']}\n"
+        f"  Below market:          {s['below_market']}\n"
+        f"  Needs review:          {s['needs_review']}\n"
+        f"  Review queue:          {s['review_queue']}\n"
+        f"  Pending moderation:    {s['pending']}\n"
+        f"  Buildings tracked:     {s['buildings_count']}\n"
+        f"  Areas covered:         {s['areas_count']}\n"
+        f"  Parsed channels:       {s['groups_count']}"
+        f"{corrupt_warn}\n\n"
+
+        f"{_sep()}\n  ANALYTICS\n{_sep()}\n"
+        f"  Avg sale price:        {_fmt_m(s['avg_sale_price'])}\n"
+        f"  Avg rent/year:         {_fmt_m(s['avg_rent_price'])}\n"
+        f"  Avg price/sqft:        {int(s['avg_price_sqft']) if s['avg_price_sqft'] else '—'} AED\n"
+        f"  Avg ROI:               {s['avg_roi']}%\n\n"
+
+        f"{_sep()}\n  ACTIVITY\n{_sep()}\n"
+        f"  Today (Dubai time):    {s['today_listings']}\n"
+        f"  Yesterday:             {s['yesterday_listings']}\n"
+        f"  This week:             {s['week_listings']}\n"
+        f"  This month:            {s['month_listings']}\n\n"
+
+        f"{_sep()}\n  TODAY SYNC\n{_sep()}\n"
+        f"  New parsed:            {s['today_new']}\n"
+        f"  Duplicates:            {s['today_dupes']}\n"
+        f"  Hot deals found:       {s['today_hot']}\n"
+        f"  Errors:                {s['today_errors']}\n"
+        f"  Sync runs:             {s['syncs_today']}\n"
+        f"  Last sync:             {_fmt_dt(s['last_sync'])}\n\n"
+
+        f"{_sep()}\n  CHANNELS\n{_sep()}\n"
+        f"{by_channel}\n\n"
+
+        f"{_sep()}\n  BY EMIRATE\n{_sep()}\n"
+        f"{by_em}\n\n"
+
+        f"{_sep()}\n  BY DEAL QUALITY\n{_sep()}\n"
+        f"{by_q}\n\n"
+
+        f"{_sep()}\n  USERS\n{_sep()}\n"
+        f"  Total users:           {s['users_total']}\n"
+        f"  Active today:          {active_today}\n"
+        f"  Searches today:        {searches_today}\n"
+        f"  Views today:           {views_today}\n"
+        f"  Leads today:           {s['leads_today']}\n"
+        f"  Leads this week:       {s['leads_week']}\n"
         f"{_sep()}"
     )
     _send(cid, f"`{text}`")
@@ -1633,10 +1905,39 @@ def show_deal_type_menu(cid, uid, mid=None):
 
 
 def show_main(cid, uid, mid=None):
-    text = _t(uid, "main_menu")
-    kb   = kb_main(uid)
-    if mid: _edit(cid, mid, text, kb)
-    else:   _send(cid, text, kb)
+    """Always sends a fresh message with persistent bottom keyboard.
+    If an old inline-menu message is given, delete it to keep the chat clean."""
+    if mid:
+        try: _api("deleteMessage", chat_id=cid, message_id=mid)
+        except: pass
+    _send(cid, _t(uid, "main_menu"), kb_main_reply(uid))
+
+
+def dispatch_main_button(cid, uid, rkey):
+    """Dispatches a press of a bottom reply-keyboard button to the same handler
+    as the corresponding inline button."""
+    if rkey == "rbtn_search":
+        _reset(uid); _send(cid, _t(uid, "emirate_q"), kb_emirate(uid))
+    elif rkey == "rbtn_hot":
+        _reset(uid); gs(uid)["filters"] = {"hot_only": True, "sort": "best_deals"}
+        _send(cid, _t(uid, "searching")); do_search(uid); send_results(cid, uid)
+    elif rkey == "rbtn_new":
+        _reset(uid); gs(uid)["filters"] = {"sort": "newest"}
+        _send(cid, _t(uid, "searching")); do_search(uid); send_results(cid, uid)
+    elif rkey == "rbtn_budget":
+        _reset(uid); _send(cid, _t(uid, "budget_q"), kb_budget(uid))
+    elif rkey == "rbtn_area":
+        _reset(uid); _send(cid, _t(uid, "area_q"), kb_areas(uid))
+    elif rkey == "rbtn_building":
+        _reset(uid); gs(uid)["waiting"] = "building"
+        _send(cid, _t(uid, "bld_q"),
+              _kb([_btn(_t(uid, "btn_back"), "menu|main")]))
+    elif rkey == "rbtn_ai":
+        show_ai_start(cid, uid)
+    elif rkey == "rbtn_add":
+        start_add_listing(cid, uid)
+    elif rkey == "rbtn_lang":
+        _send(cid, "Select language:", kb_lang())
 
 
 # ── Admin Panel ───────────────────────────────────────────────────────────────
@@ -1826,7 +2127,7 @@ _RESCAN_RENT_KW = [
     r'\bper (?:year|month|annum|yr|mo)\b', r'\b/yr\b', r'\b/year\b', r'\b/month\b',
     r'\bannual(?:ly)? rent\b', r'\bmonthly rent\b', r'\brent(?:ing)? out\b',
     r'\bleasing\b', r'\bfor lease\b', r'\btenants?\b',
-    r'\bсдается\b', r'\bсниму\b', r'\bсдам\b', r'\баренда\b',
+    r'\bсдается\b', r'\bсниму\b', r'\bсдам\b', r'\bаренда\b',
     r'\bp\.?a\.\b', r'\bper annum\b', r'yearly.*aed', r'aed.*yearly',
     r'\d+k?\s*/\s*year',
 ]
@@ -2396,8 +2697,14 @@ def handle_cb(cb):
     # ── Main callbacks ────────────────────────────────────────────────────────
     if action == "lang":
         user_lang[uid] = parts[1]; _reset(uid)
-        _edit(cid, mid, _t(uid, "lang_set"))
-        time.sleep(0.3); show_deal_type_menu(cid, uid, mid)
+        # После выбора языка — показываем выбор типа сделки
+        text = _t(uid, "deal_type_q")
+        kb = _kb(
+            [_btn("🏠  " + _t(uid, "d_sale"),  "default_deal|sale")],
+            [_btn("🔑  " + _t(uid, "d_rent"),  "default_deal|rent")],
+            [_btn(_t(uid, "d_any_deal"),              "default_deal|any")],
+        )
+        _send(cid, text, kb)
 
     elif action == "default_deal":
         val = parts[1]  # "sale", "rent", "any"
@@ -2450,14 +2757,14 @@ def handle_cb(cb):
         is_rent = gs(uid)["filters"].get("deal_type") == "rent"
         if is_rent:
             rent_map = {
-                "r_u100": (None, 0.1), "r_100200": (0.1, 0.2), "r_200p": (0.2, None)
+                "r_u100": (None, 100_000), "r_100200": (100_000, 200_000), "r_200p": (200_000, None)
             }
             if val in rent_map:
                 mn, mx = rent_map[val]
                 if mn: gs(uid)["filters"]["min_price"] = mn
                 if mx: gs(uid)["filters"]["max_price"] = mx
         else:
-            bmap = {"u1":(None,1.0),"1-2":(1.0,2.0),"2-5":(2.0,5.0),"5p":(5.0,None)}
+            bmap = {"u1":(None,1_000_000),"1-2":(1_000_000,2_000_000),"2-5":(2_000_000,5_000_000),"5p":(5_000_000,None)}
             if val in bmap:
                 mn, mx = bmap[val]
                 if mn: gs(uid)["filters"]["min_price"] = mn
@@ -2513,6 +2820,12 @@ def handle_cb(cb):
             }
             _edit(cid, mid, _t(uid, "searching"))
             do_search(uid); send_results(cid, uid, mid)
+
+    elif action == "filter":
+        if parts[1] == "deal_type_reset":
+            gs(uid)["filters"].pop("deal_type", None)
+            gs(uid)["default_deal"] = None
+            show_deal_type_menu(cid, uid, mid)
 
     elif action == "results":
         if parts[1] == "more": send_results(cid, uid)
@@ -2676,11 +2989,17 @@ def handle_msg(msg):
     if not text:
         return
 
+    # Bottom reply-keyboard buttons → dispatch to handlers
+    rkey = is_main_menu_text(text)
+    if rkey:
+        dispatch_main_button(cid, uid, rkey)
+        return
+
     if text.startswith("/"):
         cmd = text.split()[0].lower().lstrip("/").split("@")[0]
         if cmd == "start":
             user_lang.pop(uid, None); _reset(uid)
-            _send(cid, T["en"]["welcome"], kb_lang())
+            send_welcome_with_logo(cid, uid)
         elif cmd == "menu":  show_main(cid, uid)
         elif cmd == "stats": show_stats(cid, uid)
         elif cmd == "parse":
@@ -2689,6 +3008,35 @@ def handle_msg(msg):
             _send(cid, "⚙️ Parser started — incremental sync running in background...")
             from telethon_parser import run_parser_thread
             run_parser_thread(backfill=False)
+        elif cmd == "cleanup":
+            if uid != ADMIN_ID:
+                _send(cid, "Access denied."); return
+            try:
+                conn = get_conn()
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        DELETE FROM listings
+                        WHERE 
+                          (listing_key IS NULL AND building IS NULL AND area IS NULL)
+                          OR (price > 50000000 AND deal_type = 'sale')
+                          OR (price IS NULL AND building IS NULL AND area IS NULL)
+                    """)
+                    deleted = cur.rowcount
+                conn.commit()
+                conn.close()
+                _send(cid, f"✅ Удалено {deleted} некорректных объявлений")
+            except Exception as e:
+                _send(cid, f"⚠️ Ошибка: {e}")
+        elif cmd == "catchup":
+            if uid != ADMIN_ID:
+                _send(cid, "Access denied."); return
+            from telethon_parser import run_catchup_thread, get_real_last_message_id, CHANNELS
+            lines = ["🔄 *Catchup запущен* — парсим пропущенные сообщения\n"]
+            for ch in CHANNELS:
+                last_id = get_real_last_message_id(ch)
+                lines.append(f"  @{ch}: от msg_id={last_id}")
+            _send(cid, "\n".join(lines))
+            run_catchup_thread()
         elif cmd == "airescan":
             if uid != ADMIN_ID:
                 _send(cid, "Access denied."); return
@@ -2710,7 +3058,10 @@ def handle_msg(msg):
                 "/menu — Main menu\n"
                 "/add — List your property\n"
                 "/stats — Statistics (admin)\n"
-                "/parse — Trigger parser now (admin)")
+                "/parse — Trigger incremental parse (admin)\n"
+                "/catchup — Resume from last known message (admin)\n"
+                "/airescan — AI deal_type rescan (admin)\n"
+                "/fullrescan — Full AI re-parse all listings (admin)")
         return
 
     # Handle admin field edit input
@@ -2858,3 +3209,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
