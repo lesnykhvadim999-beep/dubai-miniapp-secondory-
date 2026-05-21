@@ -2975,6 +2975,13 @@ def parse_message(
     if canon_area and canon_area != data.get("area"):
         data["area"] = canon_area
 
+    # ── Sanity-limit длины: building > 100 chars / area > 100 chars = мусор
+    if data.get("building") and len(data["building"]) > 100:
+        # Слишком длинное — обрезаем и помечаем для review
+        data["building"] = None
+    if data.get("area") and len(data["area"]) > 100:
+        data["area"] = None
+
     data["listing_key"] = make_listing_key(data)
 
     return data
