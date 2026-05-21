@@ -522,24 +522,86 @@ def log_sync(channel: str, parsed: int, new: int, dupes: int, hot: int, errors: 
 
 
 def get_full_stats() -> dict:
+    """
+    ИСПРАВЛЕНО:
+    - avg_sale_price теперь с фильтром price BETWEEN 300000 AND 50000000
+      (убираем мусорные цены: телефоны спарсились как цены)
+    - avg_rent_price фильтр 10000 AND 1500000
+    - today/yesterday/week/month считаются по created_at AT TIME ZONE 'Asia/Dubai'
+    - sale/rent counts с теми же price-фильтрами
+    - pending_listings count добавлен
+    - corrupt_prices count — сколько объектов с явно битой ценой
+    """
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) as total FROM listings WHERE is_active=TRUE")
-            total = cur.fetchone()["total"]
+            # ── Totals ──────────────────────────────────────────────────────
+            cur.execute("""
+                SELECT
+                  COUNT(*) as total,
+                  COUNT(*) FILTER (WHERE deal_type='sale') as sale_total,
+                  COUNT(*) FILTER (WHERE deal_type='rent') as rent_total,
+                  COUNT(*) FILTER (WHERE is_hot_deal=TRUE) as hot,
+                  COUNT(*) FILTER (WHERE needs_manual_review=TRUE) as review,
+                  COUNT(*) FILTER (WHERE is_below_market=TRUE) as below_market,
+                  COUNT(DISTINCT building) FILTER (WHERE building IS NOT NULL) as buildings,
+                  COUNT(DISTINCT area) FILTER (WHERE area IS NOT NULL) as areas,
+                  COUNT(DISTINCT telegram_chat_id) as groups
+                FROM listings WHERE is_active=TRUE
+            """)
+            totals = cur.fetchone()
 
-            cur.execute("SELECT COUNT(*) as hot FROM listings WHERE is_hot_deal=TRUE AND is_active=TRUE")
-            hot = cur.fetchone()["hot"]
-
-            cur.execute("SELECT COUNT(*) as review FROM listings WHERE needs_manual_review=TRUE AND is_active=TRUE")
-            review = cur.fetchone()["review"]
+            # ── Avg prices (с фильтром мусорных цен) ───────────────────────
+            # БАГ: телефоны типа +380685841342 попадали в price → avg = 951M
+            # Фикс: ограничиваем реальным диапазоном цен UAE
+            cur.execute("""
+                SELECT
+                  ROUND(AVG(price)) as avg_sale
+                FROM listings
+                WHERE is_active=TRUE AND deal_type='sale'
+                  AND price BETWEEN 200000 AND 50000000
+            """)
+            avg_sale = cur.fetchone()["avg_sale"] or 0
 
             cur.execute("""
-                SELECT emirate, COUNT(*) as cnt FROM listings
-                WHERE is_active=TRUE GROUP BY emirate ORDER BY cnt DESC
+                SELECT
+                  ROUND(AVG(price)) as avg_rent
+                FROM listings
+                WHERE is_active=TRUE AND deal_type='rent'
+                  AND price BETWEEN 10000 AND 1500000
+            """)
+            avg_rent = cur.fetchone()["avg_rent"] or 0
+
+            cur.execute("""
+                SELECT ROUND(AVG(price_per_sqft)) as avg_sqft
+                FROM listings
+                WHERE is_active=TRUE AND price_per_sqft BETWEEN 200 AND 15000
+            """)
+            avg_sqft = cur.fetchone()["avg_sqft"] or 0
+
+            cur.execute("""
+                SELECT ROUND(AVG(roi_estimate)::numeric, 1) as avg_roi
+                FROM listings
+                WHERE is_active=TRUE AND roi_estimate BETWEEN 1 AND 25
+            """)
+            avg_roi = cur.fetchone()["avg_roi"] or 0
+
+            # ── Corrupt price count (для инфо) ──────────────────────────────
+            cur.execute("""
+                SELECT COUNT(*) as cnt FROM listings
+                WHERE is_active=TRUE AND price > 50000000 AND deal_type='sale'
+            """)
+            corrupt_prices = cur.fetchone()["cnt"]
+
+            # ── By emirate ──────────────────────────────────────────────────
+            cur.execute("""
+                SELECT COALESCE(emirate,'Unknown') as emirate, COUNT(*) as cnt
+                FROM listings WHERE is_active=TRUE
+                GROUP BY emirate ORDER BY cnt DESC LIMIT 8
             """)
             by_emirate = {r["emirate"]: r["cnt"] for r in cur.fetchall()}
 
+            # ── By quality ──────────────────────────────────────────────────
             cur.execute("""
                 SELECT deal_quality, COUNT(*) as cnt FROM listings
                 WHERE is_active=TRUE AND deal_quality IS NOT NULL
@@ -547,37 +609,124 @@ def get_full_stats() -> dict:
             """)
             by_quality = {r["deal_quality"]: r["cnt"] for r in cur.fetchall()}
 
-            # Today's sync
+            # ── By deal type (чистые, без мусора) ───────────────────────────
             cur.execute("""
-                SELECT COALESCE(SUM(new_listings),0) as new,
-                       COALESCE(SUM(duplicates),0) as dupes,
-                       COALESCE(SUM(hot_deals),0) as hot,
-                       COUNT(*) as syncs,
-                       MAX(synced_at) as last_sync
+                SELECT
+                  COUNT(*) FILTER (WHERE deal_type='sale' AND price BETWEEN 200000 AND 50000000) as sale_clean,
+                  COUNT(*) FILTER (WHERE deal_type='rent' AND price BETWEEN 10000 AND 1500000) as rent_clean
+                FROM listings WHERE is_active=TRUE
+            """)
+            clean = cur.fetchone()
+
+            # ── Time-based (Dubai timezone UTC+4) ───────────────────────────
+            cur.execute("""
+                SELECT
+                  COUNT(*) FILTER (
+                    WHERE created_at AT TIME ZONE 'Asia/Dubai' >= CURRENT_DATE
+                  ) as today,
+                  COUNT(*) FILTER (
+                    WHERE created_at AT TIME ZONE 'Asia/Dubai' >= CURRENT_DATE - 1
+                    AND created_at AT TIME ZONE 'Asia/Dubai' < CURRENT_DATE
+                  ) as yesterday,
+                  COUNT(*) FILTER (
+                    WHERE created_at >= date_trunc('week', NOW() AT TIME ZONE 'Asia/Dubai') AT TIME ZONE 'Asia/Dubai'
+                  ) as this_week,
+                  COUNT(*) FILTER (
+                    WHERE created_at >= date_trunc('month', NOW() AT TIME ZONE 'Asia/Dubai') AT TIME ZONE 'Asia/Dubai'
+                  ) as this_month
+                FROM listings WHERE is_active=TRUE
+            """)
+            time_counts = cur.fetchone()
+
+            # ── Sync log ────────────────────────────────────────────────────
+            cur.execute("""
+                SELECT
+                  COALESCE(SUM(new_listings),0) as new,
+                  COALESCE(SUM(duplicates),0) as dupes,
+                  COALESCE(SUM(hot_deals),0) as hot,
+                  COALESCE(SUM(errors),0) as errors,
+                  COUNT(*) as syncs,
+                  MAX(synced_at) as last_sync
                 FROM sync_log
                 WHERE synced_at >= NOW() - INTERVAL '24 hours'
             """)
-            today = cur.fetchone()
+            today_sync = cur.fetchone()
 
+            # Last sync per channel
+            cur.execute("""
+                SELECT channel, MAX(synced_at) as last, MAX(last_message_id) as last_id
+                FROM sync_log GROUP BY channel ORDER BY last DESC
+            """)
+            by_channel = {r["channel"]: {"last": r["last"], "last_id": r["last_id"]}
+                          for r in cur.fetchall()}
+
+            # ── Users & leads ───────────────────────────────────────────────
             cur.execute("SELECT COUNT(*) as cnt FROM users")
             users_total = cur.fetchone()["cnt"]
 
-            cur.execute("SELECT COUNT(*) as cnt FROM leads WHERE created_at >= NOW() - INTERVAL '24 hours'")
-            leads_today = cur.fetchone()["cnt"]
+            cur.execute("""
+                SELECT
+                  COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') as today,
+                  COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as week
+                FROM leads
+            """)
+            leads = cur.fetchone()
+
+            # ── Pending moderation ──────────────────────────────────────────
+            try:
+                cur.execute("SELECT COUNT(*) as cnt FROM pending_listings WHERE approved IS NULL")
+                pending = cur.fetchone()["cnt"]
+            except Exception:
+                pending = 0
+
+            # ── Review queue ────────────────────────────────────────────────
+            try:
+                cur.execute("SELECT COUNT(*) as cnt FROM review_queue WHERE resolved=FALSE")
+                review_queue = cur.fetchone()["cnt"]
+            except Exception:
+                review_queue = totals["review"]
 
             return {
-                "total": total,
-                "hot_deals": hot,
-                "needs_review": review,
-                "by_emirate": by_emirate,
-                "by_quality": by_quality,
-                "today_new": today["new"],
-                "today_dupes": today["dupes"],
-                "today_hot": today["hot"],
-                "syncs_today": today["syncs"],
-                "last_sync": today["last_sync"],
-                "users_total": users_total,
-                "leads_today": leads_today,
+                # Totals
+                "total":           totals["total"],
+                "sale_total":      totals["sale_total"],
+                "rent_total":      totals["rent_total"],
+                "sale_clean":      clean["sale_clean"],
+                "rent_clean":      clean["rent_clean"],
+                "hot_deals":       totals["hot"],
+                "needs_review":    totals["review"],
+                "below_market":    totals["below_market"],
+                "buildings_count": totals["buildings"],
+                "areas_count":     totals["areas"],
+                "groups_count":    totals["groups"],
+                "corrupt_prices":  corrupt_prices,
+                # Averages
+                "avg_sale_price":  avg_sale,
+                "avg_rent_price":  avg_rent,
+                "avg_price_sqft":  avg_sqft,
+                "avg_roi":         float(avg_roi) if avg_roi else 0,
+                # Time
+                "today_listings":  time_counts["today"],
+                "yesterday_listings": time_counts["yesterday"],
+                "week_listings":   time_counts["this_week"],
+                "month_listings":  time_counts["this_month"],
+                # Breakdowns
+                "by_emirate":      by_emirate,
+                "by_quality":      by_quality,
+                "by_channel":      by_channel,
+                # Sync
+                "today_new":       today_sync["new"],
+                "today_dupes":     today_sync["dupes"],
+                "today_hot":       today_sync["hot"],
+                "today_errors":    today_sync["errors"],
+                "syncs_today":     today_sync["syncs"],
+                "last_sync":       today_sync["last_sync"],
+                # Users
+                "users_total":     users_total,
+                "leads_today":     leads["today"],
+                "leads_week":      leads["week"],
+                "pending":         pending,
+                "review_queue":    review_queue,
             }
     finally:
         conn.close()
@@ -611,6 +760,21 @@ def search_listings(filters: dict, limit: int = 10, offset: int = 0) -> tuple[li
                 where.append("property_type = %s")
                 params.append(filters["property_type"])
 
+            # property_type_in: list of types for category filter
+            # (e.g. commercial = [office, retail, warehouse, hotel, hotel_apartment, serviced_apartment])
+            if filters.get("property_type_in"):
+                types = filters["property_type_in"]
+                placeholders = ",".join(["%s"] * len(types))
+                where.append(f"property_type IN ({placeholders})")
+                params.extend(types)
+
+            # property_type_not_in: exclude commercial when searching residential
+            if filters.get("property_type_not_in"):
+                types = filters["property_type_not_in"]
+                placeholders = ",".join(["%s"] * len(types))
+                where.append(f"(property_type IS NULL OR property_type NOT IN ({placeholders}))")
+                params.extend(types)
+
             if filters.get("bedrooms") is not None:
                 br = filters["bedrooms"]
                 if br == 0:
@@ -623,11 +787,11 @@ def search_listings(filters: dict, limit: int = 10, offset: int = 0) -> tuple[li
 
             if filters.get("min_price"):
                 where.append("price >= %s")
-                params.append(int(filters["min_price"] * 1_000_000))
+                params.append(int(filters["min_price"]))
 
             if filters.get("max_price"):
                 where.append("price <= %s")
-                params.append(int(filters["max_price"] * 1_000_000))
+                params.append(int(filters["max_price"]))
 
             if filters.get("view"):
                 where.append("LOWER(view) LIKE LOWER(%s)")

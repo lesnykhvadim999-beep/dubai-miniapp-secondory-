@@ -177,16 +177,17 @@ T = {
     "btn_building": "Search by Building",
     "btn_lang":     "Language",
     "btn_add":      "List My Property",
-    # Bottom reply-keyboard (persistent main menu)
-    "rbtn_search":   "🔍 Search",
-    "rbtn_hot":      "🔥 Hot Deals",
-    "rbtn_area":     "🏘 By Area",
-    "rbtn_building": "🏢 By Building",
-    "rbtn_budget":   "💰 By Budget",
-    "rbtn_new":      "🆕 New",
-    "rbtn_ai":       "✦ AI Assistant",
-    "rbtn_add":      "➕ List Property",
-    "rbtn_lang":     "🌐 Language",
+    # Bottom reply-keyboard (persistent main menu) — by deal_type categories
+    "rbtn_buy":         "🏠 Buy",
+    "rbtn_rent":        "🔑 Rent",
+    "rbtn_commercial":  "🏢 Commercial",
+    "rbtn_plot":        "🌱 Land",
+    "rbtn_hot":         "🔥 Hot Deals",
+    "rbtn_new":         "🆕 New",
+    "rbtn_ai":          "✦ AI Assistant",
+    "rbtn_add":         "➕ List Property",
+    "rbtn_lang":        "🌐 Language",
+    "rbtn_home":        "🏠 Main Menu",
     # Listing card labels
     "card_price_request": "Price on request",
     "card_per_year":   "/year",
@@ -356,16 +357,17 @@ T = {
     "btn_building": "Поиск по зданию",
     "btn_lang":     "Язык",
     "btn_add":      "Разместить объект",
-    # Bottom reply-keyboard (persistent main menu)
-    "rbtn_search":   "🔍 Подбор",
-    "rbtn_hot":      "🔥 Горячие",
-    "rbtn_area":     "🏘 По району",
-    "rbtn_building": "🏢 По зданию",
-    "rbtn_budget":   "💰 По бюджету",
-    "rbtn_new":      "🆕 Новые",
-    "rbtn_ai":       "✦ AI Помощник",
-    "rbtn_add":      "➕ Разместить",
-    "rbtn_lang":     "🌐 Язык",
+    # Bottom reply-keyboard (persistent main menu) — by deal_type categories
+    "rbtn_buy":         "🏠 Купить",
+    "rbtn_rent":        "🔑 Снять",
+    "rbtn_commercial":  "🏢 Коммерция",
+    "rbtn_plot":        "🌱 Земля",
+    "rbtn_hot":         "🔥 Горячие",
+    "rbtn_new":         "🆕 Новые",
+    "rbtn_ai":          "✦ AI Помощник",
+    "rbtn_add":         "➕ Разместить",
+    "rbtn_lang":        "🌐 Язык",
+    "rbtn_home":        "🏠 Главное меню",
     # Listing card labels
     "card_price_request": "Цена по запросу",
     "card_per_year":   "/год",
@@ -554,16 +556,17 @@ T = {
     "stats_leads_today": "طلبات اليوم",
     "stats_leads_week":  "طلبات الأسبوع",
     "stats_last_sync":   "آخر مزامنة",
-    # Bottom reply-keyboard (persistent main menu)
-    "rbtn_search":   "🔍 بحث",
-    "rbtn_hot":      "🔥 صفقات",
-    "rbtn_area":     "🏘 المنطقة",
-    "rbtn_building": "🏢 المبنى",
-    "rbtn_budget":   "💰 الميزانية",
-    "rbtn_new":      "🆕 جديد",
-    "rbtn_ai":       "✦ مساعد AI",
-    "rbtn_add":      "➕ إضافة عقار",
-    "rbtn_lang":     "🌐 اللغة",
+    # Bottom reply-keyboard (persistent main menu) — by deal_type categories
+    "rbtn_buy":         "🏠 شراء",
+    "rbtn_rent":        "🔑 إيجار",
+    "rbtn_commercial":  "🏢 تجاري",
+    "rbtn_plot":        "🌱 أرض",
+    "rbtn_hot":         "🔥 صفقات",
+    "rbtn_new":         "🆕 جديد",
+    "rbtn_ai":          "✦ مساعد AI",
+    "rbtn_add":         "➕ إضافة عقار",
+    "rbtn_lang":        "🌐 اللغة",
+    "rbtn_home":        "🏠 القائمة الرئيسية",
     # Listing card labels
     "card_price_request": "السعر عند الطلب",
     "card_per_year":   "/سنة",
@@ -803,15 +806,26 @@ def _reply_remove():
 
 def kb_main_reply(uid):
     """Persistent bottom menu — always visible.
-    Logical grouping: search-first (Подбор / Hot), then by-filter (Area/Building/Budget),
-    then alternative entry points (AI, Add), then settings."""
+    Categories by deal type, so each entry leads ONLY to its own results:
+    - Buy → sale residential only
+    - Rent → rent residential only
+    - Commercial → office/retail/warehouse/hotel (any deal type)
+    - Land → plot only
+    Then: hot/new shortcuts, AI assistant, add listing, language.
+    """
     return _reply_kb([
-        [_t(uid, "rbtn_search"),   _t(uid, "rbtn_hot")],
-        [_t(uid, "rbtn_area"),     _t(uid, "rbtn_building")],
-        [_t(uid, "rbtn_budget"),   _t(uid, "rbtn_new")],
-        [_t(uid, "rbtn_ai"),       _t(uid, "rbtn_add")],
+        [_t(uid, "rbtn_buy"),        _t(uid, "rbtn_rent")],
+        [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
+        [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new")],
+        [_t(uid, "rbtn_ai"),         _t(uid, "rbtn_add")],
         [_t(uid, "rbtn_lang")],
     ])
+
+
+# Property type groups used for category filters
+RESIDENTIAL_TYPES = ["apartment", "studio", "villa", "townhouse", "penthouse", "duplex"]
+COMMERCIAL_TYPES  = ["office", "retail", "warehouse", "hotel", "hotel_apartment", "serviced_apartment"]
+LAND_TYPES        = ["plot"]
 
 
 def is_main_menu_text(text: str):
@@ -846,22 +860,32 @@ def kb_emirate(uid):
         [_btn(_t(uid, "e_dubai"),    "em|Dubai"),           _btn(_t(uid, "e_abudhabi"), "em|Abu Dhabi")],
         [_btn(_t(uid, "e_rak"),      "em|Ras Al Khaimah"),  _btn(_t(uid, "e_sharjah"),  "em|Sharjah")],
         [_btn(_t(uid, "e_any"),      "em|any")],
-        [_btn(_t(uid, "btn_back"),   "menu|main")],
+        [_btn(_t(uid, "rbtn_home"),  "menu|main")],
     )
 
 def kb_deal(uid):
     return _kb(
         [_btn(_t(uid, "d_sale"),   "deal|sale"),  _btn(_t(uid, "d_rent"), "deal|rent")],
         [_btn(_t(uid, "d_any"),    "deal|any")],
-        [_btn(_t(uid, "btn_back"), "menu|main")],
+        [_btn(_t(uid, "rbtn_home"), "menu|main")],
     )
 
 def kb_proptype(uid):
+    """Residential property types only — commercial/plot are accessed via main menu category."""
     return _kb(
         [_btn(_t(uid, "pt_apt"),   "pt|apartment"), _btn(_t(uid, "pt_villa"), "pt|villa")],
         [_btn(_t(uid, "pt_town"),  "pt|townhouse"), _btn(_t(uid, "pt_pent"), "pt|penthouse")],
         [_btn(_t(uid, "pt_any"),   "pt|any")],
-        [_btn(_t(uid, "btn_back"), "em|back")],
+        [_btn(_t(uid, "rbtn_home"), "menu|main")],
+    )
+
+def kb_commercial_type(uid):
+    """Commercial sub-types when user picked Commercial from main menu."""
+    return _kb(
+        [_btn("🏢 Office",     "pt|office"),     _btn("🛍 Retail",     "pt|retail")],
+        [_btn("📦 Warehouse",  "pt|warehouse"),  _btn("🏨 Hotel",      "pt|hotel")],
+        [_btn(_t(uid, "pt_any"), "pt|any")],
+        [_btn(_t(uid, "rbtn_home"), "menu|main")],
     )
 
 def kb_budget(uid, is_rent=False):
@@ -870,20 +894,20 @@ def kb_budget(uid, is_rent=False):
             [_btn(_t(uid, "rb_u100"),   "bud|r_u100"), _btn(_t(uid, "rb_100200"), "bud|r_100200")],
             [_btn(_t(uid, "rb_200p"),   "bud|r_200p")],
             [_btn(_t(uid, "b_any"),     "bud|any")],
-            [_btn(_t(uid, "btn_back"),  "pt|back")],
+            [_btn(_t(uid, "rbtn_home"), "menu|main")],
         )
     return _kb(
         [_btn(_t(uid, "b_u1"),     "bud|u1"),    _btn(_t(uid, "b_12"),  "bud|1-2")],
         [_btn(_t(uid, "b_25"),     "bud|2-5"),   _btn(_t(uid, "b_5p"),  "bud|5p")],
         [_btn(_t(uid, "b_any"),    "bud|any")],
-        [_btn(_t(uid, "btn_back"), "pt|back")],
+        [_btn(_t(uid, "rbtn_home"), "menu|main")],
     )
 
 def kb_bedrooms(uid):
     return _kb(
         [_btn(_t(uid, "br_studio"), "br|0"), _btn(_t(uid, "br_1"), "br|1"), _btn(_t(uid, "br_2"), "br|2")],
         [_btn(_t(uid, "br_3"),      "br|3"), _btn(_t(uid, "br_4p"), "br|4p"), _btn(_t(uid, "br_any"), "br|any")],
-        [_btn(_t(uid, "btn_back"),  "bud|back")],
+        [_btn(_t(uid, "rbtn_home"), "menu|main")],
     )
 
 POPULAR_AREAS = [
@@ -896,7 +920,7 @@ POPULAR_AREAS = [
 def kb_areas(uid):
     rows = [[_btn(a, f"area|{a}")] for a in POPULAR_AREAS]
     rows.append([_btn(_t(uid, "area_custom_btn"), "area|_custom_")])
-    rows.append([_btn(_t(uid, "btn_back"), "menu|main")])
+    rows.append([_btn(_t(uid, "rbtn_home"), "menu|main")])
     return {"inline_keyboard": rows}
 
 # ── Format helpers ────────────────────────────────────────────────────────────
@@ -1981,30 +2005,42 @@ def show_main(cid, uid, mid=None):
 
 
 def dispatch_main_button(cid, uid, rkey):
-    """Dispatches a press of a bottom reply-keyboard button to the same handler
-    as the corresponding inline button."""
-    if rkey == "rbtn_search":
-        _reset(uid); _send(cid, _t(uid, "emirate_q"), kb_emirate(uid))
+    """Dispatches a press of a bottom reply-keyboard button to the right flow.
+    Each category sets the appropriate filter so search results stay within it."""
+    if rkey == "rbtn_buy":
+        _reset(uid)
+        gs(uid)["filters"]["deal_type"] = "sale"
+        gs(uid)["filters"]["property_type_not_in"] = COMMERCIAL_TYPES + LAND_TYPES
+        _send(cid, _t(uid, "emirate_q"), kb_emirate(uid))
+    elif rkey == "rbtn_rent":
+        _reset(uid)
+        gs(uid)["filters"]["deal_type"] = "rent"
+        gs(uid)["filters"]["property_type_not_in"] = COMMERCIAL_TYPES + LAND_TYPES
+        _send(cid, _t(uid, "emirate_q"), kb_emirate(uid))
+    elif rkey == "rbtn_commercial":
+        _reset(uid)
+        gs(uid)["filters"]["property_type_in"] = COMMERCIAL_TYPES
+        _send(cid, _t(uid, "emirate_q"), kb_emirate(uid))
+    elif rkey == "rbtn_plot":
+        _reset(uid)
+        gs(uid)["filters"]["property_type"] = "plot"
+        _send(cid, _t(uid, "emirate_q"), kb_emirate(uid))
     elif rkey == "rbtn_hot":
-        _reset(uid); gs(uid)["filters"] = {"hot_only": True, "sort": "best_deals"}
+        _reset(uid)
+        gs(uid)["filters"] = {"hot_only": True, "sort": "best_deals"}
         _send(cid, _t(uid, "searching")); do_search(uid); send_results(cid, uid)
     elif rkey == "rbtn_new":
-        _reset(uid); gs(uid)["filters"] = {"sort": "newest"}
+        _reset(uid)
+        gs(uid)["filters"] = {"sort": "newest"}
         _send(cid, _t(uid, "searching")); do_search(uid); send_results(cid, uid)
-    elif rkey == "rbtn_budget":
-        _reset(uid); _send(cid, _t(uid, "budget_q"), kb_budget(uid))
-    elif rkey == "rbtn_area":
-        _reset(uid); _send(cid, _t(uid, "area_q"), kb_areas(uid))
-    elif rkey == "rbtn_building":
-        _reset(uid); gs(uid)["waiting"] = "building"
-        _send(cid, _t(uid, "bld_q"),
-              _kb([_btn(_t(uid, "btn_back"), "menu|main")]))
     elif rkey == "rbtn_ai":
         show_ai_start(cid, uid)
     elif rkey == "rbtn_add":
         start_add_listing(cid, uid)
     elif rkey == "rbtn_lang":
         _send(cid, "Select language:", kb_lang())
+    elif rkey == "rbtn_home":
+        show_main(cid, uid)
 
 
 # ── Admin Panel ───────────────────────────────────────────────────────────────
@@ -2764,14 +2800,11 @@ def handle_cb(cb):
     # ── Main callbacks ────────────────────────────────────────────────────────
     if action == "lang":
         user_lang[uid] = parts[1]; _reset(uid)
-        # После выбора языка — показываем выбор типа сделки
-        text = _t(uid, "deal_type_q")
-        kb = _kb(
-            [_btn("🏠  " + _t(uid, "d_sale"),  "default_deal|sale")],
-            [_btn("🔑  " + _t(uid, "d_rent"),  "default_deal|rent")],
-            [_btn(_t(uid, "d_any_deal"),              "default_deal|any")],
-        )
-        _send(cid, text, kb)
+        # Show main menu (persistent bottom keyboard) — categories define deal_type
+        # so we don't ask "are you looking for sale or rent" anymore.
+        try: _api("deleteMessage", chat_id=cid, message_id=mid)
+        except: pass
+        _send(cid, _t(uid, "main_menu"), kb_main_reply(uid))
 
     elif action == "default_deal":
         val = parts[1]  # "sale", "rent", "any"
@@ -2805,7 +2838,20 @@ def handle_cb(cb):
 
     elif action == "em":
         gs(uid)["filters"]["emirate"] = None if parts[1] == "any" else parts[1]
-        _edit(cid, mid, _t(uid, "deal_q"), kb_deal(uid))
+        f = gs(uid)["filters"]
+        # Skip wizard steps that the main-menu category has already set
+        if f.get("property_type") == "plot":
+            # Plot category: skip deal/property — go to budget
+            _edit(cid, mid, _t(uid, "budget_q"), kb_budget(uid, is_rent=False))
+        elif f.get("property_type_in"):
+            # Commercial category: pick sub-type
+            _edit(cid, mid, _t(uid, "prop_q"), kb_commercial_type(uid))
+        elif f.get("deal_type") and f.get("property_type_not_in"):
+            # Buy/Rent category: pick residential sub-type
+            _edit(cid, mid, _t(uid, "prop_q"), kb_proptype(uid))
+        else:
+            # Old flow (no category preset): ask deal_type
+            _edit(cid, mid, _t(uid, "deal_q"), kb_deal(uid))
 
     elif action == "deal":
         val = parts[1]
