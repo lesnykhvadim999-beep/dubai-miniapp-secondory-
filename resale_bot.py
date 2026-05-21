@@ -3121,6 +3121,18 @@ def handle_msg(msg):
             _send(cid, "⚙️ Parser started — incremental sync running in background...")
             from telethon_parser import run_parser_thread
             run_parser_thread(backfill=False)
+        elif cmd == "backfillall":
+            if uid != ADMIN_ID:
+                _send(cid, "Access denied."); return
+            _send(cid,
+                "🔄 *FULL BACKFILL запущен* для всех каналов с 01.01.2026.\n\n"
+                "Существующие записи **не удаляются** — дедупликация через "
+                "`listing_key` UNIQUE.\n\n"
+                "Парсер пройдёт все 3 канала с начала года, пропустит уже "
+                "сохранённые сообщения и добавит пропущенные.\n\n"
+                "Прогресс: смотри Railway logs или вызывай /stats через 15–30 мин.")
+            from telethon_parser import run_parser_thread
+            run_parser_thread(backfill=True)
         elif cmd == "cleanup":
             if uid != ADMIN_ID:
                 _send(cid, "Access denied."); return
@@ -3173,6 +3185,7 @@ def handle_msg(msg):
                 "/stats — Statistics (admin)\n"
                 "/parse — Trigger incremental parse (admin)\n"
                 "/catchup — Resume from last known message (admin)\n"
+                "/backfillall — Full backfill all channels from 01.01.2026 (admin)\n"
                 "/airescan — AI deal_type rescan (admin)\n"
                 "/fullrescan — Full AI re-parse all listings (admin)")
         return
