@@ -682,6 +682,11 @@ _HARD_RENT_KW_PE = [
 ]
 _HARD_SALE_KW_PE = [
     r'\bfor sale\b', r'\bselling\b', r'\bresale\b', r'\bsale price\b',
+    r'\bsales?\s+price\b', r'\bselling\s+price\b',
+    r'\bsp\s*[:\-]', r'\bop\s*[:\-]',  # SP/OP prefix usually = selling/original sale price
+    r'\bpayment\s+plan\b', r'\bhandover\s+(?:q\d|in|date|by|on|\d{4})',
+    r'\b(?:urgent|hot|distress)\s+sale\b', r'\bbelow\s+market\b', r'\bbelow\s+op\b',
+    r'\boff[\s\-]?plan\b', r'\bdeveloper\s*:', r'\bproject\s*:',
     r'\bпродажа\b', r'\bпродам\b', r'\bпродаётся\b',
     r'\bbuy\b', r'\bbuying\b',
 ]
@@ -750,7 +755,10 @@ def validate_deal_type_by_price(
         if text:
             tl = text.lower()
             has_explicit_sale = bool(re.search(
-                r'\b(?:sales?\s*price|selling\s*price|sale\s*price|asking\s*price|sp\s*:|original\s*price|op\s*:|payment\s*plan|handover\s*q\d)\b',
+                r'\b(?:for\s+sale|sales?\s*price|selling\s*price|sale\s*price|asking\s*price|'
+                r'sp\s*[:\-]|original\s*price|op\s*[:\-]|payment\s*plan|handover\s+(?:q\d|in|by|on|\d{4})|'
+                r'distress\s+deal|below\s+(?:market|op)|off[\s\-]?plan|developer\s*:|'
+                r'urgent\s+sale|hot\s+sale)\b',
                 tl
             ))
         if not has_explicit_sale:
