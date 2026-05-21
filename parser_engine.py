@@ -2977,14 +2977,78 @@ def parse_message(
 
     # ── Sanity-limit длины: building > 100 chars / area > 100 chars = мусор
     if data.get("building") and len(data["building"]) > 100:
-        # Слишком длинное — обрезаем и помечаем для review
         data["building"] = None
     if data.get("area") and len(data["area"]) > 100:
         data["area"] = None
 
+    # ── Strict validator — помечаем подозрительные сразу в audit ───────────
+    audit_reasons = _validate_listing_strict(data)
+    if audit_reasons:
+        data["needs_manual_review"] = True
+        data["review_reason"] = "; ".join(audit_reasons)
+        # Не отправляем сразу в audit (is_audit=TRUE) — это сделает flag_audit cron.
+        # Но помечаем review_reason для админ-обзора.
+
     data["listing_key"] = make_listing_key(data)
 
     return data
+
+
+def _validate_listing_strict(data: dict) -> list:
+    """Возвращает список причин подозрительности или [] если всё ок.
+    Логика синхронизирована с DB-валидатором — те же эвристики."""
+    reasons = []
+    bld = data.get("building") or ""
+    area = data.get("area") or ""
+    deal = data.get("deal_type") or "sale"
+    pt = data.get("property_type") or "apartment"
+    br = data.get("bedrooms")
+    sqft = (data.get("size_sqft") or 0) or (data.get("bua_sqft") or 0)
+    price = data.get("price") or 0
+    text = (data.get("original_text") or "")[:1000].lower()
+
+    # Building checks
+    if bld:
+        if len(bld) > 60:
+            reasons.append("building_too_long")
+        if re.search(r'\b(?:view|deal|vacant|rented|brand new|fully|distress|hot|asking)\b',
+                      bld, re.I):
+            reasons.append("building_descriptor")
+        if re.search(r'\d{4,}', bld):
+            reasons.append("building_has_digits")
+        # Building не упомянуто в первом блоке текста
+        if text and bld.lower() not in text[:600]:
+            if bld.lower() in text:
+                reasons.append("building_not_in_first_block")
+
+    # Price plausibility
+    residential = {"apartment","villa","townhouse","penthouse","studio","duplex"}
+    if price and br is not None and br > 0 and pt in residential:
+        if deal == "rent":
+            min_rent = {1:40000,2:60000,3:90000,4:120000}.get(br, 30000)
+            if price < min_rent * 0.5:
+                reasons.append(f"rent_too_low_{price}")
+        elif deal == "sale":
+            min_sale = {1:500000,2:900000,3:1500000,4:2500000}.get(br, 350000)
+            if price < min_sale * 0.4:
+                reasons.append(f"sale_too_low_{price}")
+
+    # Sqft plausibility
+    if sqft and br is not None and br > 0:
+        if sqft < br * 200:
+            reasons.append(f"sqft_too_small_{sqft}")
+
+    # Type vs text contradictions
+    if text:
+        if pt == "studio" and re.search(r'\b[1-9]\s*(?:br|bedroom|bhk)\b', text):
+            reasons.append("studio_with_NBR")
+        if pt == "villa" and "villa" not in text[:200] and sqft and sqft < 2000:
+            reasons.append("villa_no_word")
+        if pt == "penthouse" and "penthouse" not in text[:300]:
+            if not (br and br >= 3 and sqft and sqft > 2000):
+                reasons.append("penthouse_no_word")
+
+    return reasons
 
 
 # ══════════════════════════════════════════════════════════════════════════════
