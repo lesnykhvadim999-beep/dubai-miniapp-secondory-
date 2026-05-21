@@ -1851,6 +1851,34 @@ def extract_price(text: str) -> dict:
     # can't accidentally match "1 B" (BHK) as a billion-AED value.
     text = re.sub(r'\b(\d+)\s*(?:BHK|BR|BHRs?|BDR|B/R|BD|BED(?:ROOM)?S?|BHRM)\b',
                   r'\1 ', text, flags=re.I)
+    # Strip discount-context phrases so '(130k AED discount)' or 'below op -200k'
+    # don't get caught as the main price. The REAL price is elsewhere in text.
+    text = re.sub(
+        r'\(\s*[\d.,]+\s*(?:k|m)?\s*aed\s+discount\s*\)', ' ',
+        text, flags=re.I)
+    text = re.sub(
+        r'\bdiscount[\s:=]+[\d.,]+\s*(?:k|m)\b', ' ', text, flags=re.I)
+    text = re.sub(
+        r'\bbelow\s+op(?:\s+price)?[\s:=]*[\-+]?\s*[\d.,]+\s*(?:k|m)\b', ' ',
+        text, flags=re.I)
+    text = re.sub(
+        r'\bsave(?:s)?[\s:=]+(?:aed\s+)?[\d.,]+\s*(?:k|m)\b', ' ',
+        text, flags=re.I)
+    # Service charges, DLD fees etc — should be stripped too.
+    # "Service charge 15,527 AED" / "DLD 4% AED 120,000"
+    text = re.sub(
+        r'\bservice\s+charge[\s:=]+(?:aed\s+)?[\d,]+(?:\.\d+)?', ' ',
+        text, flags=re.I)
+    text = re.sub(
+        r'\bdld\s+(?:fee|4%)?[\s:=]*(?:aed\s+)?[\d,]+(?:\.\d+)?', ' ',
+        text, flags=re.I)
+    # ── Normalise space-separated numbers ("560 000" → "560000") ────────
+    # Только для последовательностей которые точно outside phones (не ловим +971 50 ...)
+    # Pattern: 3-4 digit + (space + 3 digits)+
+    text = re.sub(
+        r'(\d{1,3})(?:\s(\d{3}))+',
+        lambda m: m.group(0).replace(" ", ""),
+        text)
     t = text  # preserve original case for Cash regex
 
     # -- Original / Purchase price — ONLY these go to original_price
