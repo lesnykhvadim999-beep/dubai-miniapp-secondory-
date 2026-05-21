@@ -143,9 +143,10 @@ def send_welcome_with_logo(cid: int, uid: int):
     else:
         _send(cid, welcome_text)
 
-    # 2. Language selector in BOTTOM reply keyboard (persistent)
-    _send(cid, "🌐  Select your language / Выберите язык / اختر لغتك",
-          kb_lang_reply())
+    # 2. Bottom keyboard с языками — без дублирующего prompt (текст уже в welcome).
+    # Используем zero-width space чтобы Telegram не показал текст-баббл.
+    _api("sendMessage", chat_id=cid, text="​",
+         reply_markup=kb_lang_reply())
 
 # ── Translations ──────────────────────────────────────────────────────────────
 T = {
@@ -1449,12 +1450,18 @@ def _wizard_match(text, key_map):
 
 
 def is_main_menu_text(text: str):
-    """Returns the rbtn_* key if `text` matches any reply-keyboard label
-    in any language. Used to dispatch text presses to handlers."""
+    """Returns the rbtn_* key if `text` matches a MAIN MENU label in any
+    language. Wizard-only keys (rbtn_more / rbtn_back / rbtn_change_deal /
+    rbtn_create_alert) ИСКЛЮЧЕНЫ — они обрабатываются dispatch_wizard_button."""
     if not text: return None
+    MAIN_MENU_KEYS = {
+        "rbtn_buy", "rbtn_rent", "rbtn_commercial", "rbtn_plot",
+        "rbtn_hot", "rbtn_new", "rbtn_ai", "rbtn_add",
+        "rbtn_favs", "rbtn_alerts", "rbtn_lang", "rbtn_home",
+    }
     for lang_code, strings in T.items():
         for k, v in strings.items():
-            if k.startswith("rbtn_") and v == text:
+            if k in MAIN_MENU_KEYS and v == text:
                 return k
     return None
 
