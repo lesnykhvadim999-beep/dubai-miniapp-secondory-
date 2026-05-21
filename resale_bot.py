@@ -1608,11 +1608,14 @@ def format_card(listing, uid, rank=None):
 
     # 6. Analytics block (separator + items)
     analytics = []
-    if pct is not None and pct < -3:
+    # Show "below market" ONLY if reasonable range (-3% .. -70%).
+    # Anything > -70% means our parsed price is junk (service charge, fee, etc.) —
+    # don't broadcast nonsense like "99.8% below market".
+    if pct is not None and -70 < pct < -3:
         analytics.append(f"📉 {abs(round(pct, 1))}% {_t(uid, 'card_below_mkt')}")
-    if disc and disc >= 5:
+    if disc and 5 <= disc < 80:
         analytics.append(f"🏷 {disc}% {_t(uid, 'card_below_op')}")
-    if roi and deal_type == "sale":
+    if roi and deal_type == "sale" and roi < 30:    # ROI > 30%/yr тоже мусор
         analytics.append(f"📈 {_t(uid, 'card_roi')} {roi}%{_t(uid, 'card_per_year_short')}")
     if score:
         analytics.append(f"⭐ {score}/10  ·  {_t(uid, 'card_score')}")
@@ -1730,8 +1733,11 @@ def format_detail(listing, uid):
         if dq == "very_good":   lines.append("  ▸ VERY GOOD DEAL")
         elif dq == "good":      lines.append("  ▸ GOOD DEAL")
         else:                   lines.append("  ▸ INTERESTING OFFER")
-        if pct and pct < 0:     lines.append(f"  {abs(round(pct,1))}% below market average")
-        if disc and disc >= 3:  lines.append(f"  {disc}% below original price")
+        # Sanity: hide nonsense like "99.8% below market" (artefact of bad parsing).
+        if pct and -70 < pct < 0:
+            lines.append(f"  {abs(round(pct,1))}% below market average")
+        if disc and 3 <= disc < 80:
+            lines.append(f"  {disc}% below original price")
 
     # Market insight from DB
     if area:

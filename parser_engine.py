@@ -2685,6 +2685,21 @@ def parse_message(
     # ── Validate deal_type against market floor prices ─────────────────────
     deal_type = validate_deal_type_by_price(price, deal_type, bedrooms, area, text=original_text, building=building)
 
+    # ── Sanity floor: residential rent < 20k / sale < 200k = это служебка ──
+    # Минимальная аренда в Дубае — ~25k/yr (студия в самых дешёвых районах).
+    # Минимальная продажа квартиры — ~400k (студия в JVC/Sharjah).
+    # Если цена ниже — парсер поймал service charge / DLD fee / payment installment.
+    residential_types = {"apartment","studio","villa","townhouse","penthouse","duplex"}
+    if price and prop_type in residential_types:
+        if deal_type == "rent" and price < 20_000:
+            print(f"[parser] DROP rent price={price} (likely service charge)")
+            price = None
+            price_per_sqft = None
+        elif deal_type == "sale" and price < 200_000:
+            print(f"[parser] DROP sale price={price} (likely service charge / mis-parse)")
+            price = None
+            price_per_sqft = None
+
     # ── Deal quality ──────────────────────────────────────────────────────────
     deal_analysis = compute_deal_quality(
         price=price or 0,
