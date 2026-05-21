@@ -956,18 +956,40 @@ def kb_commercial_type(uid):
         [_btn(_t(uid, "rbtn_home"), "menu|main")],
     )
 
-def kb_budget(uid, is_rent=False):
+def kb_budget(uid, is_rent=False, is_commercial=False, is_plot=False):
+    """Dynamic budget ranges based on actual DB distribution.
+    - Sale residential: median 2.9M, 75pct 7M, 95pct 35M
+    - Rent residential: median 165k, 75pct 400k, 90pct 1M
+    - Commercial: huge spread 145k–920M
+    - Plot: 2.25M–510M
+    """
     if is_rent:
         return _kb(
-            [_btn(_t(uid, "rb_u100"),   "bud|r_u100"), _btn(_t(uid, "rb_100200"), "bud|r_100200")],
-            [_btn(_t(uid, "rb_200p"),   "bud|r_200p")],
-            [_btn(_t(uid, "b_any"),     "bud|any")],
+            [_btn("≤ 60k AED",     "bud|r_u60"),   _btn("60–100k",     "bud|r_60100")],
+            [_btn("100–200k",      "bud|r_100200"),_btn("200–500k",    "bud|r_200500")],
+            [_btn("500k+ AED",     "bud|r_500p"),  _btn(_t(uid, "b_any"), "bud|any")],
             [_btn(_t(uid, "rbtn_home"), "menu|main")],
         )
+    if is_commercial:
+        return _kb(
+            [_btn("≤ 1M AED",      "bud|c_u1"),    _btn("1–5M",        "bud|c_15")],
+            [_btn("5–20M",         "bud|c_520"),   _btn("20–100M",     "bud|c_20100")],
+            [_btn("100M+ AED",     "bud|c_100p"),  _btn(_t(uid, "b_any"), "bud|any")],
+            [_btn(_t(uid, "rbtn_home"), "menu|main")],
+        )
+    if is_plot:
+        return _kb(
+            [_btn("≤ 5M AED",      "bud|p_u5"),    _btn("5–20M",       "bud|p_520")],
+            [_btn("20–50M",        "bud|p_2050"),  _btn("50–100M",     "bud|p_50100")],
+            [_btn("100M+ AED",     "bud|p_100p"),  _btn(_t(uid, "b_any"), "bud|any")],
+            [_btn(_t(uid, "rbtn_home"), "menu|main")],
+        )
+    # Default: residential sale (most common case)
     return _kb(
-        [_btn(_t(uid, "b_u1"),     "bud|u1"),    _btn(_t(uid, "b_12"),  "bud|1-2")],
-        [_btn(_t(uid, "b_25"),     "bud|2-5"),   _btn(_t(uid, "b_5p"),  "bud|5p")],
-        [_btn(_t(uid, "b_any"),    "bud|any")],
+        [_btn("≤ 1M AED",      "bud|u1"),     _btn("1–2M",       "bud|1-2")],
+        [_btn("2–3M",          "bud|2-3"),    _btn("3–5M",       "bud|3-5")],
+        [_btn("5–10M",         "bud|5-10"),   _btn("10–25M",     "bud|10-25")],
+        [_btn("25M+ AED",      "bud|25p"),    _btn(_t(uid, "b_any"), "bud|any")],
         [_btn(_t(uid, "rbtn_home"), "menu|main")],
     )
 
@@ -2099,12 +2121,17 @@ def dispatch_main_button(cid, uid, rkey):
         gs(uid)["wizard"] = "emirate"
         _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
     elif rkey == "rbtn_hot":
-        _reset(uid)
-        gs(uid)["filters"] = {"hot_only": True, "sort": "best_deals"}
+        # Preserve any existing category filters (deal_type / property_type / etc)
+        # from previous wizard steps — if user pressed Buy then Hot, show hot SALES.
+        existing = dict(gs(uid).get("filters", {}))
+        existing["hot_only"] = True
+        existing["sort"] = "best_deals"
+        gs(uid)["filters"] = existing
         _send(cid, _t(uid, "searching")); do_search(uid); send_results(cid, uid)
     elif rkey == "rbtn_new":
-        _reset(uid)
-        gs(uid)["filters"] = {"sort": "newest"}
+        existing = dict(gs(uid).get("filters", {}))
+        existing["sort"] = "newest"
+        gs(uid)["filters"] = existing
         _send(cid, _t(uid, "searching")); do_search(uid); send_results(cid, uid)
     elif rkey == "rbtn_ai":
         show_ai_start(cid, uid)
@@ -2130,9 +2157,9 @@ def dispatch_wizard_button(cid, uid, text):
             filters["emirate"] = em
         # Next: property type (commercial or residential or skip if plot)
         if filters.get("property_type") == "plot":
-            # Plot: skip property type, go straight to budget
+            # Plot: skip property type, go straight to budget (plot-tier)
             state["wizard"] = "budget"
-            _send(cid, _t(uid, "budget_q"), kb_budget(uid, is_rent=False))
+            _send(cid, _t(uid, "budget_q"), kb_budget(uid, is_plot=True))
         elif filters.get("property_type_in"):
             # Commercial sub-type
             state["wizard"] = "proptype"
@@ -2153,12 +2180,14 @@ def dispatch_wizard_button(cid, uid, text):
             else:
                 filters["property_type"] = pt
                 filters.pop("property_type_in", None)
-        # Next: bedrooms (skip for commercial/plot, go to budget)
-        if filters.get("property_type") == "plot" or filters.get("property_type_in"):
+        # Next: bedrooms (residential only) or budget (commercial/plot)
+        is_comm = bool(filters.get("property_type_in"))
+        is_plot = filters.get("property_type") == "plot"
+        is_rent = filters.get("deal_type") == "rent"
+        if is_plot or is_comm:
             state["wizard"] = "budget"
-            is_rent = filters.get("deal_type") == "rent"
             _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
-                  kb_budget(uid, is_rent=is_rent))
+                  kb_budget(uid, is_rent=is_rent, is_commercial=is_comm, is_plot=is_plot))
         else:
             state["wizard"] = "bedrooms"
             _send(cid, _t(uid, "br_q"), kb_reply_bedrooms(uid))
@@ -2169,7 +2198,7 @@ def dispatch_wizard_button(cid, uid, text):
         br = BEDROOM_BUTTONS[text]
         if br is not None:
             filters["bedrooms"] = br
-        # Next: budget
+        # Next: budget (residential)
         state["wizard"] = "budget"
         is_rent = filters.get("deal_type") == "rent"
         _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
@@ -3003,22 +3032,53 @@ def handle_cb(cb):
 
     elif action == "bud":
         val = parts[1]
-        is_rent = gs(uid)["filters"].get("deal_type") == "rent"
-        if is_rent:
-            rent_map = {
-                "r_u100": (None, 100_000), "r_100200": (100_000, 200_000), "r_200p": (200_000, None)
-            }
-            if val in rent_map:
-                mn, mx = rent_map[val]
-                if mn: gs(uid)["filters"]["min_price"] = mn
-                if mx: gs(uid)["filters"]["max_price"] = mx
+        # Comprehensive budget map for all categories
+        bmap = {
+            # Sale residential (default)
+            "u1":     (None,        1_000_000),
+            "1-2":    (1_000_000,   2_000_000),
+            "2-3":    (2_000_000,   3_000_000),
+            "3-5":    (3_000_000,   5_000_000),
+            "5-10":   (5_000_000,  10_000_000),
+            "10-25":  (10_000_000, 25_000_000),
+            "25p":    (25_000_000,       None),
+            # Legacy keys (kept for backward compat with old inline buttons)
+            "2-5":    (2_000_000,   5_000_000),
+            "5p":     (5_000_000,        None),
+            # Rent
+            "r_u60":     (None,    60_000),
+            "r_60100":   (60_000, 100_000),
+            "r_u100":    (None,   100_000),
+            "r_100200":  (100_000, 200_000),
+            "r_200500":  (200_000, 500_000),
+            "r_200p":    (200_000,    None),
+            "r_500p":    (500_000,    None),
+            # Commercial
+            "c_u1":      (None,     1_000_000),
+            "c_15":      (1_000_000, 5_000_000),
+            "c_520":     (5_000_000, 20_000_000),
+            "c_20100":   (20_000_000, 100_000_000),
+            "c_100p":    (100_000_000, None),
+            # Plot
+            "p_u5":      (None,     5_000_000),
+            "p_520":     (5_000_000, 20_000_000),
+            "p_2050":    (20_000_000, 50_000_000),
+            "p_50100":   (50_000_000, 100_000_000),
+            "p_100p":    (100_000_000, None),
+        }
+        if val in bmap:
+            mn, mx = bmap[val]
+            if mn: gs(uid)["filters"]["min_price"] = mn
+            if mx: gs(uid)["filters"]["max_price"] = mx
+        # Next step: bedrooms (residential) or skip to search (commercial/plot)
+        f = gs(uid)["filters"]
+        if f.get("property_type") == "plot" or f.get("property_type_in"):
+            # Commercial/plot — go straight to search
+            _edit(cid, mid, _t(uid, "searching"))
+            do_search(uid)
+            send_results(cid, uid)
         else:
-            bmap = {"u1":(None,1_000_000),"1-2":(1_000_000,2_000_000),"2-5":(2_000_000,5_000_000),"5p":(5_000_000,None)}
-            if val in bmap:
-                mn, mx = bmap[val]
-                if mn: gs(uid)["filters"]["min_price"] = mn
-                if mx: gs(uid)["filters"]["max_price"] = mx
-        _edit(cid, mid, _t(uid, "br_q"), kb_bedrooms(uid))
+            _edit(cid, mid, _t(uid, "br_q"), kb_bedrooms(uid))
 
     elif action == "br":
         v = parts[1]
