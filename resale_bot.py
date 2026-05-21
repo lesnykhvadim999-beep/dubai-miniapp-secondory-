@@ -2508,37 +2508,74 @@ def send_results(cid, uid, mid=None):
     _send(cid, footer, kb_reply_results(uid, has_more=remaining > 0))
 
 
-# ── Natural language + Claude ─────────────────────────────────────────────────
+# ── LLM с fallback Claude → Groq → None ─────────────────────────────────────
+# Claude — премиум для AI-аргументации (если кредиты есть).
+# Groq — бесплатный fallback (Llama 3.3 70B, OpenAI-compatible API).
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+
+def _llm_call(prompt: str, max_tokens: int = 600, timeout: int = 20) -> str | None:
+    """Универсальный LLM-вызов. Сначала Claude, при ошибке/нет ключа → Groq.
+    Returns текст ответа или None если оба упали."""
+    # 1) Claude (если есть key и credits)
+    if ANTHROPIC_KEY:
+        try:
+            resp = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": ANTHROPIC_KEY,
+                         "anthropic-version": "2023-06-01",
+                         "content-type": "application/json"},
+                json={"model": "claude-haiku-4-5-20251001",
+                      "max_tokens": max_tokens,
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=timeout,
+            )
+            if resp.status_code == 200:
+                return resp.json()["content"][0]["text"].strip()
+            # 400 = balance too low / 401 = invalid key → fallback на Groq
+            print(f"[llm] Claude HTTP {resp.status_code}: {resp.text[:120]}, falling back to Groq")
+        except Exception as e:
+            print(f"[llm] Claude error: {e}, falling back to Groq")
+
+    # 2) Groq (бесплатный fallback)
+    if GROQ_API_KEY:
+        try:
+            resp = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}",
+                         "Content-Type": "application/json"},
+                json={"model": GROQ_MODEL,
+                      "max_tokens": max_tokens,
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=timeout,
+            )
+            if resp.status_code == 200:
+                return resp.json()["choices"][0]["message"]["content"].strip()
+            print(f"[llm] Groq HTTP {resp.status_code}: {resp.text[:120]}")
+        except Exception as e:
+            print(f"[llm] Groq error: {e}")
+
+    return None
+
+
 def claude_translate(text, target_lang="en"):
-    """Translate any text to target_lang via Claude Haiku.
-    target_lang: 'en' | 'ru' | 'ar'. Returns translated string or None."""
-    if not ANTHROPIC_KEY or not text: return None
+    """Translate any text to target_lang via LLM (Claude → Groq fallback)."""
+    if not text: return None
     lang_full = {"en": "English", "ru": "Russian", "ar": "Arabic"}.get(target_lang, "English")
-    try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": ANTHROPIC_KEY,
-                     "anthropic-version": "2023-06-01",
-                     "content-type": "application/json"},
-            json={"model": "claude-haiku-4-5-20251001",
-                  "max_tokens": 600,
-                  "messages": [{"role": "user", "content":
-                    f"Translate the following UAE real estate listing to {lang_full}. "
-                    f"Preserve numbers, prices, and proper names. Return ONLY the "
-                    f"translated text, no preface:\n\n{text[:1500]}"}]},
-            timeout=15,
-        )
-        if resp.status_code != 200: return None
-        return resp.json()["content"][0]["text"].strip()
-    except Exception as e:
-        print(f"[claude_translate] {e}")
-        return None
+    prompt = (
+        f"Translate the following UAE real estate listing to {lang_full}. "
+        f"Preserve numbers, prices, and proper names. Return ONLY the "
+        f"translated text, no preface:\n\n{text[:1500]}"
+    )
+    return _llm_call(prompt, max_tokens=600, timeout=15)
 
 
 def claude_parse(text, lang="en"):
-    """Use Claude Haiku to parse a free-form real estate query into filters.
-    Supports EN/RU/AR with slang ("у моря", "семейный район", "за моллом")."""
-    if not ANTHROPIC_KEY: return {}
+    """Use LLM to parse a free-form real estate query into filters.
+    Supports EN/RU/AR with slang ("у моря", "семейный район", "за моллом").
+    Uses Claude → Groq fallback chain."""
+    if not (ANTHROPIC_KEY or GROQ_API_KEY): return {}
     prompt = (
         "You are a UAE real estate query parser. The user can write in English, "
         "Russian, or Arabic, with slang, typos, and lifestyle hints. Return ONLY "
@@ -2572,21 +2609,10 @@ def claude_parse(text, lang="en"):
         f'Query ({lang}): "{text}"\n'
         "JSON:"
     )
+    raw = _llm_call(prompt, max_tokens=400, timeout=15)
+    if not raw:
+        return {}
     try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": ANTHROPIC_KEY,
-                     "anthropic-version": "2023-06-01",
-                     "content-type": "application/json"},
-            json={"model": "claude-haiku-4-5-20251001",
-                  "max_tokens": 400,
-                  "messages": [{"role": "user", "content": prompt}]},
-            timeout=15,
-        )
-        if resp.status_code != 200:
-            print(f"[claude_parse] HTTP {resp.status_code}: {resp.text[:200]}")
-            return {}
-        raw = resp.json()["content"][0]["text"].strip()
         # Extract JSON object (may be wrapped in code fences / extra text)
         m = re.search(r'\{.*\}', raw, re.DOTALL)
         if not m: return {}
