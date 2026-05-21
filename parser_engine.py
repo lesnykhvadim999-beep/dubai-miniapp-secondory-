@@ -615,12 +615,24 @@ def is_spam(text: str) -> bool:
     # СИЛЬНЫЕ buyer-маркеры — однозначно spam, независимо от "for sale" в тексте
     strong_buyer = [
         r'❌\s*request\s*❌',
-        r'\brequest\s*:?\s*(?:looking|need|require)',
+        r'\b(?:urgent\s+)?request\b.*\b(?:looking|need|require|cash|client|buyer|ready)',
         r'\b(?:client|buyer|investor)\s+(?:looking\s+(?:for|to)|wants?\s+to\s+(?:buy|invest))',
         r'\bcash\s+buyer\b',
-        r'\blooking\s+(?:a\s+|for\s+a\s+)?\b(?:apartment|villa|townhouse|studio|penthouse|hotel|office|plot|property)\b.*\bbudget\b',
-        r'\bbudget\s*[:=]\s*[\d.,]+\s*[mk]\b',   # "Budget: 90M" — обычно request
+        r'\bready\s+client\b',
+        r'\blooking\s+(?:a\s+|for\s+a?\s*)?\b(?:apartment|villa|townhouse|studio|penthouse|hotel|office|plot|property|land)\b.*\bbudget\b',
+        r'\bany\s+available\s+(?:apartment|villa|studio|townhouse|penthouse|property)',
+        r'\bbudget\s*[:;=]\s*[\d.,]+\s*[mk-]',     # "Budget: 90M", "Budget; 600k", "Budget: 5.6 - 6m"
+        r'\bbudget\s+[\d.,]+\s*[mk]',
+        r'\bup\s+to\s+\d+\s*[mk]\b',                # "up to 850k" (типичный buyer request)
         r'\bany(?:one)?\s+(?:has|have|got)\s+(?:any|a)?\s*\d',
+        r'\bdm\s+(?:me\s+)?with\s+(?:offers|options|listings|units)',
+        r'\bany\s+offers\s+for\b',
+        # "We are giving X% commission" / "buyer commission" — агентский spam
+        r'\bwe\s+are\s+giving\s+\d+\s*%\s+commission',
+        r'\bfull\s+buyer\s+commission\b',
+        r'\b(?:above|all\s+top\s+up)\s+\d+\s*m\b.*\b(?:yours|your)\b',
+        # "We have client/buyer for..." — агент запрашивает
+        r'\bwe\s+have\s+(?:a\s+)?(?:client|buyer|investor)\b',
     ]
     if any(re.search(p, tl) for p in strong_buyer):
         return True
@@ -1694,36 +1706,39 @@ def extract_size(text: str) -> dict:
                 result["size_sqft"] = _sqm_to_sqft(v)
                 break
 
-    # SQFT with label (e.g. "Size: 1148 sqft", "Total Area: 654 sq.ft")
+    # NUM pattern that supports thousands-separators: comma, space, dot
+    # "1,250" / "1 250" / "18 000" / "12.500" / "1250" — все валидны
+    NUM = r'(\d{1,3}(?:[\s,]\d{3})+|\d{1,6})(?:\.\d+)?'
+
+    # SQFT with label (e.g. "Size: 1148 sqft", "Total Area: 18 000 sqft")
     if result["size_sqft"] is None:
         sqft_label_patterns = [
-            r'(?:Plot\s+Area|Total\s+Area|Size|Area)\s*[:=\-]?\s*([\d,]+\.?\d*)\s*(?:sq\.?\s*ft|sqft|ft[²*2])',
-            # Number AFTER label  (Sqft: 3880, Sq Ft 1148)
-            r'\bSqft\s*[:=]\s*([\d,]+\.?\d*)',
-            r'\bSq\.?\s*Ft\s*[:=]\s*([\d,]+\.?\d*)',
+            rf'(?:Plot\s+Area|Total\s+Area|Size(?:\s+of\s+(?:Villa|Apartment|Townhouse))?|Area)\s*[:=\-]?\s*{NUM}\s*(?:sq\.?\s*ft|sqft|ft[²*2])',
+            rf'\bSqft\s*[:=]\s*{NUM}',
+            rf'\bSq\.?\s*Ft\s*[:=]\s*{NUM}',
         ]
         for pat in sqft_label_patterns:
             m = re.search(pat, text, re.I)
             if m:
-                v = _parse_num(m.group(1).replace(",", ""))
+                v = _parse_num(m.group(1).replace(",", "").replace(" ", ""))
                 if _in_range_sqft(v):
                     result["size_sqft"] = v
                     break
 
-    # Bare SQFT (number directly followed by unit)
+    # Bare SQFT (number directly followed by unit) — теперь с поддержкой пробелов
     if result["size_sqft"] is None:
         bare_sqft_patterns = [
-            r'([\d,]+\.?\d*)\s*sq\.?\s*ft\b',
-            r'([\d,]+\.?\d*)\s*sqft\b',
-            r'([\d,]+\.?\d*)\s*ft[²*2]',
-            r'([\d,]+\.?\d*)\s*SF\b',
-            r'([\d,]+\.?\d*)\s*sqf\b',
-            r'([\d,]+\.?\d*)\s*sq\s+f\b',
+            rf'{NUM}\s*sq\.?\s*ft\b',
+            rf'{NUM}\s*sqft\b',
+            rf'{NUM}\s*ft[²*2]',
+            rf'{NUM}\s*SF\b',
+            rf'{NUM}\s*sqf\b',
+            rf'{NUM}\s*sq\s+f\b',
         ]
         for pat in bare_sqft_patterns:
             m = re.search(pat, text, re.I)
             if m:
-                v = _parse_num(m.group(1).replace(",", ""))
+                v = _parse_num(m.group(1).replace(",", "").replace(" ", ""))
                 if _in_range_sqft(v):
                     result["size_sqft"] = v
                     break
