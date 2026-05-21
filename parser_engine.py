@@ -1585,6 +1585,14 @@ def extract_bedrooms(text: str) -> Optional[int]:
     if m:
         v = _ok(int(m.group(1)))
         if v is not None: return v
+    # Bedrooms as English words: "one bedroom" / "two bedroom" / "three bedroom"
+    WORD_BR = {
+        "one": 1, "single": 1, "two": 2, "three": 3, "four": 4,
+        "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    }
+    for w, n in WORD_BR.items():
+        if re.search(rf'\b{w}\s+(?:bedroom|bed|br|bhk|b/r)s?\b', tl):
+            return n
     # Studio only if no numeric pattern found
     if re.search(r'\bstudio\b|\bstd\b', tl):
         return 0
@@ -1938,16 +1946,21 @@ def extract_price(text: str) -> dict:
 
 
 def _first_listing_block(text: str) -> str:
-    """Return first listing's text — up to the first --- separator or 2+ blank lines.
+    """Return first listing's text — up to the first separator or 2+ blank lines.
     Recognises a wide variety of separators used in Telegram listings:
       ─── ━━━ ─── ═══ ⸻ ⸺ ⸺⸺ ▬▬ ━━ -------- ======== ········
+      ____ underscores (long visual rules)
+      ◆◆◆ ■■■ ◇◇◇ ★★★ ●●● ▪▪▪ ▫▫▫  (Telegram listings often use these)
     For single-listing texts returns the full text unchanged.
     """
-    # Separators:
-    #   3+ of: - — – = ━ ─ ═ ▬ * ·
-    #   OR single long visual-width chars: ⸻ ⸺ (these ARE long lines on their own)
     return re.split(
-        r'\n\s*(?:[-—–=━─═▬*·]{3,}|[⸻⸺]+)\s*\n|\n\s*\n\s*\n',
+        r'\n\s*(?:'
+        r'[-—–=━─═▬*·_]{3,}'           # длинные линии: ---, ___, ===, ━━━ и т.д.
+        r'|[⸻⸺]+'                      # длинные тире unicode
+        r'|[◆■◇★●▪▫◽◾◻◼]{3,}'           # геометрические разделители
+        r'|[—–]{2,}\s*[—–]{2,}'         # сдвоенные тире
+        r')\s*\n'
+        r'|\n\s*\n\s*\n',               # тройной \n (2+ пустых строки)
         text, maxsplit=1
     )[0]
 
@@ -2038,6 +2051,21 @@ def extract_property_type(text: str, bedrooms: Optional[int] = None) -> str:
         re.search(r'\bplot\s+(?:area|size)\s*[:\-~]?\s*[\d,.]+\s*sq', head, re.I)
     )
 
+    # Pre-strip context phrases that contain a property-type word but refer to
+    # something else (view from the window, view of the community, etc).
+    # Otherwise "1BR apartment with villas view" becomes property_type=villa.
+    head_stripped = re.sub(
+        r'\b(?:villa|villas|community|garden|park|pool|burj|golf|sea|marina|'
+        r'fountain|skyline|city|canal|tower|building|park)\s+view\b',
+        ' ', head, flags=re.I)
+    head_stripped = re.sub(
+        r'\bview\s+(?:of|to)\s+(?:the\s+)?(?:villa|villas|community|tower|park|'
+        r'pool|garden|building|skyline|marina|burj|sea)\b',
+        ' ', head_stripped, flags=re.I)
+    # "X view from balcony"
+    head_stripped = re.sub(r'\b(?:villa|villas|townhouse|townhouses|tower|building)s?\s+(?:view|nearby|next\s+to|opposite)\b',
+                            ' ', head_stripped, flags=re.I)
+
     # Pass 1: check first listing block (most reliable)
     for ptype, keywords in PROP_TYPE_MAP.items():
         # Skip "plot" if the first block has townhouse-style dimensions
@@ -2045,7 +2073,7 @@ def extract_property_type(text: str, bedrooms: Optional[int] = None) -> str:
             continue
         for kw in keywords:
             pat = kw if kw.endswith('\\b') else r'\b' + re.escape(kw) + r'\b'
-            if re.search(pat, head):
+            if re.search(pat, head_stripped):
                 return ptype
 
     # No Pass 2 — single-pass on first block. Pass 2 over full text caused false positives
@@ -2529,18 +2557,25 @@ def parse_message(
     if is_spam(clean):
         return None
 
-    # Step 3: Deal type
-    deal_type = detect_deal_type(clean)
+    # ── MULTI-LISTING SAFETY ─────────────────────────────────────────────────
+    # КРИТИЧНО: clean_text() удаляет разделители и переводы строк —
+    # в clean уже нельзя найти границы первого листинга.
+    # Берём first_block из ОРИГИНАЛЬНОГО текста, потом чистим только этот блок.
+    first_block_raw = _first_listing_block(text)
+    first_block = clean_text(first_block_raw)
+
+    # Step 3: Deal type — из first_block чтобы не подхватить "for rent" из объекта #3
+    deal_type = detect_deal_type(first_block)
 
     # ── Step 0: Header-line structural patterns ───────────────────────────────
     # Extract hints from first few lines before heavier entity detection
-    header_hints = extract_from_header_lines(text)
+    header_hints = extract_from_header_lines(first_block)
 
     # ── Step 1: Emirate direct ────────────────────────────────────────────────
-    emirate, emirate_conf = detect_emirate_direct(clean)
+    emirate, emirate_conf = detect_emirate_direct(first_block)
 
     # ── Step 3: Building (do this early — it's SOURCE OF TRUTH) ──────────────
-    building, building_conf, bld_area, bld_emirate, developer_from_bld = detect_building(clean)
+    building, building_conf, bld_area, bld_emirate, developer_from_bld = detect_building(first_block)
 
     # If header found a building name and main detector missed it → use header hint
     if not building and header_hints.get("building"):
@@ -2573,7 +2608,7 @@ def parse_message(
 
     # ── Step 2: Area detection ────────────────────────────────────────────────
     if not area:
-        area, area_conf, area_emirate, possible_emirates = detect_area(clean, emirate)
+        area, area_conf, area_emirate, possible_emirates = detect_area(first_block, emirate)
         if area_emirate and not emirate:
             emirate = area_emirate
             emirate_conf = area_conf * 0.9
@@ -2658,25 +2693,27 @@ def parse_message(
                 emirate_conf = 0.70
 
     # ── Extract all property details ──────────────────────────────────────────
-    bedrooms = extract_bedrooms(clean)
+    # ВСЕ структурные поля парсим из first_block — иначе склеиваем данные
+    # из разных объектов в multi-listing.
+    bedrooms = extract_bedrooms(first_block)
     # Fallback: header-line structural hint for bedrooms (BHK patterns)
     if bedrooms is None and header_hints.get("bedrooms") is not None:
         bedrooms = header_hints["bedrooms"]
-    bathrooms = extract_bathrooms(clean)
-    sizes = extract_size(clean)
-    view = extract_view(clean)
-    floor = extract_floor(clean)
-    unit_number = extract_unit_number(clean)
-    prop_type = extract_property_type(clean, bedrooms)
-    extra_info = extract_extra_info(clean, prop_type)
-    status = extract_status(clean)
-    furnishing = extract_furnishing(clean)
+    bathrooms = extract_bathrooms(first_block)
+    sizes = extract_size(first_block)
+    view = extract_view(first_block)
+    floor = extract_floor(first_block)
+    unit_number = extract_unit_number(first_block)
+    prop_type = extract_property_type(first_block, bedrooms)
+    extra_info = extract_extra_info(first_block, prop_type)
+    status = extract_status(first_block)
+    furnishing = extract_furnishing(first_block)
     contacts = extract_contacts(original_text)
-    is_off_plan   = extract_offplan(clean)
-    handover_date = extract_handover_date(clean)
+    is_off_plan   = extract_offplan(first_block)
+    handover_date = extract_handover_date(first_block)
 
     # ── Price ─────────────────────────────────────────────────────────────────
-    price_data = extract_price(clean)
+    price_data = extract_price(first_block)
     price = price_data.get("price")
     price_per_sqft = None
     if price and sizes.get("size_sqft"):
