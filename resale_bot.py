@@ -1681,6 +1681,26 @@ def format_detail(listing, uid):
     if view:   lines.append(f"  View        {view}")
     if stat:   lines.append(f"  Status      {stat.title()}")
     if furn:   lines.append(f"  Furnishing  {furn.title()}")
+    if listing.get("is_off_plan"):
+        hd = listing.get("handover_date")
+        hd_s = f" · Handover {hd}" if hd else ""
+        lines.append(f"  Stage       Off-plan{hd_s}")
+    # Extra info (commercial / plot / residential domain-specific)
+    extra = listing.get("extra_info") or {}
+    if isinstance(extra, dict) and extra:
+        for k, v in extra.items():
+            if v in (None, "", False): continue
+            label = k.replace("_", " ").title()
+            val   = "✓" if v is True else str(v)
+            lines.append(f"  {label:11} {val}")
+    # User-submitted description
+    desc = listing.get("description")
+    if desc:
+        lines.append("")
+        lines.append("  Description")
+        # Wrap at ~50 chars
+        for chunk in [desc[i:i+50] for i in range(0, len(desc), 50)][:6]:
+            lines.append(f"  {chunk}")
 
     roi   = listing.get("roi_estimate")
     rent  = listing.get("market_rent_1br")
@@ -2236,30 +2256,74 @@ def send_results(cid, uid, mid=None):
 
 # ── Natural language + Claude ─────────────────────────────────────────────────
 def claude_parse(text, lang="en"):
+    """Use Claude Haiku to parse a free-form real estate query into filters.
+    Supports EN/RU/AR with slang ("у моря", "семейный район", "за моллом")."""
     if not ANTHROPIC_KEY: return {}
+    prompt = (
+        "You are a UAE real estate query parser. The user can write in English, "
+        "Russian, or Arabic, with slang, typos, and lifestyle hints. Return ONLY "
+        "valid JSON — no prose.\n\n"
+        "Schema (use null for any missing field):\n"
+        "{\n"
+        '  "emirate": "Dubai|Abu Dhabi|Sharjah|Ras Al Khaimah|null",\n'
+        '  "area": "string|null  (e.g. Dubai Marina, JBR, Downtown, Palm)",\n'
+        '  "building": "string|null",\n'
+        '  "deal_type": "sale|rent|null",\n'
+        '  "property_type": "apartment|villa|townhouse|penthouse|studio|duplex|office|retail|warehouse|hotel|plot|null",\n'
+        '  "bedrooms": "int (0=studio)|null",\n'
+        '  "min_price": "int AED|null",\n'
+        '  "max_price": "int AED|null",\n'
+        '  "view": "sea|burj|fountain|marina|golf|park|city|null",\n'
+        '  "furnishing": "furnished|unfurnished|semi-furnished|null",\n'
+        '  "hot_only": "true|false|null",\n'
+        '  "sort": "best_deals|newest|price_asc|null"\n'
+        "}\n\n"
+        "Slang mapping examples:\n"
+        '  "у моря / sea view / пляж" → view: "sea"\n'
+        '  "семья / family-friendly / с детьми" → area: "Dubai Hills Estate" or "JVC"\n'
+        '  "тихий район / quiet" → area: "Dubai Hills Estate" or "The Springs"\n'
+        '  "премиум / люкс / luxury" → area: "Downtown Dubai" or "Palm Jumeirah"\n'
+        '  "для аренды / для сдачи / Airbnb" → deal_type: "sale" (intent to buy for rent)\n'
+        '  "снять / арендовать / rent" → deal_type: "rent"\n'
+        '  "до 5 миллионов / до 5М / under 5M" → max_price: 5000000\n'
+        '  "от 2М / over 2M / больше 2 миллионов" → min_price: 2000000\n'
+        '  "выгодно / hot deals / ниже рынка" → hot_only: true\n'
+        '  "новые / свежие / newest" → sort: "newest"\n\n'
+        f'Query ({lang}): "{text}"\n'
+        "JSON:"
+    )
     try:
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": ANTHROPIC_KEY,
                      "anthropic-version": "2023-06-01",
                      "content-type": "application/json"},
-            json={"model": "claude-haiku-4-5-20251001", "max_tokens": 300,
-                  "messages": [{"role": "user", "content":
-                    f'Parse UAE real estate search query. Return ONLY JSON: '
-                    f'{{emirate, area, building, deal_type(sale/rent), property_type, '
-                    f'bedrooms(int,0=studio), max_price(AED int), min_price(AED int), '
-                    f'view, status, furnishing, hot_only(bool), sort(best_deals/newest/price_asc)}}. '
-                    f'Use null for missing. Query: "{text}"'
-                  }]},
-            timeout=10,
+            json={"model": "claude-haiku-4-5-20251001",
+                  "max_tokens": 400,
+                  "messages": [{"role": "user", "content": prompt}]},
+            timeout=15,
         )
-        if resp.status_code != 200: return {}
+        if resp.status_code != 200:
+            print(f"[claude_parse] HTTP {resp.status_code}: {resp.text[:200]}")
+            return {}
         raw = resp.json()["content"][0]["text"].strip()
-        m = re.search(r'\{[^{}]+\}', raw, re.DOTALL)
+        # Extract JSON object (may be wrapped in code fences / extra text)
+        m = re.search(r'\{.*\}', raw, re.DOTALL)
         if not m: return {}
-        return {k: v for k, v in json.loads(m.group()).items() if v is not None and v is not False}
+        parsed = json.loads(m.group())
+        # Clean nulls and falsy
+        out = {}
+        for k, v in parsed.items():
+            if v is None or v == "" or v == "null":
+                continue
+            if k in ("min_price", "max_price", "bedrooms") and isinstance(v, str):
+                try: v = int(re.sub(r'[^\d]', '', v))
+                except: continue
+            out[k] = v
+        return out
     except Exception as e:
-        print(f"[claude] {e}"); return {}
+        print(f"[claude_parse] {e}")
+        return {}
 
 
 def parse_nl(text, lang="en"):
@@ -2306,11 +2370,19 @@ def parse_nl(text, lang="en"):
 
     filters.setdefault("sort", "best_deals")
 
-    meaningful = {k for k in filters if k not in ["sort", "hot_only"]}
-    if len(meaningful) < 2 and len(text.split()) > 3:
+    # Always enrich via Claude for any non-trivial query (>= 3 words).
+    # Claude understands typos, slang, and complex requests like
+    # "тихий район у моря для семьи с детьми до 5М" that regex can't parse.
+    if len(text.split()) >= 3 and ANTHROPIC_KEY:
         cf = claude_parse(text, lang)
-        if cf: filters.update(cf)
+        if cf:
+            # Local extraction takes priority for fields it already found;
+            # Claude fills in the gaps.
+            for k, v in cf.items():
+                if k not in filters and v is not None:
+                    filters[k] = v
 
+    filters.setdefault("sort", "best_deals")
     return filters
 
 

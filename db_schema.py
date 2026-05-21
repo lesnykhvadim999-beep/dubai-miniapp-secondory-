@@ -866,6 +866,12 @@ def search_listings(filters: dict, limit: int = 10, offset: int = 0) -> tuple[li
             if filters.get("has_images"):
                 where.append("has_images = TRUE")
 
+            # Off-plan / ready filter
+            if filters.get("is_off_plan") is True:
+                where.append("is_off_plan = TRUE")
+            elif filters.get("is_off_plan") is False:
+                where.append("(is_off_plan IS NULL OR is_off_plan = FALSE)")
+
             where_sql = " AND ".join(where)
 
             # Count
