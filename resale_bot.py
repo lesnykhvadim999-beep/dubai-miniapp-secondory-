@@ -188,6 +188,10 @@ T = {
     "rbtn_add":         "➕ List Property",
     "rbtn_lang":        "🌐 Language",
     "rbtn_home":        "🏠 Main Menu",
+    # Results navigation (bottom bar)
+    "rbtn_more":        "▶ Show more",
+    "rbtn_change_deal": "← Transaction Type",
+    "rbtn_back":        "← Back",
     # Emirate wizard buttons
     "em_dubai":     "🇦🇪 Dubai",
     "em_abudhabi":  "🏛 Abu Dhabi",
@@ -401,6 +405,10 @@ T = {
     "rbtn_add":         "➕ Разместить",
     "rbtn_lang":        "🌐 Язык",
     "rbtn_home":        "🏠 Главное меню",
+    # Results navigation (bottom bar)
+    "rbtn_more":        "▶ Показать ещё",
+    "rbtn_change_deal": "← Тип сделки",
+    "rbtn_back":        "← Назад",
     # Emirate wizard buttons
     "em_dubai":     "🇦🇪 Дубай",
     "em_abudhabi":  "🏛 Абу-Даби",
@@ -633,6 +641,10 @@ T = {
     "rbtn_add":         "➕ إضافة عقار",
     "rbtn_lang":        "🌐 اللغة",
     "rbtn_home":        "🏠 القائمة الرئيسية",
+    # Results navigation (bottom bar)
+    "rbtn_more":        "▶ عرض المزيد",
+    "rbtn_change_deal": "← نوع الصفقة",
+    "rbtn_back":        "← رجوع",
     # Emirate wizard buttons
     "em_dubai":     "🇦🇪 دبي",
     "em_abudhabi":  "🏛 أبوظبي",
@@ -964,6 +976,52 @@ def kb_reply_bedrooms(uid):
     ])
 
 
+def kb_reply_results(uid, has_more=False):
+    """Bottom reply keyboard shown AFTER a results batch.
+    Replaces the old inline navigation (Show more / Transaction Type / Back / Main Menu)."""
+    rows = []
+    if has_more:
+        rows.append([_t(uid, "rbtn_more")])
+    rows.append([_t(uid, "rbtn_change_deal"), _t(uid, "rbtn_back")])
+    rows.append([_t(uid, "rbtn_home")])
+    return _reply_kb(rows)
+
+
+def kb_reply_ai_goal(uid):
+    return _reply_kb([
+        [_t(uid, "ai_invest"),     _t(uid, "ai_live")],
+        [_t(uid, "ai_holiday"),    _t(uid, "ai_unsure")],
+        [_t(uid, "ai_commercial"), _t(uid, "ai_land")],
+        [_t(uid, "rbtn_home")],
+    ])
+
+
+def kb_reply_ai_invest(uid):
+    return _reply_kb([
+        [_t(uid, "ai_inv_longterm"), _t(uid, "ai_inv_airbnb")],
+        [_t(uid, "ai_inv_resale"),   _t(uid, "ai_inv_growth")],
+        [_t(uid, "rbtn_home")],
+    ])
+
+
+def kb_reply_ai_life(uid):
+    return _reply_kb([
+        [_t(uid, "ai_l_downtown"), _t(uid, "ai_l_sea")],
+        [_t(uid, "ai_l_family"),   _t(uid, "ai_l_premium")],
+        [_t(uid, "ai_l_nature"),   _t(uid, "ai_l_business")],
+        [_t(uid, "rbtn_home")],
+    ])
+
+
+def kb_reply_ai_commtype(uid):
+    return _reply_kb([
+        [_t(uid, "pt_office_btn"),    _t(uid, "pt_retail_btn")],
+        [_t(uid, "pt_warehouse_btn"), _t(uid, "pt_hotel_btn")],
+        [_t(uid, "pt_any_btn")],
+        [_t(uid, "rbtn_home")],
+    ])
+
+
 def kb_reply_budget(uid, is_rent=False, is_commercial=False, is_plot=False):
     """Budget selection in the BOTTOM reply keyboard (was inline before)."""
     any_btn = _t(uid, "b_any_btn")
@@ -1057,6 +1115,37 @@ BEDROOM_KEYS = {
     "br_3_btn":      3,
     "br_4p_btn":     99,
     "br_any_btn":    None,
+}
+
+# AI Assistant flow — bottom reply keyboard buttons
+AI_GOAL_KEYS = {
+    "ai_invest":     "invest",
+    "ai_live":       "live",
+    "ai_holiday":    "holiday",
+    "ai_unsure":     "unsure",
+    "ai_commercial": "commercial",
+    "ai_land":       "land",
+}
+AI_INVEST_KEYS = {
+    "ai_inv_longterm": "longterm",
+    "ai_inv_airbnb":   "airbnb",
+    "ai_inv_resale":   "resale",
+    "ai_inv_growth":   "growth",
+}
+AI_LIFE_KEYS = {
+    "ai_l_downtown": "downtown",
+    "ai_l_sea":      "sea",
+    "ai_l_family":   "family",
+    "ai_l_premium":  "premium",
+    "ai_l_nature":   "nature",
+    "ai_l_business": "business",
+}
+AI_COMMTYPE_KEYS = {
+    "pt_office_btn":    "office",
+    "pt_retail_btn":    "retail",
+    "pt_warehouse_btn": "warehouse",
+    "pt_hotel_btn":     "hotel",
+    "pt_any_btn":       "any",
 }
 
 
@@ -1971,14 +2060,15 @@ def send_results(cid, uid, mid=None):
         time.sleep(0.3)
 
     remaining = len(results) - end
-    nav = []
     if remaining > 0:
         s["page"] += 1
-        nav.append([_btn(_t(uid, "btn_more", n=remaining), "results|more")])
-    nav.append([_btn("← " + _t(uid, "deal_q"), "filter|deal_type_reset")])
-    nav.append([_btn(_t(uid, "btn_back"), "results|back")])
-    nav.append([_btn(_t(uid, "btn_menu"), "menu|main")])
-    _send(cid, _sep(), {"inline_keyboard": nav})
+    # Mark wizard state so dispatch_wizard_button can route navigation presses
+    s["wizard"] = "results"
+    s["results_has_more"] = remaining > 0
+    footer = _sep()
+    if remaining > 0:
+        footer += f"\n\n{_t(uid, 'btn_more', n=remaining)}"
+    _send(cid, footer, kb_reply_results(uid, has_more=remaining > 0))
 
 
 # ── Natural language + Claude ─────────────────────────────────────────────────
@@ -2062,17 +2152,89 @@ def parse_nl(text, lang="en"):
 
 
 # ── AI Advisor ────────────────────────────────────────────────────────────────
+def run_ai_recommend(cid, uid):
+    """Execute the AI Assistant recommendation based on collected ai_data.
+    Called after user picks budget in the reply-keyboard AI flow."""
+    s = gs(uid)
+    ai = s.get("ai_data", {})
+    goal      = ai.get("goal", "invest")
+    strategy  = ai.get("strategy", "longterm")
+    lifestyle = ai.get("lifestyle", "downtown")
+    comm_type = ai.get("comm_type")
+
+    extra_filters = {}
+    if goal == "invest":
+        areas = get_best_areas_from_db(strategy)
+        if not areas:
+            fallback = {
+                "airbnb":   ["Downtown Dubai", "Dubai Marina", "Palm Jumeirah", "Jumeirah Beach Residence"],
+                "longterm": ["Jumeirah Village Circle", "Dubai Hills Estate", "Business Bay"],
+                "resale":   ["Downtown Dubai", "Dubai Marina", "Palm Jumeirah"],
+                "growth":   ["Dubai Creek Harbour", "MBR City", "Dubai Hills Estate"],
+            }
+            areas = fallback.get(strategy, ["Downtown Dubai", "Business Bay"])
+    elif goal == "live":
+        lifestyle_map = {
+            "sea":      ["Dubai Marina", "Jumeirah Beach Residence", "Palm Jumeirah", "Emaar Beachfront", "Bluewaters Island"],
+            "downtown": ["Downtown Dubai", "Business Bay", "DIFC", "City Walk"],
+            "family":   ["Dubai Hills Estate", "Jumeirah Village Circle", "Meydan", "Arabian Ranches", "The Springs"],
+            "premium":  ["Palm Jumeirah", "Downtown Dubai", "Bluewaters Island", "Jumeirah Golf Estates", "Emirates Hills"],
+            "nature":   ["Dubai Hills Estate", "The Valley", "Tilal Al Ghaf", "Mudon", "Dubailand"],
+            "business": ["Business Bay", "DIFC", "Downtown Dubai", "Dubai Marina"],
+        }
+        areas = lifestyle_map.get(lifestyle, ["Downtown Dubai", "Dubai Marina"])
+    elif goal == "commercial":
+        comm_areas = {
+            "office":    ["Business Bay", "DIFC", "Downtown Dubai", "Sheikh Zayed Road"],
+            "retail":    ["Dubai Marina", "Downtown Dubai", "City Walk", "JBR"],
+            "warehouse": ["Al Quoz", "Dubai Investment Park", "Jebel Ali"],
+            "hotel":     ["Palm Jumeirah", "Downtown Dubai", "JBR"],
+            "any":       ["Business Bay", "DIFC", "Downtown Dubai"],
+        }
+        areas = comm_areas.get(comm_type, ["Business Bay", "DIFC"])
+        if comm_type and comm_type != "any":
+            extra_filters["property_type_in"] = [comm_type]
+        else:
+            extra_filters["property_type_in"] = COMMERCIAL_TYPES
+    elif goal == "land":
+        areas = ["Dubai South", "Dubai Investment Park", "Al Furjan", "Tilal Al Ghaf", "MBR City"]
+        extra_filters["property_type"] = "plot"
+    else:
+        areas = ["Downtown Dubai", "Dubai Marina", "Jumeirah Village Circle"]
+
+    summary_text = ""
+    if areas:
+        mkt = get_market_summary(areas[0], strategy)
+        if mkt:
+            summary_text = mkt
+
+    filters = dict(s.get("filters", {}))
+    filters.update(extra_filters)
+    # Apply budget collected during AI flow
+    if ai.get("min_price"): filters["min_price"] = ai["min_price"]
+    if ai.get("max_price"): filters["max_price"] = ai["max_price"]
+
+    best = []
+    for area in areas[:5]:
+        r, _ = search_listings({**filters, "area": area, "sort": "best_deals"}, limit=3)
+        best.extend(r)
+    if not best:
+        best, _ = search_listings({**filters, "sort": "best_deals"}, limit=10)
+
+    s["results"] = best; s["total"] = len(best); s["page"] = 0
+    header = _t(uid, "ai_result") + summary_text
+    _send(cid, header)
+    send_results(cid, uid)
+
+
 def show_ai_start(cid, uid, mid=None):
-    s = gs(uid); s["ai_step"] = 1; s["ai_data"] = {}
+    """AI Assistant entry — now uses BOTTOM reply keyboard (not inline)."""
+    s = gs(uid)
+    s["ai_step"] = 1
+    s["ai_data"] = {}
+    s["wizard"] = "ai_goal"
     text = _t(uid, "ai_start") + "\n\n" + _t(uid, "ai_goal_q")
-    kb = _kb(
-        [_btn(_t(uid, "ai_invest"),     "ai|goal|invest"),     _btn(_t(uid, "ai_live"),    "ai|goal|live")],
-        [_btn(_t(uid, "ai_holiday"),    "ai|goal|holiday"),    _btn(_t(uid, "ai_unsure"),  "ai|goal|unsure")],
-        [_btn(_t(uid, "ai_commercial"), "ai|goal|commercial"), _btn(_t(uid, "ai_land"),    "ai|goal|land")],
-        [_btn(_t(uid, "btn_menu"),      "menu|main")],
-    )
-    if mid: _edit(cid, mid, text, kb)
-    else:   _send(cid, text, kb)
+    _send(cid, text, kb_reply_ai_goal(uid))
 
 
 def handle_ai(cid, uid, mid, parts):
@@ -2518,6 +2680,95 @@ def dispatch_wizard_button(cid, uid, text):
             is_rent = filters.get("deal_type") == "rent"
             _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
                   kb_reply_budget(uid, is_rent=is_rent))
+            return True
+
+    # Results navigation (bottom reply keyboard after a result batch)
+    if wizard == "results":
+        # Match against all 3 languages
+        more_labels   = [T[l]["rbtn_more"]        for l in ("en","ru","ar")]
+        change_labels = [T[l]["rbtn_change_deal"] for l in ("en","ru","ar")]
+        back_labels   = [T[l]["rbtn_back"]        for l in ("en","ru","ar")]
+        if text in more_labels:
+            send_results(cid, uid)
+            return True
+        if text in change_labels:
+            state["filters"].pop("deal_type", None)
+            state["default_deal"] = None
+            state["wizard"] = None
+            show_main(cid, uid)
+            return True
+        if text in back_labels:
+            state["wizard"] = None
+            show_main(cid, uid)
+            return True
+
+    # AI Assistant — goal step
+    if wizard == "ai_goal":
+        goal, matched = _wizard_match(text, AI_GOAL_KEYS)
+        if matched and goal:
+            ai = state.setdefault("ai_data", {})
+            ai["goal"] = goal
+            if goal == "invest":
+                state["wizard"] = "ai_invest"
+                _send(cid, _t(uid, "ai_inv_q"), kb_reply_ai_invest(uid))
+            elif goal == "live":
+                state["wizard"] = "ai_life"
+                _send(cid, _t(uid, "ai_life_q"), kb_reply_ai_life(uid))
+            elif goal == "commercial":
+                state["wizard"] = "ai_commtype"
+                _send(cid, _t(uid, "ai_commercial_q"), kb_reply_ai_commtype(uid))
+            elif goal == "land":
+                ai["land_only"] = True
+                state["wizard"] = "ai_recommend"
+                _send(cid, _t(uid, "budget_q"), kb_reply_budget(uid, is_plot=True))
+            else:
+                # holiday / unsure → straight to budget then recommend
+                state["wizard"] = "ai_recommend"
+                _send(cid, _t(uid, "budget_q"), kb_reply_budget(uid))
+            return True
+
+    # AI Assistant — investment strategy step
+    if wizard == "ai_invest":
+        strat, matched = _wizard_match(text, AI_INVEST_KEYS)
+        if matched and strat:
+            ai = state.setdefault("ai_data", {})
+            ai["strategy"] = strat
+            state["wizard"] = "ai_recommend"
+            _send(cid, _t(uid, "budget_q"), kb_reply_budget(uid))
+            return True
+
+    # AI Assistant — lifestyle step
+    if wizard == "ai_life":
+        lf, matched = _wizard_match(text, AI_LIFE_KEYS)
+        if matched and lf:
+            ai = state.setdefault("ai_data", {})
+            ai["lifestyle"] = lf
+            state["wizard"] = "ai_recommend"
+            _send(cid, _t(uid, "budget_q"), kb_reply_budget(uid))
+            return True
+
+    # AI Assistant — commercial subtype step
+    if wizard == "ai_commtype":
+        ct, matched = _wizard_match(text, AI_COMMTYPE_KEYS)
+        if matched and ct:
+            ai = state.setdefault("ai_data", {})
+            ai["comm_type"] = ct
+            state["wizard"] = "ai_recommend"
+            _send(cid, _t(uid, "budget_q"), kb_reply_budget(uid, is_commercial=True))
+            return True
+
+    # AI Assistant — budget step → recommend
+    if wizard == "ai_recommend":
+        ai = state.setdefault("ai_data", {})
+        # Apply budget filter (uses same buttons as regular budget step)
+        if text == _t(uid, "b_any_btn") or text in BUDGET_BUTTONS:
+            if text in BUDGET_BUTTONS:
+                mn, mx = BUDGET_BUTTONS[text]
+                if mn is not None: ai["min_price"] = mn
+                if mx is not None: ai["max_price"] = mx
+            state["wizard"] = None
+            _send(cid, _t(uid, "ai_analyzing"), kb_main_reply(uid))
+            run_ai_recommend(cid, uid)
             return True
 
     # Budget step (bottom reply keyboard)
