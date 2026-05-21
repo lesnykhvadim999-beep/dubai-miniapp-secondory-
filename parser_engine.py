@@ -1916,6 +1916,24 @@ def extract_price(text: str) -> dict:
     if result["original_price"] and result["original_price"] > 10_000_000_000:
         result["original_price"] = None
 
+    # Currency conversion: if the source text has explicit non-AED markers
+    # (USD/EUR/GBP/RUB/$/€/£/₽) AND no explicit AED/Dhs marker — convert.
+    ccy = detect_currency(text)
+    has_aed = bool(re.search(r'\b(?:AED|Dhs|DH|د\.إ|درهم)\b', text, re.I))
+    if ccy != "AED" and not has_aed:
+        result["currency"] = ccy
+        if result["price"]:
+            converted = convert_to_aed(result["price"], ccy)
+            if converted:
+                result["original_price_in_source_ccy"] = result["price"]
+                result["price"] = converted
+        if result["original_price"]:
+            converted = convert_to_aed(result["original_price"], ccy)
+            if converted:
+                result["original_price"] = converted
+    else:
+        result["currency"] = "AED"
+
     return result
 
 
