@@ -772,6 +772,13 @@ def validate_deal_type_by_price(
             return "rent"
     if deal_type == "rent" and price > 50_000_000:
         return "sale"
+    # Residential rent > 1M/year is almost always misclassified sale.
+    # Genuine luxury rent in UAE caps at ~3M/yr (top Palm/DT penthouses).
+    # If rent > 1M and text contains explicit sale signals → flip to sale.
+    if deal_type == "rent" and price > 1_000_000 and text:
+        tl = text.lower()
+        if re.search(r'\b(?:for\s+sale|sales?\s*price|selling\s*price|sale\s*price|asking\s*price|sp\s*[:\-]|payment\s+plan|handover|distress\s+deal|below\s+(?:market|op)|off[\s\-]?plan|developer\s*:|aed\s*[\d.,]+\s*(?:m\b|mln|million))\b', tl):
+            return "sale"
 
     # ── 5: market floor/ceiling (original logic) ─────────────────────────
     br_key = bedrooms if bedrooms in SALE_MIN_PRICE else (
@@ -1192,8 +1199,15 @@ def _clean_building_candidate(s: str) -> Optional[str]:
     """Strip emoji/punctuation, validate, return canonical or None."""
     if not s:
         return None
-    # Remove emoji and common decorative chars
-    s = re.sub(r'[📍🏡🏢💰🔥✨⭐️🌊🛏🛁🚘🪑🔑🪴📐☎️📞📩‼️🟥🟨🟩‍♂️‍♀️]', '', s)
+    # Aggressive emoji + variation-selector + ZWJ stripping
+    # Covers: emoticons, transport/places, dingbats, supplemental symbols,
+    # variation selectors (︀-️), ZWJ (‍), skin tones, etc.
+    s = re.sub(
+        r'[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F000-\U0001F0FF'
+        r'‍︀-️\U0001F3FB-\U0001F3FF♀-♂⌀-⏿'
+        r'←-⇿✀-➿]', '', s)
+    # Specific frequently-seen decorative chars
+    s = re.sub(r'[📍🏡🏢💰🔥✨⭐️🌊🛏🛁🚘🪑🔑🪴📐☎️📞📩‼️🟥🟨🟩‍♂️‍♀️👇🏼👇🏻👇🏽👇🏾👇🏿]', '', s)
     # Remove markdown
     s = re.sub(r'\*+|_+|~+|`+', '', s)
     # If there's a ":" inside, take only the part before it (e.g. "Park Horizon: building 2" → "Park Horizon")
@@ -1248,6 +1262,9 @@ def _clean_building_candidate(s: str) -> Optional[str]:
         return None
     # Reject marketing phrases / buyer-status / channel-spam
     if re.search(r'\b(?:subscribe|channel|members?|message|please|hassle|perfect\s+for|move\s+in|investors?|end\s*users?|star\s+rating|net\s+to\s+the?\s+owner|long\s+lease|cluster|corner\s+unit|single\s+row|fully\s+upgraded)\b', s, re.I):
+        return None
+    # Reject if candidate IS a price-like phrase (id=21975 example "Selling Price: 120M")
+    if re.search(r'\b(?:selling\s*price|sale\s*price|asking\s*price|original\s*price|sales?\s*price|\d+\s*(?:m\b|mln|million|k\b|aed))\b', s, re.I):
         return None
     # Reject 2-bedroom / 3-bathroom style alone (attribute, not building)
     if re.fullmatch(r'\d+\s*(?:bedroom|bathroom|bath|bed|br|bhk|sqft|sq\.?\s*m|m2)s?\s*', s, re.I):
@@ -1695,10 +1712,16 @@ def extract_size(text: str) -> dict:
 
 
 def _parse_amount(s: str) -> Optional[int]:
-    """Parse price strings like '1.5M', '750k', '3.2ML', '1,200,000', '1,59 M' (European decimal)."""
+    """Parse price strings like '1.5M', '750k', '3.2ML', '1,200,000', '1,59 M' (European decimal).
+    Also handles 'AED 2,760,000' / '2.4M AED' / '500 000 AED' — currency tokens stripped.
+    """
     if not s:
         return None
-    s = str(s).strip().upper().replace(" ", "")
+    s = str(s).strip().upper()
+    # Strip currency prefixes/suffixes BEFORE collapsing spaces (so word boundary works)
+    s = re.sub(r'\bAED\b|\bUSD\b|\bEUR\b|\bДРХ\b|د\.إ', '', s, flags=re.IGNORECASE).strip()
+    # Now collapse internal spaces
+    s = s.replace(" ", "")
     # European decimal handling: "1,59" → "1.59" (single comma, 1-2 digits after).
     # Multiple commas → thousand separators (US style): "1,200,000" → "1200000".
     if s.count(",") == 1 and "." not in s:
@@ -1877,9 +1900,17 @@ def extract_price(text: str) -> dict:
 
 def _first_listing_block(text: str) -> str:
     """Return first listing's text — up to the first --- separator or 2+ blank lines.
+    Recognises a wide variety of separators used in Telegram listings:
+      ─── ━━━ ─── ═══ ⸻ ⸺ ⸺⸺ ▬▬ ━━ -------- ======== ········
     For single-listing texts returns the full text unchanged.
     """
-    return re.split(r'\n\s*[-—–=⸻]{3,}\s*\n|\n\s*\n\s*\n', text, maxsplit=1)[0]
+    # Separators:
+    #   3+ of: - — – = ━ ─ ═ ▬ * ·
+    #   OR single long visual-width chars: ⸻ ⸺ (these ARE long lines on their own)
+    return re.split(
+        r'\n\s*(?:[-—–=━─═▬*·]{3,}|[⸻⸺]+)\s*\n|\n\s*\n\s*\n',
+        text, maxsplit=1
+    )[0]
 
 
 def _extract_view_core(text: str) -> Optional[str]:

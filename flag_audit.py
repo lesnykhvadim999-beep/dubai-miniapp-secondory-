@@ -36,9 +36,15 @@ def classify(row):
         if not building and not area and not size:
             reasons.append("residential_no_basic_info")
 
-    # 3. Price > 100M AED для residential (не hotel/plot)
-    if p and p > 100_000_000 and pt not in ('hotel','plot'):
-        reasons.append(f"price_too_high_{p}")
+    # 3. Price > 100M AED для residential (не hotel/plot/commercial)
+    # Hotels/plots/full residential buildings legitimately cost 100M-1B AED.
+    commercial_legit_high = {'hotel', 'plot', 'office', 'retail', 'warehouse',
+                              'hotel_apartment', 'serviced_apartment'}
+    if p and p > 100_000_000 and pt not in commercial_legit_high:
+        # Even residential penthouses can hit 100M+ for Palm/DT trophy units —
+        # only flag if > 500M for residential
+        if p > 500_000_000:
+            reasons.append(f"price_too_high_{p}")
 
     # 4. Price < 50k AED для sale (mis-parse)
     if dt == 'sale' and p and p < 50_000 and pt != 'plot':
