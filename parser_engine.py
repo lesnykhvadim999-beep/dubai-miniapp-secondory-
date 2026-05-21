@@ -606,8 +606,40 @@ def is_spam(text: str) -> bool:
     if len(text.strip()) < 25:
         return True
     tl = text.lower()
-    return (any(k in tl for k in SPAM_KEYWORDS) or
-            any(k in tl for k in COMMERCIAL_KEYWORDS))
+    if any(k in tl for k in SPAM_KEYWORDS): return True
+    if any(k in tl for k in COMMERCIAL_KEYWORDS): return True
+    # ── Buyer's request / search ad — это запрос, не предложение ───────────
+    # Примеры: "❌ request ❌ Looking a hotel for sale Budget 90M"
+    #          "Cash buyer looking for studio in JVC"
+    #          "Client looking to buy 2BR Marina up to 3M"
+    # СИЛЬНЫЕ buyer-маркеры — однозначно spam, независимо от "for sale" в тексте
+    strong_buyer = [
+        r'❌\s*request\s*❌',
+        r'\brequest\s*:?\s*(?:looking|need|require)',
+        r'\b(?:client|buyer|investor)\s+(?:looking\s+(?:for|to)|wants?\s+to\s+(?:buy|invest))',
+        r'\bcash\s+buyer\b',
+        r'\blooking\s+(?:a\s+|for\s+a\s+)?\b(?:apartment|villa|townhouse|studio|penthouse|hotel|office|plot|property)\b.*\bbudget\b',
+        r'\bbudget\s*[:=]\s*[\d.,]+\s*[mk]\b',   # "Budget: 90M" — обычно request
+        r'\bany(?:one)?\s+(?:has|have|got)\s+(?:any|a)?\s*\d',
+    ]
+    if any(re.search(p, tl) for p in strong_buyer):
+        return True
+    # СЛАБЫЕ buyer-маркеры — учитываем только если нет offer-маркеров
+    weak_buyer = [
+        r'\b(?:looking\s+(?:for|to\s+(?:buy|invest|rent)))\b',
+        r'\bclient\s+(?:wants?|needs?|requires?)\b',
+        r'\bbuyer.{0,15}(?:require|need|look)',
+    ]
+    has_offer = bool(re.search(
+        r'\b(?:selling\s+price|asking\s+price|sale\s+price|'
+        r'op\s*[:=]|sp\s*[:=]|distress\s+deal|hot\s+deal|fully\s+paid|paid\s+\d+%|'
+        r'handover\s+(?:q\d|in|by|on|\d{4}|ongoing|ready)|developer\s*:)\b',
+        tl
+    ))
+    if not has_offer:
+        if any(re.search(p, tl) for p in weak_buyer):
+            return True
+    return False
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2065,6 +2097,18 @@ def extract_property_type(text: str, bedrooms: Optional[int] = None) -> str:
     # "X view from balcony"
     head_stripped = re.sub(r'\b(?:villa|villas|townhouse|townhouses|tower|building)s?\s+(?:view|nearby|next\s+to|opposite)\b',
                             ' ', head_stripped, flags=re.I)
+    # "Duplex views" — описание (вид с 2 уровней), не тип объекта
+    head_stripped = re.sub(r'\bduplex\s+views?\b', ' ', head_stripped, flags=re.I)
+    head_stripped = re.sub(r'\btwo[\s\-]storey\s+(?:apartment|apartments)\b', ' ',
+                            head_stripped, flags=re.I)
+
+    # GUARD: "VILLA PLOT" / "VILLA LAND" / "Residential Plot" — это PLOT, не villa.
+    # Парсер сейчас матчит 'villa' первой раньше 'plot'. Override:
+    if re.search(r'\bvilla\s+(?:plot|land)\b', head_stripped, re.I) or \
+       re.search(r'\b(?:residential|commercial|mixed[\s\-]use|industrial)\s+plot\b', head_stripped, re.I) or \
+       re.search(r'\bplot\s+for\s+sale\b.*\bg\s*\+\s*\d', head_stripped, re.I):
+        if not has_townhouse_dimensions:  # townhouse override уже есть
+            return "plot"
 
     # Pass 1: check first listing block (most reliable)
     for ptype, keywords in PROP_TYPE_MAP.items():
