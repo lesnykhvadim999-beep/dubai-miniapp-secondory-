@@ -756,9 +756,13 @@ def validate_deal_type_by_price(
             tl = text.lower()
             has_explicit_sale = bool(re.search(
                 r'\b(?:for\s+sale|sales?\s*price|selling\s*price|sale\s*price|asking\s*price|'
-                r'sp\s*[:\-]|original\s*price|op\s*[:\-]|payment\s*plan|handover\s+(?:q\d|in|by|on|\d{4})|'
+                r'sp\s*[:\-]|original\s*price|op\s*[:\-]|payment\s*plan|'
+                r'handover(?:\b|\s+(?:q\d|in|by|on|\d{4}|ongoing|ready))|'
                 r'distress\s+deal|below\s+(?:market|op)|off[\s\-]?plan|developer\s*:|'
-                r'urgent\s+sale|hot\s+sale)\b',
+                r'urgent\s+sale|hot\s+sale|fully\s+paid|paid\s+\d+%|'
+                r'price\s*[:\-]?\s*[\d.,]+\s*(?:m\b|mln|million)|'
+                r'aed\s*[\d.,]+\s*(?:m\b|mln|million)|'
+                r'\d+\s*(?:m\b|mln|million)(?!\w))\b',
                 tl
             ))
         if not has_explicit_sale:
