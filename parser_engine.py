@@ -2723,9 +2723,6 @@ def parse_message(
     deal_type = validate_deal_type_by_price(price, deal_type, bedrooms, area, text=original_text, building=building)
 
     # ── Sanity floor: residential rent < 20k / sale < 200k = это служебка ──
-    # Минимальная аренда в Дубае — ~25k/yr (студия в самых дешёвых районах).
-    # Минимальная продажа квартиры — ~400k (студия в JVC/Sharjah).
-    # Если цена ниже — парсер поймал service charge / DLD fee / payment installment.
     residential_types = {"apartment","studio","villa","townhouse","penthouse","duplex"}
     if price and prop_type in residential_types:
         if deal_type == "rent" and price < 20_000:
@@ -2736,6 +2733,43 @@ def parse_message(
             print(f"[parser] DROP sale price={price} (likely service charge / mis-parse)")
             price = None
             price_per_sqft = None
+
+    # ── Property type sanity by price/size — переклассификация ───────────────
+    # Villa в Дубае реально не дешевле 2M AED. Если price<2M + type=villa,
+    # это не villa (парсер угадал по 'villas view' или из multi-listing).
+    if prop_type == "villa" and price:
+        if deal_type == "sale" and price < 2_000_000:
+            prop_type = "apartment"
+        if deal_type == "rent" and price < 30_000:
+            prop_type = "apartment"
+    if prop_type == "townhouse" and price:
+        if deal_type == "sale" and price < 800_000:
+            prop_type = "apartment"
+        if deal_type == "rent" and price < 30_000:
+            prop_type = "apartment"
+    # Studio не может быть > 3M AED sale или иметь bedrooms >= 2
+    if prop_type == "studio":
+        if (bedrooms or 0) >= 2:
+            prop_type = "apartment"
+        elif (bedrooms or 0) == 1:
+            prop_type = "apartment"
+        elif deal_type == "sale" and price and price > 3_000_000:
+            prop_type = "apartment"
+        elif sizes.get("size_sqft") and sizes["size_sqft"] > 1200:
+            prop_type = "apartment"
+    # Penthouse: real penthouse >= 2BR + sqft >= 1500
+    if prop_type == "penthouse":
+        if (bedrooms or 0) <= 1 and sizes.get("size_sqft") and sizes["size_sqft"] < 1500:
+            prop_type = "apartment"
+
+    # ── Size sanity — sqft > 6000 для apartment вероятно мусор ───────────────
+    if prop_type == "apartment" and sizes.get("size_sqft") and sizes["size_sqft"] > 6000:
+        # Не сразу обнуляем — может быть legitimate penthouse, переклассифицируем
+        prop_type = "penthouse"
+    if sizes.get("size_sqft") and sizes["size_sqft"] > 50_000:
+        # Чистый мусор — sqft > 50k явно неправильный
+        sizes["size_sqft"] = None
+        price_per_sqft = None
 
     # ── Deal quality ──────────────────────────────────────────────────────────
     deal_analysis = compute_deal_quality(
