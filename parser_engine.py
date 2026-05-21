@@ -2007,6 +2007,85 @@ def extract_property_type(text: str, bedrooms: Optional[int] = None) -> str:
     return "apartment"
 
 
+def extract_extra_info(text: str, property_type: str) -> dict:
+    """Pull domain-specific extra fields from the first listing block.
+
+    For commercial: fitted/shell/finishing, parking_spots, conference_rooms.
+    For plot: freehold/leasehold, usage (residential/commercial/mixed/industrial),
+              GFA, height (G+N), nearest landmarks.
+    For residential: maid_room, balcony, parking_spots, payment_plan,
+                     post_handover, school_distance.
+    Returns a dict that can be JSON-serialised.
+    """
+    block = _first_listing_block(text)
+    tl = block.lower()
+    info: dict = {}
+
+    if property_type in ("office", "retail", "warehouse", "hotel",
+                          "hotel_apartment", "serviced_apartment"):
+        # Office fit-out
+        if re.search(r'\bfitted\b|\bfully\s+fitted\b', tl):
+            info["fit_out"] = "fitted"
+        elif re.search(r'\bshell\s+and\s+core\b|\bshell\b', tl):
+            info["fit_out"] = "shell"
+        elif re.search(r'\bunfurnished\b', tl):
+            info["fit_out"] = "unfurnished"
+        # Parking spaces
+        m = re.search(r'(\d+)\s*(?:car\s+park|parking|parking\s+spaces?)', tl)
+        if m:
+            try: info["parking_spaces"] = int(m.group(1))
+            except: pass
+        # Meeting / conference rooms
+        m = re.search(r'(\d+)\s*(?:meeting|conference)\s+rooms?', tl)
+        if m:
+            try: info["meeting_rooms"] = int(m.group(1))
+            except: pass
+        # Reception / kitchenette flags
+        if re.search(r'\breception\b', tl): info["reception"] = True
+        if re.search(r'\bkitchenette\b|\bpantry\b', tl): info["pantry"] = True
+
+    if property_type == "plot":
+        # Usage / zoning
+        m = re.search(r'usage\s*[:\-]?\s*([^\n,]{3,50})', block, re.I)
+        if m: info["usage"] = m.group(1).strip()
+        elif re.search(r'\bresidential\b.*\bcommercial\b|\bmixed\s+use\b', tl):
+            info["usage"] = "Mixed Use"
+        elif re.search(r'\bresidential\b', tl): info["usage"] = "Residential"
+        elif re.search(r'\bcommercial\b', tl):  info["usage"] = "Commercial"
+        elif re.search(r'\bindustrial\b', tl):  info["usage"] = "Industrial"
+        # Freehold / leasehold
+        if re.search(r'\bfreehold\b', tl): info["tenure"] = "Freehold"
+        elif re.search(r'\bleasehold\b', tl): info["tenure"] = "Leasehold"
+        # GFA (Gross Floor Area)
+        m = re.search(r'gfa\s*[:\-]?\s*([\d,]+\.?\d*)\s*(?:sq\.?\s*ft|sqft)', block, re.I)
+        if m:
+            try: info["gfa_sqft"] = int(float(m.group(1).replace(',', '')))
+            except: pass
+        # Height (G+N)
+        m = re.search(r'(?:height\s*[:\-]?\s*)?G\s*\+\s*(\d+)', block, re.I)
+        if m:
+            try: info["floors"] = f"G+{int(m.group(1))}"
+            except: pass
+
+    # Common residential extras
+    if property_type in ("apartment", "studio", "villa", "townhouse",
+                          "penthouse", "duplex"):
+        if re.search(r'\bmaid\s*[sʼ\']?\s*room\b|\b\+\s*maid\b', tl):
+            info["maid_room"] = True
+        if re.search(r'\bstudy(?:\s+room)?\b', tl):  info["study_room"] = True
+        if re.search(r'\bbalcony\b|\bterrace\b', tl):  info["balcony"] = True
+        if re.search(r'\bprivate\s+pool\b', tl):       info["private_pool"] = True
+        if re.search(r'\bprivate\s+garden\b', tl):     info["private_garden"] = True
+        if re.search(r'\bpayment\s+plan\b|\bpost[\s\-]?handover\b', tl):
+            info["payment_plan"] = True
+        m = re.search(r'(\d+)\s*(?:car\s+park|parking)', tl)
+        if m:
+            try: info["parking_spaces"] = int(m.group(1))
+            except: pass
+
+    return info
+
+
 def extract_status(text: str) -> Optional[str]:
     tl = text.lower()
     for status, keywords in STATUS_KEYWORDS.items():
@@ -2467,6 +2546,7 @@ def parse_message(
     floor = extract_floor(clean)
     unit_number = extract_unit_number(clean)
     prop_type = extract_property_type(clean, bedrooms)
+    extra_info = extract_extra_info(clean, prop_type)
     status = extract_status(clean)
     furnishing = extract_furnishing(clean)
     contacts = extract_contacts(original_text)
@@ -2520,6 +2600,7 @@ def parse_message(
         "view": view,
         "furnishing": furnishing,
         "status": status,
+        "extra_info": extra_info if extra_info else None,
 
         "price": price,
         "currency": "AED",

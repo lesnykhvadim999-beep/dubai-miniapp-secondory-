@@ -407,8 +407,16 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                 "airbnb_estimate_low","airbnb_estimate_high","investment_score",
                 "agent_name","phone","whatsapp",
                 "has_images","cover_image_url","confidence_score",
+                "extra_info",
             ]
-            vals = [data.get(c) for c in cols]
+            vals = []
+            for c in cols:
+                v = data.get(c)
+                # extra_info is a Python dict — serialize to JSON for JSONB column
+                if c == "extra_info" and v is not None:
+                    import json as _json
+                    v = _json.dumps(v, ensure_ascii=False)
+                vals.append(v)
             placeholders = ",".join(["%s"] * len(cols))
             col_str = ",".join(cols)
             cur.execute(

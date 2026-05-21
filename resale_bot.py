@@ -188,6 +188,33 @@ T = {
     "rbtn_add":         "➕ List Property",
     "rbtn_lang":        "🌐 Language",
     "rbtn_home":        "🏠 Main Menu",
+    # Emirate wizard buttons
+    "em_dubai":     "🇦🇪 Dubai",
+    "em_abudhabi":  "🏛 Abu Dhabi",
+    "em_rak":       "🌴 Ras Al Khaimah",
+    "em_sharjah":   "⛵ Sharjah",
+    "em_any":       "🌍 All UAE",
+    # Property type buttons
+    "pt_apt_btn":     "🏢 Apartment",
+    "pt_villa_btn":   "🏖 Villa",
+    "pt_town_btn":    "🏘 Townhouse",
+    "pt_pent_btn":    "👑 Penthouse",
+    "pt_studio_btn":  "✨ Studio",
+    "pt_duplex_btn":  "🔷 Duplex",
+    "pt_office_btn":  "🏢 Office",
+    "pt_retail_btn":  "🛍 Retail",
+    "pt_warehouse_btn":"📦 Warehouse",
+    "pt_hotel_btn":   "🏨 Hotel",
+    "pt_any_btn":     "🔍 Any type",
+    # Bedroom buttons
+    "br_studio_btn":  "✨ Studio",
+    "br_1_btn":       "🛏 1 BR",
+    "br_2_btn":       "🛏 2 BR",
+    "br_3_btn":       "🛏 3 BR",
+    "br_4p_btn":      "🛏 4+ BR",
+    "br_any_btn":     "🔍 Any",
+    # Budget any
+    "b_any_btn":      "💰 Any budget",
     # Listing card labels
     "card_price_request": "Price on request",
     "card_per_year":   "/year",
@@ -252,10 +279,13 @@ T = {
     "btn_send":    "Send to Client",
     "ai_start": "────────────────────\n  AI PROPERTY ADVISOR\n────────────────────\n\nI'll find the perfect property\nbased on your goals.\n\nLet's begin:",
     "ai_goal_q":    "What is your goal?",
-    "ai_invest":    "Investment",
-    "ai_live":      "To Live In",
-    "ai_holiday":   "Holiday Home",
-    "ai_unsure":    "Not Sure Yet",
+    "ai_invest":    "💼 Investment",
+    "ai_live":      "🏠 To Live In",
+    "ai_holiday":   "🏖 Holiday Home",
+    "ai_unsure":    "🤔 Not Sure Yet",
+    "ai_commercial":"🏢 Commercial",
+    "ai_land":      "🌱 Land / Plot",
+    "ai_commercial_q": "What type of commercial property?",
     "ai_inv_q":       "Investment Strategy",
     "ai_inv_longterm":"Long-term Rental",
     "ai_inv_airbnb":  "Short-term · Airbnb",
@@ -280,7 +310,10 @@ T = {
     "add_building_q": "Building name\n(type in chat)",
     "add_type_q": "Property Type",
     "add_br_q": "Bedrooms",
-    "add_size_q": "Size in sqft\n(type in chat)",
+    "add_size_q": "Size in sqft\n(type in chat, or Skip)",
+    "add_floor_q": "Floor number\n(type a number, or Skip)\nExample: 12",
+    "add_unit_q": "Unit number\n(type in chat, or Skip)\nExample: 1206",
+    "add_description_q": "Additional details / description\n(type any free text, or Skip)\n\nE.g. parking, balcony, school nearby, renovated, fitted office, freehold plot, etc.",
     "add_price_q": "Price in AED\n(type in chat)\nExample: 1500000 or 1.5M",
     "add_status_q": "Status",
     "add_status_vacant": "Vacant",
@@ -368,6 +401,33 @@ T = {
     "rbtn_add":         "➕ Разместить",
     "rbtn_lang":        "🌐 Язык",
     "rbtn_home":        "🏠 Главное меню",
+    # Emirate wizard buttons
+    "em_dubai":     "🇦🇪 Дубай",
+    "em_abudhabi":  "🏛 Абу-Даби",
+    "em_rak":       "🌴 Рас-эль-Хайма",
+    "em_sharjah":   "⛵ Шарджа",
+    "em_any":       "🌍 Все ОАЭ",
+    # Property type buttons
+    "pt_apt_btn":     "🏢 Апартаменты",
+    "pt_villa_btn":   "🏖 Вилла",
+    "pt_town_btn":    "🏘 Таунхаус",
+    "pt_pent_btn":    "👑 Пентхаус",
+    "pt_studio_btn":  "✨ Студия",
+    "pt_duplex_btn":  "🔷 Дуплекс",
+    "pt_office_btn":  "🏢 Офис",
+    "pt_retail_btn":  "🛍 Ритейл",
+    "pt_warehouse_btn":"📦 Склад",
+    "pt_hotel_btn":   "🏨 Отель",
+    "pt_any_btn":     "🔍 Любой тип",
+    # Bedroom buttons
+    "br_studio_btn":  "✨ Студия",
+    "br_1_btn":       "🛏 1 спальня",
+    "br_2_btn":       "🛏 2 спальни",
+    "br_3_btn":       "🛏 3 спальни",
+    "br_4p_btn":      "🛏 4+ спален",
+    "br_any_btn":     "🔍 Любое",
+    # Budget any
+    "b_any_btn":      "💰 Любой бюджет",
     # Listing card labels
     "card_price_request": "Цена по запросу",
     "card_per_year":   "/год",
@@ -432,10 +492,13 @@ T = {
     "btn_send":    "Отправить клиенту",
     "ai_start": "────────────────────\n  AI ПОДБОР ОБЪЕКТА\n────────────────────\n\nНайду идеальный объект\nпод ваши цели.\n\nНачнём:",
     "ai_goal_q":    "Цель покупки?",
-    "ai_invest":    "Инвестиция",
-    "ai_live":      "Для жизни",
-    "ai_holiday":   "Для отдыха",
-    "ai_unsure":    "Не уверен",
+    "ai_invest":    "💼 Инвестиция",
+    "ai_live":      "🏠 Для жизни",
+    "ai_holiday":   "🏖 Для отдыха",
+    "ai_unsure":    "🤔 Не уверен",
+    "ai_commercial":"🏢 Коммерция",
+    "ai_land":      "🌱 Земля / Участок",
+    "ai_commercial_q": "Какой тип коммерческой недвижимости?",
     "ai_inv_q":       "Стратегия инвестиций",
     "ai_inv_longterm":"Долгосрочная аренда",
     "ai_inv_airbnb":  "Краткосрочная · Airbnb",
@@ -459,7 +522,10 @@ T = {
     "add_building_q": "Название здания\n(напишите в чате)",
     "add_type_q": "Тип недвижимости",
     "add_br_q": "Количество спален",
-    "add_size_q": "Площадь в кв. футах\n(напишите в чате)\nПример: 642",
+    "add_size_q": "Площадь в кв. футах\n(напишите в чате или Пропустить)\nПример: 642",
+    "add_floor_q": "Этаж\n(число или Пропустить)\nПример: 12",
+    "add_unit_q": "Номер юнита\n(напишите в чате или Пропустить)\nПример: 1206",
+    "add_description_q": "Дополнительная информация / описание\n(любой свободный текст или Пропустить)\n\nНапример: парковка, балкон, школа рядом, ремонт, оборудованный офис, фрихолд, и т.д.",
     "add_price_q": "Цена в AED\n(напишите в чате)\nПример: 1500000 или 1.5M",
     "add_status_q": "Статус",
     "add_status_vacant": "Свободно",
@@ -567,6 +633,33 @@ T = {
     "rbtn_add":         "➕ إضافة عقار",
     "rbtn_lang":        "🌐 اللغة",
     "rbtn_home":        "🏠 القائمة الرئيسية",
+    # Emirate wizard buttons
+    "em_dubai":     "🇦🇪 دبي",
+    "em_abudhabi":  "🏛 أبوظبي",
+    "em_rak":       "🌴 رأس الخيمة",
+    "em_sharjah":   "⛵ الشارقة",
+    "em_any":       "🌍 جميع الإمارات",
+    # Property type buttons
+    "pt_apt_btn":     "🏢 شقة",
+    "pt_villa_btn":   "🏖 فيلا",
+    "pt_town_btn":    "🏘 تاون هاوس",
+    "pt_pent_btn":    "👑 بنتهاوس",
+    "pt_studio_btn":  "✨ استوديو",
+    "pt_duplex_btn":  "🔷 دوبلكس",
+    "pt_office_btn":  "🏢 مكتب",
+    "pt_retail_btn":  "🛍 ريتيل",
+    "pt_warehouse_btn":"📦 مستودع",
+    "pt_hotel_btn":   "🏨 فندق",
+    "pt_any_btn":     "🔍 أي نوع",
+    # Bedroom buttons
+    "br_studio_btn":  "✨ استوديو",
+    "br_1_btn":       "🛏 غرفة واحدة",
+    "br_2_btn":       "🛏 غرفتان",
+    "br_3_btn":       "🛏 3 غرف",
+    "br_4p_btn":      "🛏 4+ غرف",
+    "br_any_btn":     "🔍 أي عدد",
+    # Budget any
+    "b_any_btn":      "💰 أي ميزانية",
     # Listing card labels
     "card_price_request": "السعر عند الطلب",
     "card_per_year":   "/سنة",
@@ -631,10 +724,13 @@ T = {
     "btn_send":    "إرسال للعميل",
     "ai_start": "────────────────────\n  مستشار AI العقاري\n────────────────────\n\nسأجد العقار المثالي\nلأهدافك.\n\nلنبدأ:",
     "ai_goal_q":  "ما هدفك؟",
-    "ai_invest":  "استثمار",
-    "ai_live":    "للسكن",
-    "ai_holiday": "منزل إجازة",
-    "ai_unsure":  "لست متأكداً",
+    "ai_invest":  "💼 استثمار",
+    "ai_live":    "🏠 للسكن",
+    "ai_holiday": "🏖 منزل إجازة",
+    "ai_unsure":  "🤔 لست متأكداً",
+    "ai_commercial":"🏢 تجاري",
+    "ai_land":      "🌱 أرض / قطعة",
+    "ai_commercial_q": "ما نوع العقار التجاري؟",
     "ai_inv_q":       "استراتيجية الاستثمار",
     "ai_inv_longterm":"إيجار طويل الأمد",
     "ai_inv_airbnb":  "إيجار قصير · Airbnb",
@@ -658,7 +754,10 @@ T = {
     "add_building_q": "اسم المبنى\n(اكتب في المحادثة)",
     "add_type_q": "نوع العقار",
     "add_br_q": "عدد الغرف",
-    "add_size_q": "المساحة بالقدم المربع",
+    "add_size_q": "المساحة بالقدم المربع\n(اكتب أو تخطّى)",
+    "add_floor_q": "رقم الطابق\n(اكتب رقم أو تخطّى)\nمثال: 12",
+    "add_unit_q": "رقم الوحدة\n(اكتب أو تخطّى)\nمثال: 1206",
+    "add_description_q": "تفاصيل إضافية / وصف\n(نص حر أو تخطّى)\n\nمثل: موقف، شرفة، مدرسة قريبة، مجدد، مكتب مجهز، الخ.",
     "add_price_q": "السعر بالدرهم",
     "add_status_q": "الحالة",
     "add_status_vacant": "شاغر",
@@ -831,69 +930,81 @@ LAND_TYPES        = ["plot"]
 # ── Wizard reply-keyboards (each step replaces the bottom bar) ───────────────
 def kb_reply_emirate(uid):
     return _reply_kb([
-        ["🇦🇪 Dubai",       "🏛 Abu Dhabi"],
-        ["🌴 Ras Al Khaimah", "⛵ Sharjah"],
-        ["🌍 Все ОАЭ"],
+        [_t(uid, "em_dubai"),    _t(uid, "em_abudhabi")],
+        [_t(uid, "em_rak"),      _t(uid, "em_sharjah")],
+        [_t(uid, "em_any")],
         [_t(uid, "rbtn_home")],
     ])
 
 
 def kb_reply_proptype_residential(uid):
     return _reply_kb([
-        ["🏢 Apartment",  "🏖 Villa"],
-        ["🏘 Townhouse",  "👑 Penthouse"],
-        ["✨ Studio",     "🔷 Duplex"],
-        ["🔍 Любой тип"],
+        [_t(uid, "pt_apt_btn"),    _t(uid, "pt_villa_btn")],
+        [_t(uid, "pt_town_btn"),   _t(uid, "pt_pent_btn")],
+        [_t(uid, "pt_studio_btn"), _t(uid, "pt_duplex_btn")],
+        [_t(uid, "pt_any_btn")],
         [_t(uid, "rbtn_home")],
     ])
 
 
 def kb_reply_proptype_commercial(uid):
     return _reply_kb([
-        ["🏢 Office",     "🛍 Retail"],
-        ["📦 Warehouse",  "🏨 Hotel"],
-        ["🔍 Любой тип"],
+        [_t(uid, "pt_office_btn"),    _t(uid, "pt_retail_btn")],
+        [_t(uid, "pt_warehouse_btn"), _t(uid, "pt_hotel_btn")],
+        [_t(uid, "pt_any_btn")],
         [_t(uid, "rbtn_home")],
     ])
 
 
 def kb_reply_bedrooms(uid):
     return _reply_kb([
-        ["✨ Studio",  "🛏 1 BR",  "🛏 2 BR"],
-        ["🛏 3 BR",   "🛏 4+ BR", "🔍 Любая"],
+        [_t(uid, "br_studio_btn"), _t(uid, "br_1_btn"), _t(uid, "br_2_btn")],
+        [_t(uid, "br_3_btn"),      _t(uid, "br_4p_btn"), _t(uid, "br_any_btn")],
         [_t(uid, "rbtn_home")],
     ])
 
 
-# Mapping of reply-keyboard buttons to their wizard actions
-EMIRATE_BUTTONS = {
-    "🇦🇪 Dubai":         "Dubai",
-    "🏛 Abu Dhabi":      "Abu Dhabi",
-    "🌴 Ras Al Khaimah": "Ras Al Khaimah",
-    "⛵ Sharjah":        "Sharjah",
-    "🌍 Все ОАЭ":        None,  # no filter
+# Canonical key → (translation_key, filter_value) mapping
+# We look up which canonical button was pressed across ALL languages.
+EMIRATE_KEYS = {
+    "em_dubai":    "Dubai",
+    "em_abudhabi": "Abu Dhabi",
+    "em_rak":      "Ras Al Khaimah",
+    "em_sharjah":  "Sharjah",
+    "em_any":      None,
 }
-PROPTYPE_BUTTONS = {
-    "🏢 Apartment": "apartment",
-    "🏖 Villa":     "villa",
-    "🏘 Townhouse": "townhouse",
-    "👑 Penthouse": "penthouse",
-    "✨ Studio":    "studio",
-    "🔷 Duplex":    "duplex",
-    "🏢 Office":    "office",
-    "🛍 Retail":    "retail",
-    "📦 Warehouse": "warehouse",
-    "🏨 Hotel":     "hotel",
-    "🔍 Любой тип": None,
+PROPTYPE_KEYS = {
+    "pt_apt_btn":      "apartment",
+    "pt_villa_btn":    "villa",
+    "pt_town_btn":     "townhouse",
+    "pt_pent_btn":     "penthouse",
+    "pt_studio_btn":   "studio",
+    "pt_duplex_btn":   "duplex",
+    "pt_office_btn":   "office",
+    "pt_retail_btn":   "retail",
+    "pt_warehouse_btn":"warehouse",
+    "pt_hotel_btn":    "hotel",
+    "pt_any_btn":      None,
 }
-BEDROOM_BUTTONS = {
-    "✨ Studio":   0,
-    "🛏 1 BR":     1,
-    "🛏 2 BR":     2,
-    "🛏 3 BR":     3,
-    "🛏 4+ BR":    99,  # special code for 4+
-    "🔍 Любая":    None,
+BEDROOM_KEYS = {
+    "br_studio_btn": 0,
+    "br_1_btn":      1,
+    "br_2_btn":      2,
+    "br_3_btn":      3,
+    "br_4p_btn":     99,
+    "br_any_btn":    None,
 }
+
+
+def _wizard_match(text, key_map):
+    """Find which canonical key the text matches across all 3 languages."""
+    if not text:
+        return None, False
+    for canonical_key, value in key_map.items():
+        for lang_strings in T.values():
+            if lang_strings.get(canonical_key) == text:
+                return value, True
+    return None, False
 
 
 def is_main_menu_text(text: str):
@@ -1229,6 +1340,39 @@ def format_card(listing, uid, rank=None):
     if extras:
         lines.append("  ·  ".join(extras))
 
+    # 5b. Extra info / description (parser-extracted JSON, optional)
+    extra = listing.get("extra_info")
+    if extra:
+        if isinstance(extra, str):
+            try:
+                import json as _json
+                extra = _json.loads(extra)
+            except: extra = {}
+        if isinstance(extra, dict) and extra:
+            extra_bits = []
+            if extra.get("fit_out"):       extra_bits.append(f"Fit-out: {extra['fit_out']}")
+            if extra.get("usage"):         extra_bits.append(f"Usage: {extra['usage']}")
+            if extra.get("tenure"):        extra_bits.append(extra['tenure'])
+            if extra.get("gfa_sqft"):      extra_bits.append(f"GFA: {extra['gfa_sqft']:,} sqft")
+            if extra.get("floors"):        extra_bits.append(extra['floors'])
+            if extra.get("parking_spaces"): extra_bits.append(f"🚗 {extra['parking_spaces']} parking")
+            if extra.get("meeting_rooms"): extra_bits.append(f"📋 {extra['meeting_rooms']} mtg rooms")
+            if extra.get("maid_room"):     extra_bits.append("🛏 Maid room")
+            if extra.get("study_room"):    extra_bits.append("📚 Study")
+            if extra.get("balcony"):       extra_bits.append("🌿 Balcony")
+            if extra.get("private_pool"):  extra_bits.append("🏊 Private pool")
+            if extra.get("private_garden"): extra_bits.append("🌳 Private garden")
+            if extra.get("payment_plan"):  extra_bits.append("💳 Payment plan")
+            if extra.get("reception"):     extra_bits.append("Reception")
+            if extra.get("pantry"):        extra_bits.append("Kitchenette")
+            if extra_bits:
+                lines.append("ℹ️ " + "  ·  ".join(extra_bits))
+
+    # User-entered description (from /add wizard)
+    desc = listing.get("description")
+    if desc and isinstance(desc, str) and desc.strip():
+        lines.append(f"📝 _{desc[:200].strip()}_")
+
     # 6. Analytics block (separator + items)
     analytics = []
     if pct is not None and pct < -3:
@@ -1436,8 +1580,9 @@ def send_lead_to_bot(uid, uname, fname, lang, listing_id):
 # ── Add listing wizard ────────────────────────────────────────────────────────
 ADD_STEPS = [
     "deal", "emirate", "area", "building", "type",
-    "bedrooms", "size", "price", "status", "furnishing",
-    "view", "contact", "photos"
+    "bedrooms", "size", "floor", "unit", "price",
+    "status", "furnishing", "view", "description",
+    "contact", "photos"
 ]
 
 ADD_VIEWS = [
@@ -1525,7 +1670,26 @@ def add_next_step(cid, uid):
     elif current == "size":
         add_states[uid]["waiting_text"] = "size"
         _send(cid, _t(uid, "add_size_q"),
-              _kb([_btn(_t(uid, "add_cancel"), "add|cancel")]))
+              _kb([_btn(_t(uid, "add_skip"), "add|skip_field"),
+                   _btn(_t(uid, "add_cancel"), "add|cancel")]))
+
+    elif current == "floor":
+        add_states[uid]["waiting_text"] = "floor"
+        _send(cid, _t(uid, "add_floor_q"),
+              _kb([_btn(_t(uid, "add_skip"), "add|skip_field"),
+                   _btn(_t(uid, "add_cancel"), "add|cancel")]))
+
+    elif current == "unit":
+        add_states[uid]["waiting_text"] = "unit"
+        _send(cid, _t(uid, "add_unit_q"),
+              _kb([_btn(_t(uid, "add_skip"), "add|skip_field"),
+                   _btn(_t(uid, "add_cancel"), "add|cancel")]))
+
+    elif current == "description":
+        add_states[uid]["waiting_text"] = "description"
+        _send(cid, _t(uid, "add_description_q"),
+              _kb([_btn(_t(uid, "add_skip"), "add|skip_field"),
+                   _btn(_t(uid, "add_cancel"), "add|cancel")]))
 
     elif current == "price":
         add_states[uid]["waiting_text"] = "price"
@@ -1819,9 +1983,10 @@ def show_ai_start(cid, uid, mid=None):
     s = gs(uid); s["ai_step"] = 1; s["ai_data"] = {}
     text = _t(uid, "ai_start") + "\n\n" + _t(uid, "ai_goal_q")
     kb = _kb(
-        [_btn(_t(uid, "ai_invest"),  "ai|goal|invest"),  _btn(_t(uid, "ai_live"),   "ai|goal|live")],
-        [_btn(_t(uid, "ai_holiday"), "ai|goal|holiday"), _btn(_t(uid, "ai_unsure"), "ai|goal|unsure")],
-        [_btn(_t(uid, "btn_menu"),   "menu|main")],
+        [_btn(_t(uid, "ai_invest"),     "ai|goal|invest"),     _btn(_t(uid, "ai_live"),    "ai|goal|live")],
+        [_btn(_t(uid, "ai_holiday"),    "ai|goal|holiday"),    _btn(_t(uid, "ai_unsure"),  "ai|goal|unsure")],
+        [_btn(_t(uid, "ai_commercial"), "ai|goal|commercial"), _btn(_t(uid, "ai_land"),    "ai|goal|land")],
+        [_btn(_t(uid, "btn_menu"),      "menu|main")],
     )
     if mid: _edit(cid, mid, text, kb)
     else:   _send(cid, text, kb)
@@ -1850,10 +2015,31 @@ def handle_ai(cid, uid, mid, parts):
                 [_btn(_t(uid, "ai_l_nature"),   "ai|lifestyle|nature"),   _btn(_t(uid, "ai_l_business"), "ai|lifestyle|business")],
                 [_btn("🔍  Find Properties", "ai|recommend")],
             )
+        elif goal == "commercial":
+            # Commercial sub-type wizard
+            text = _t(uid, "ai_commercial_q")
+            kb = _kb(
+                [_btn(_t(uid, "pt_office_btn"),    "ai|commtype|office"),
+                 _btn(_t(uid, "pt_retail_btn"),    "ai|commtype|retail")],
+                [_btn(_t(uid, "pt_warehouse_btn"), "ai|commtype|warehouse"),
+                 _btn(_t(uid, "pt_hotel_btn"),     "ai|commtype|hotel")],
+                [_btn(_t(uid, "pt_any_btn"),       "ai|commtype|any")],
+                [_btn("🔍  Find Properties", "ai|recommend")],
+            )
+        elif goal == "land":
+            # Land/plot — go straight to budget
+            ai["land_only"] = True; s["ai_data"] = ai
+            _edit(cid, mid, _t(uid, "budget_q"), kb_budget(uid, is_plot=True))
+            return
         else:
             _edit(cid, mid, _t(uid, "budget_q"), kb_budget(uid))
             return
         _edit(cid, mid, text, kb)
+
+    elif action == "commtype":
+        ai["comm_type"] = parts[2] if len(parts) > 2 else "any"
+        s["ai_data"] = ai
+        _edit(cid, mid, _t(uid, "budget_q"), kb_budget(uid, is_commercial=True))
 
     elif action == "strategy":
         ai["strategy"] = parts[2] if len(parts) > 2 else "mixed"
@@ -1872,7 +2058,10 @@ def handle_ai(cid, uid, mid, parts):
         goal      = ai.get("goal", "invest")
         strategy  = ai.get("strategy", "longterm")
         lifestyle = ai.get("lifestyle", "downtown")
+        comm_type = ai.get("comm_type")
 
+        # Set up filters by goal
+        extra_filters = {}
         # Dynamic areas from market_data
         if goal == "invest":
             areas = get_best_areas_from_db(strategy)
@@ -1886,13 +2075,32 @@ def handle_ai(cid, uid, mid, parts):
                 areas = fallback.get(strategy, ["Downtown Dubai", "Business Bay"])
         elif goal == "live":
             lifestyle_map = {
-                "sea":      ["Dubai Marina", "Jumeirah Beach Residence", "Palm Jumeirah"],
-                "downtown": ["Downtown Dubai", "Business Bay", "DIFC"],
-                "family":   ["Dubai Hills Estate", "Jumeirah Village Circle", "Meydan"],
-                "premium":  ["Palm Jumeirah", "Downtown Dubai", "Bluewaters Island"],
-                "business": ["Business Bay", "DIFC", "Downtown Dubai"],
+                "sea":      ["Dubai Marina", "Jumeirah Beach Residence", "Palm Jumeirah", "Emaar Beachfront", "Bluewaters Island"],
+                "downtown": ["Downtown Dubai", "Business Bay", "DIFC", "City Walk"],
+                "family":   ["Dubai Hills Estate", "Jumeirah Village Circle", "Meydan", "Arabian Ranches", "The Springs"],
+                "premium":  ["Palm Jumeirah", "Downtown Dubai", "Bluewaters Island", "Jumeirah Golf Estates", "Emirates Hills"],
+                "nature":   ["Dubai Hills Estate", "The Valley", "Tilal Al Ghaf", "Mudon", "Dubailand"],
+                "business": ["Business Bay", "DIFC", "Downtown Dubai", "Dubai Marina"],
             }
             areas = lifestyle_map.get(lifestyle, ["Downtown Dubai", "Dubai Marina"])
+        elif goal == "commercial":
+            # Best commercial areas by sub-type
+            comm_areas = {
+                "office":    ["Business Bay", "DIFC", "Downtown Dubai", "Sheikh Zayed Road"],
+                "retail":    ["Dubai Marina", "Downtown Dubai", "City Walk", "JBR"],
+                "warehouse": ["Al Quoz", "Dubai Investment Park", "Jebel Ali"],
+                "hotel":     ["Palm Jumeirah", "Downtown Dubai", "JBR"],
+                "any":       ["Business Bay", "DIFC", "Downtown Dubai"],
+            }
+            areas = comm_areas.get(comm_type, ["Business Bay", "DIFC"])
+            if comm_type and comm_type != "any":
+                extra_filters["property_type_in"] = [comm_type]
+            else:
+                extra_filters["property_type_in"] = COMMERCIAL_TYPES
+        elif goal == "land":
+            # Plot search across hot plot areas
+            areas = ["Dubai South", "Dubai Investment Park", "Al Furjan", "Tilal Al Ghaf", "MBR City"]
+            extra_filters["property_type"] = "plot"
         else:
             areas = ["Downtown Dubai", "Dubai Marina", "Jumeirah Village Circle"]
 
@@ -1904,8 +2112,9 @@ def handle_ai(cid, uid, mid, parts):
                 summary_text = mkt
 
         filters = dict(s.get("filters", {}))
+        filters.update(extra_filters)
         best = []
-        for area in areas[:3]:
+        for area in areas[:5]:
             r, _ = search_listings({**filters, "area": area, "sort": "best_deals"}, limit=3)
             best.extend(r)
         if not best:
@@ -2016,58 +2225,82 @@ def show_stats(cid, uid):
     corrupt = s.get("corrupt_prices", 0)
     corrupt_warn = f"\n  ⚠️  Corrupt prices:      {corrupt}" if corrupt else ""
 
-    text = (
-        f"{_sep()}\n  ADMIN STATISTICS  ·  Dubai Resale Bot\n{_sep()}\n\n"
+    # Audit category counts
+    audit_total = audit_buckets_lines = ""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) as cnt FROM listings WHERE is_active=TRUE AND is_audit=TRUE")
+            audit_total = cur.fetchone()["cnt"]
+            cur.execute("""
+                SELECT split_part(audit_reason, '_', 1) || '_' || split_part(audit_reason, '_', 2) AS bucket,
+                       COUNT(*) AS n
+                FROM listings WHERE is_active=TRUE AND is_audit=TRUE
+                GROUP BY bucket ORDER BY n DESC LIMIT 5
+            """)
+            ab = cur.fetchall()
+        conn.close()
+        audit_buckets_lines = "\n".join(f"    {b['bucket']:<22}{b['n']}" for b in ab)
+    except Exception:
+        audit_total = 0
+        audit_buckets_lines = ""
 
-        f"  Total listings:        {s['total']}\n"
-        f"  For Sale:              {s['sale_total']}  ({s['sale_clean']} clean)\n"
-        f"  For Rent:              {s['rent_total']}  ({s['rent_clean']} clean)\n"
-        f"  Hot deals:             {s['hot_deals']}\n"
-        f"  Below market:          {s['below_market']}\n"
-        f"  Needs review:          {s['needs_review']}\n"
-        f"  Review queue:          {s['review_queue']}\n"
-        f"  Pending moderation:    {s['pending']}\n"
-        f"  Buildings tracked:     {s['buildings_count']}\n"
-        f"  Areas covered:         {s['areas_count']}\n"
-        f"  Parsed channels:       {s['groups_count']}"
+    text = (
+        f"{_sep()}\n  СТАТИСТИКА АДМИНА  ·  Dubai Resale Bot\n{_sep()}\n\n"
+
+        f"  Всего объектов:        {s['total']}\n"
+        f"  В продаже:             {s['sale_total']}  ({s['sale_clean']} чистых)\n"
+        f"  В аренде:              {s['rent_total']}  ({s['rent_clean']} чистых)\n"
+        f"  Горячих сделок:        {s['hot_deals']}\n"
+        f"  Ниже рынка:            {s['below_market']}\n"
+        f"  Требует проверки:      {s['needs_review']}\n"
+        f"  Очередь модерации:     {s['review_queue']}\n"
+        f"  Ожидает одобрения:     {s['pending']}\n"
+        f"  Зданий в БД:           {s['buildings_count']}\n"
+        f"  Районов:               {s['areas_count']}\n"
+        f"  Каналов парсится:      {s['groups_count']}"
         f"{corrupt_warn}\n\n"
 
-        f"{_sep()}\n  ANALYTICS\n{_sep()}\n"
-        f"  Avg sale price:        {_fmt_m(s['avg_sale_price'])}\n"
-        f"  Avg rent/year:         {_fmt_m(s['avg_rent_price'])}\n"
-        f"  Avg price/sqft:        {int(s['avg_price_sqft']) if s['avg_price_sqft'] else '—'} AED\n"
-        f"  Avg ROI:               {s['avg_roi']}%\n\n"
+        f"{_sep()}\n  АУДИТ (скрытые от пользователей)\n{_sep()}\n"
+        f"  Всего в аудите:        {audit_total}\n"
+        f"  Топ причин:\n{audit_buckets_lines}\n\n"
 
-        f"{_sep()}\n  ACTIVITY\n{_sep()}\n"
-        f"  Today (Dubai time):    {s['today_listings']}\n"
-        f"  Yesterday:             {s['yesterday_listings']}\n"
-        f"  This week:             {s['week_listings']}\n"
-        f"  This month:            {s['month_listings']}\n\n"
+        f"{_sep()}\n  АНАЛИТИКА\n{_sep()}\n"
+        f"  Средняя цена продажи:  {_fmt_m(s['avg_sale_price'])}\n"
+        f"  Средняя аренда/год:    {_fmt_m(s['avg_rent_price'])}\n"
+        f"  Средняя цена/sqft:     {int(s['avg_price_sqft']) if s['avg_price_sqft'] else '—'} AED\n"
+        f"  Средний ROI:           {s['avg_roi']}%\n\n"
 
-        f"{_sep()}\n  TODAY SYNC\n{_sep()}\n"
-        f"  New parsed:            {s['today_new']}\n"
-        f"  Duplicates:            {s['today_dupes']}\n"
-        f"  Hot deals found:       {s['today_hot']}\n"
-        f"  Errors:                {s['today_errors']}\n"
-        f"  Sync runs:             {s['syncs_today']}\n"
-        f"  Last sync:             {_fmt_dt(s['last_sync'])}\n\n"
+        f"{_sep()}\n  АКТИВНОСТЬ\n{_sep()}\n"
+        f"  Сегодня (Дубай):       {s['today_listings']}\n"
+        f"  Вчера:                 {s['yesterday_listings']}\n"
+        f"  Эта неделя:            {s['week_listings']}\n"
+        f"  Этот месяц:            {s['month_listings']}\n\n"
 
-        f"{_sep()}\n  CHANNELS\n{_sep()}\n"
+        f"{_sep()}\n  СИНХРОНИЗАЦИЯ СЕГОДНЯ\n{_sep()}\n"
+        f"  Новых добавлено:       {s['today_new']}\n"
+        f"  Дубликатов:            {s['today_dupes']}\n"
+        f"  Горячих найдено:       {s['today_hot']}\n"
+        f"  Ошибок:                {s['today_errors']}\n"
+        f"  Запусков синхр.:       {s['syncs_today']}\n"
+        f"  Последняя синхр.:      {_fmt_dt(s['last_sync'])}\n\n"
+
+        f"{_sep()}\n  КАНАЛЫ\n{_sep()}\n"
         f"{by_channel}\n\n"
 
-        f"{_sep()}\n  BY EMIRATE\n{_sep()}\n"
+        f"{_sep()}\n  ПО ЭМИРАТАМ\n{_sep()}\n"
         f"{by_em}\n\n"
 
-        f"{_sep()}\n  BY DEAL QUALITY\n{_sep()}\n"
+        f"{_sep()}\n  ПО КАЧЕСТВУ СДЕЛКИ\n{_sep()}\n"
         f"{by_q}\n\n"
 
-        f"{_sep()}\n  USERS\n{_sep()}\n"
-        f"  Total users:           {s['users_total']}\n"
-        f"  Active today:          {active_today}\n"
-        f"  Searches today:        {searches_today}\n"
-        f"  Views today:           {views_today}\n"
-        f"  Leads today:           {s['leads_today']}\n"
-        f"  Leads this week:       {s['leads_week']}\n"
+        f"{_sep()}\n  ПОЛЬЗОВАТЕЛИ\n{_sep()}\n"
+        f"  Всего пользователей:   {s['users_total']}\n"
+        f"  Активных сегодня:      {active_today}\n"
+        f"  Поисков сегодня:       {searches_today}\n"
+        f"  Просмотров сегодня:    {views_today}\n"
+        f"  Заявок сегодня:        {s['leads_today']}\n"
+        f"  Заявок за неделю:      {s['leads_week']}\n"
         f"{_sep()}"
     )
     _send(cid, f"`{text}`")
@@ -2145,65 +2378,62 @@ def dispatch_main_button(cid, uid, rkey):
 
 def dispatch_wizard_button(cid, uid, text):
     """Handle wizard reply-keyboard button presses (emirate, property_type, bedrooms).
+    Works across all 3 languages via _wizard_match (canonical key lookup).
     Returns True if the text matched a wizard button and was handled."""
     state = gs(uid)
     wizard = state.get("wizard")
     filters = state.get("filters", {})
 
     # Emirate step
-    if wizard == "emirate" and text in EMIRATE_BUTTONS:
-        em = EMIRATE_BUTTONS[text]
-        if em:
-            filters["emirate"] = em
-        # Next: property type (commercial or residential or skip if plot)
-        if filters.get("property_type") == "plot":
-            # Plot: skip property type, go straight to budget (plot-tier)
-            state["wizard"] = "budget"
-            _send(cid, _t(uid, "budget_q"), kb_budget(uid, is_plot=True))
-        elif filters.get("property_type_in"):
-            # Commercial sub-type
-            state["wizard"] = "proptype"
-            _send(cid, _t(uid, "prop_q"), kb_reply_proptype_commercial(uid))
-        else:
-            # Residential sub-type
-            state["wizard"] = "proptype"
-            _send(cid, _t(uid, "prop_q"), kb_reply_proptype_residential(uid))
-        return True
+    if wizard == "emirate":
+        em, matched = _wizard_match(text, EMIRATE_KEYS)
+        if matched:
+            if em:
+                filters["emirate"] = em
+            if filters.get("property_type") == "plot":
+                state["wizard"] = "budget"
+                _send(cid, _t(uid, "budget_q"), kb_budget(uid, is_plot=True))
+            elif filters.get("property_type_in"):
+                state["wizard"] = "proptype"
+                _send(cid, _t(uid, "prop_q"), kb_reply_proptype_commercial(uid))
+            else:
+                state["wizard"] = "proptype"
+                _send(cid, _t(uid, "prop_q"), kb_reply_proptype_residential(uid))
+            return True
 
     # Property type step
-    if wizard == "proptype" and text in PROPTYPE_BUTTONS:
-        pt = PROPTYPE_BUTTONS[text]
-        if pt:
-            # Commercial uses _in, residential uses single property_type
-            if pt in COMMERCIAL_TYPES:
-                filters["property_type_in"] = [pt]
+    if wizard == "proptype":
+        pt, matched = _wizard_match(text, PROPTYPE_KEYS)
+        if matched:
+            if pt:
+                if pt in COMMERCIAL_TYPES:
+                    filters["property_type_in"] = [pt]
+                else:
+                    filters["property_type"] = pt
+                    filters.pop("property_type_in", None)
+            is_comm = bool(filters.get("property_type_in"))
+            is_plot = filters.get("property_type") == "plot"
+            is_rent = filters.get("deal_type") == "rent"
+            if is_plot or is_comm:
+                state["wizard"] = "budget"
+                _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
+                      kb_budget(uid, is_rent=is_rent, is_commercial=is_comm, is_plot=is_plot))
             else:
-                filters["property_type"] = pt
-                filters.pop("property_type_in", None)
-        # Next: bedrooms (residential only) or budget (commercial/plot)
-        is_comm = bool(filters.get("property_type_in"))
-        is_plot = filters.get("property_type") == "plot"
-        is_rent = filters.get("deal_type") == "rent"
-        if is_plot or is_comm:
-            state["wizard"] = "budget"
-            _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
-                  kb_budget(uid, is_rent=is_rent, is_commercial=is_comm, is_plot=is_plot))
-        else:
-            state["wizard"] = "bedrooms"
-            _send(cid, _t(uid, "br_q"), kb_reply_bedrooms(uid))
-        return True
+                state["wizard"] = "bedrooms"
+                _send(cid, _t(uid, "br_q"), kb_reply_bedrooms(uid))
+            return True
 
     # Bedrooms step
-    if wizard == "bedrooms" and text in BEDROOM_BUTTONS:
-        br = BEDROOM_BUTTONS[text]
-        if br is not None:
-            filters["bedrooms"] = br
-        # Next: budget (residential)
-        state["wizard"] = "budget"
-        is_rent = filters.get("deal_type") == "rent"
-        _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
-              kb_budget(uid, is_rent=is_rent))
-        return True
+    if wizard == "bedrooms":
+        br, matched = _wizard_match(text, BEDROOM_KEYS)
+        if matched:
+            if br is not None:
+                filters["bedrooms"] = br
+            state["wizard"] = "budget"
+            is_rent = filters.get("deal_type") == "rent"
+            _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
+                  kb_budget(uid, is_rent=is_rent))
+            return True
 
     return False
 
@@ -2867,6 +3097,14 @@ def handle_cb(cb):
             add_states[uid] = s
             submit_listing(cid, uid)
             return
+        if sub == "skip_field":
+            # Generic skip for size/floor/unit/description steps — leave field empty, advance
+            s = add_states.get(uid, {})
+            s["waiting_text"] = None
+            s["step"] = s.get("step", 0) + 1
+            add_states[uid] = s
+            add_next_step(cid, uid)
+            return
 
         val = parts[2] if len(parts) > 2 else ""
         s = add_states.get(uid)
@@ -3475,7 +3713,7 @@ def handle_msg(msg):
             add_states[uid] = s
             add_next_step(cid, uid)
             return
-        if waiting in ("building", "size", "price", "contact"):
+        if waiting in ("building", "size", "price", "contact", "floor", "unit", "description"):
             s["data"][waiting] = text
             s["waiting_text"] = None
             s["step"] += 1
