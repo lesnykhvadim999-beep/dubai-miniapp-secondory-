@@ -281,6 +281,7 @@ T = {
     "btn_similar": "Similar Properties",
     "btn_analysis":"Investment Analysis",
     "btn_send":    "Send to Client",
+    "btn_all_in_bld": "🏢 All units in this building",
     "btn_fav_add":   "❤️ Save",
     "btn_fav_rem":   "💔 Remove",
     "btn_map":       "🗺 Map",
@@ -526,6 +527,7 @@ T = {
     "btn_similar": "Похожие объекты",
     "btn_analysis":"Инвестиционный анализ",
     "btn_send":    "Отправить клиенту",
+    "btn_all_in_bld": "🏢 Все объекты в этом доме",
     "btn_fav_add":   "❤️ В избранное",
     "btn_fav_rem":   "💔 Убрать",
     "btn_map":       "🗺 На карте",
@@ -790,6 +792,7 @@ T = {
     "btn_similar": "عقارات مشابهة",
     "btn_analysis":"التحليل الاستثماري",
     "btn_send":    "إرسال للعميل",
+    "btn_all_in_bld": "🏢 جميع الوحدات في هذا المبنى",
     "btn_fav_add":   "❤️ حفظ",
     "btn_fav_rem":   "💔 إزالة",
     "btn_map":       "🗺 الخريطة",
@@ -1360,15 +1363,20 @@ def search_buildings_by_query(q: str, emirate: str = None, area: str = None,
     """Возвращает top-N matching buildings.
        Логика: exact match → startswith → contains.
        При совпадениях — по count DESC (популярные первыми).
-       Если emirate / area задан — фильтр."""
+       Если emirate / area задан — СТРОГИЙ фильтр (без NULL).
+       Раньше: items без area тоже проходили → юзер в JVC видел
+       Binghatti из других районов. Теперь только точное совпадение."""
     if not q or len(q.strip()) < 1:
         return []
     qn = q.strip().lower()
     items = _load_all_buildings()
     if emirate:
+        # Эмират — поддерживаем без значения (для тех зданий где emirate не определён,
+        # но area из эмирата подходит)
         items = [i for i in items if not i.get("emirate") or i["emirate"] == emirate]
     if area:
-        items = [i for i in items if not i.get("area") or i["area"] == area]
+        # СТРОГО — только здания из этого района
+        items = [i for i in items if i.get("area") == area]
 
     exact, starts, contains = [], [], []
     for item in items:
@@ -2447,12 +2455,15 @@ def send_results(cid, uid, mid=None):
         except Exception:
             fav_now = False
         fav_label = _t(uid, "btn_fav_rem") if fav_now else _t(uid, "btn_fav_add")
+        has_building = bool(lst.get("building"))
         kb_rows = [
             [_btn(_t(uid, "btn_analysis"), f"detail|{lid}"), _btn(_t(uid, "btn_book"),    f"book|{lid}")],
             [_btn(fav_label,               f"fav|{lid}"),    _btn(_t(uid, "btn_compare"), f"cmp|{lid}")],
             [_btn(_t(uid, "btn_map"),      f"map|{lid}"),    _btn(_t(uid, "btn_photos"),  f"photos|{lid}")],
-            [_btn(_t(uid, "btn_similar"),  f"similar|{lid}"), _btn(_t(uid, "btn_send"),   f"send|{lid}")],
         ]
+        if has_building:
+            kb_rows.append([_btn(_t(uid, "btn_all_in_bld"), f"allbld|{lid}")])
+        kb_rows.append([_btn(_t(uid, "btn_similar"),  f"similar|{lid}"), _btn(_t(uid, "btn_send"),   f"send|{lid}")])
         kb = _kb(*kb_rows)
         # Send with photos (file_id stored directly from Bot API upload)
         images = get_listing_images(lid) if lid else []
@@ -2892,14 +2903,19 @@ def show_detail(cid, uid, mid, lid):
         fav_now = False
     fav_label = _t(uid, "btn_fav_rem") if fav_now else _t(uid, "btn_fav_add")
     lang_user = user_lang.get(uid, "en")
-    kb = _kb(
+    has_building = bool(listing.get("building"))
+    kb_rows = [
         [_url_btn(_t(uid, "btn_book"), lead_url)],
         [_btn(fav_label,              f"fav|{lid}"),    _btn(_t(uid, "btn_compare"), f"cmp|{lid}")],
         [_btn(_t(uid, "btn_map"),     f"map|{lid}"),    _btn(_t(uid, "btn_photos"),  f"photos|{lid}")],
         [_btn("🌐 Translate",         f"translate|{lid}|{lang_user}")],
-        [_btn(_t(uid, "btn_similar"), f"similar|{lid}"), _btn(_t(uid, "btn_back"), "results|back")],
-        [_btn(_t(uid, "btn_menu"), "menu|main")],
-    )
+    ]
+    # All-in-building button — только если есть building
+    if has_building:
+        kb_rows.append([_btn(_t(uid, "btn_all_in_bld"), f"allbld|{lid}")])
+    kb_rows.append([_btn(_t(uid, "btn_similar"), f"similar|{lid}"), _btn(_t(uid, "btn_back"), "results|back")])
+    kb_rows.append([_btn(_t(uid, "btn_menu"), "menu|main")])
+    kb = _kb(*kb_rows)
 
     # Try to show photos
     images = get_listing_images(lid)
@@ -4397,6 +4413,32 @@ def handle_cb(cb):
         elif parts[1] == "back": show_main(cid, uid, mid)
 
     # ── Favorites ─────────────────────────────────────────────────────────────
+    # ── All units in this building ──────────────────────────────────────
+    # Сбрасывает budget/bedrooms фильтры и показывает все объекты в здании.
+    elif action == "allbld":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        listing = get_listing_by_id(lid)
+        if not listing or not listing.get("building"):
+            _api("answerCallbackQuery", callback_query_id=cb["id"],
+                 text="No building info", show_alert=True)
+            return
+        s = gs(uid)
+        bld = listing["building"]
+        # Сброс фильтров — оставляем только building + deal_type того же объекта
+        new_filters = {
+            "building": bld,
+            "deal_type": listing.get("deal_type", "sale"),
+            "sort": "best_deals",
+        }
+        # Сохраняем emirate если есть (часто нужно для дедупа buildings с одним именем)
+        if listing.get("emirate"):
+            new_filters["emirate"] = listing["emirate"]
+        s["filters"] = new_filters
+        s["wizard"] = None
+        _send(cid, f"🏢 Все объекты в *{bld}*", kb_main_reply(uid))
+        do_search(uid)
+        send_results(cid, uid)
+
     # ── Relax filter — убрать конкретный фильтр и заново поискать ──────
     elif action == "relax":
         which = parts[1] if len(parts) > 1 else ""

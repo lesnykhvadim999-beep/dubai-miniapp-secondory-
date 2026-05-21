@@ -2260,6 +2260,46 @@ def extract_status(text: str) -> Optional[str]:
     return None
 
 
+# ── DLD canonical normalisation ──────────────────────────────────────────────
+# Загружаем 4773 канонических имени зданий + 215 районов из DLD-архива.
+# Используется при парсинге чтобы привести building/area к единому формату.
+_DLD_CANONICAL = {"buildings": {}, "building_areas": {}, "areas": {}}
+try:
+    import os as _os, json as _json
+    _dld_path = _os.path.join(_os.path.dirname(__file__), "dld_canonical.json")
+    if _os.path.exists(_dld_path):
+        with open(_dld_path, encoding="utf-8") as _f:
+            _DLD_CANONICAL = _json.load(_f)
+        print(f"[parser] DLD canonical: {len(_DLD_CANONICAL.get('buildings',{}))} bld, "
+              f"{len(_DLD_CANONICAL.get('areas',{}))} areas")
+except Exception as _e:
+    print(f"[parser] DLD canonical load failed: {_e}")
+
+
+def normalize_via_dld(building: Optional[str], area: Optional[str]) -> tuple:
+    """Возвращает (canonical_building, canonical_area). Если DLD-словарь
+    содержит ключ — берём оттуда. Иначе возвращаем оригинал."""
+    new_bld, new_area = building, area
+    if building:
+        canon = _DLD_CANONICAL.get("buildings", {}).get(building.strip().lower())
+        if canon:
+            new_bld = canon
+            # Из DLD также подставляем area для этого здания
+            bld_area = _DLD_CANONICAL.get("building_areas", {}).get(building.strip().lower())
+            if bld_area:
+                new_area = bld_area
+    if not new_area and area:
+        canon = _DLD_CANONICAL.get("areas", {}).get(area.strip().lower())
+        if canon:
+            new_area = canon
+    elif new_area:
+        # Уже есть area — нормализуем
+        canon = _DLD_CANONICAL.get("areas", {}).get(new_area.strip().lower())
+        if canon:
+            new_area = canon
+    return new_bld, new_area
+
+
 def extract_offplan(text: str) -> bool:
     """Returns True if text contains off-plan / under-construction markers."""
     t = _first_listing_block(text).lower()
@@ -2927,6 +2967,13 @@ def parse_message(
     else:
         data["needs_manual_review"] = False
         data["review_reason"] = None
+
+    # ── DLD normalisation — приводим building/area к каноническому имени ───
+    canon_bld, canon_area = normalize_via_dld(data.get("building"), data.get("area"))
+    if canon_bld and canon_bld != data.get("building"):
+        data["building"] = canon_bld
+    if canon_area and canon_area != data.get("area"):
+        data["area"] = canon_area
 
     data["listing_key"] = make_listing_key(data)
 
