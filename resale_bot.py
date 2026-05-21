@@ -828,6 +828,74 @@ COMMERCIAL_TYPES  = ["office", "retail", "warehouse", "hotel", "hotel_apartment"
 LAND_TYPES        = ["plot"]
 
 
+# ── Wizard reply-keyboards (each step replaces the bottom bar) ───────────────
+def kb_reply_emirate(uid):
+    return _reply_kb([
+        ["🇦🇪 Dubai",       "🏛 Abu Dhabi"],
+        ["🌴 Ras Al Khaimah", "⛵ Sharjah"],
+        ["🌍 Все ОАЭ"],
+        [_t(uid, "rbtn_home")],
+    ])
+
+
+def kb_reply_proptype_residential(uid):
+    return _reply_kb([
+        ["🏢 Apartment",  "🏖 Villa"],
+        ["🏘 Townhouse",  "👑 Penthouse"],
+        ["✨ Studio",     "🔷 Duplex"],
+        ["🔍 Любой тип"],
+        [_t(uid, "rbtn_home")],
+    ])
+
+
+def kb_reply_proptype_commercial(uid):
+    return _reply_kb([
+        ["🏢 Office",     "🛍 Retail"],
+        ["📦 Warehouse",  "🏨 Hotel"],
+        ["🔍 Любой тип"],
+        [_t(uid, "rbtn_home")],
+    ])
+
+
+def kb_reply_bedrooms(uid):
+    return _reply_kb([
+        ["✨ Studio",  "🛏 1 BR",  "🛏 2 BR"],
+        ["🛏 3 BR",   "🛏 4+ BR", "🔍 Любая"],
+        [_t(uid, "rbtn_home")],
+    ])
+
+
+# Mapping of reply-keyboard buttons to their wizard actions
+EMIRATE_BUTTONS = {
+    "🇦🇪 Dubai":         "Dubai",
+    "🏛 Abu Dhabi":      "Abu Dhabi",
+    "🌴 Ras Al Khaimah": "Ras Al Khaimah",
+    "⛵ Sharjah":        "Sharjah",
+    "🌍 Все ОАЭ":        None,  # no filter
+}
+PROPTYPE_BUTTONS = {
+    "🏢 Apartment": "apartment",
+    "🏖 Villa":     "villa",
+    "🏘 Townhouse": "townhouse",
+    "👑 Penthouse": "penthouse",
+    "✨ Studio":    "studio",
+    "🔷 Duplex":    "duplex",
+    "🏢 Office":    "office",
+    "🛍 Retail":    "retail",
+    "📦 Warehouse": "warehouse",
+    "🏨 Hotel":     "hotel",
+    "🔍 Любой тип": None,
+}
+BEDROOM_BUTTONS = {
+    "✨ Studio":   0,
+    "🛏 1 BR":     1,
+    "🛏 2 BR":     2,
+    "🛏 3 BR":     3,
+    "🛏 4+ BR":    99,  # special code for 4+
+    "🔍 Любая":    None,
+}
+
+
 def is_main_menu_text(text: str):
     """Returns the rbtn_* key if `text` matches any reply-keyboard label
     in any language. Used to dispatch text presses to handlers."""
@@ -2006,25 +2074,30 @@ def show_main(cid, uid, mid=None):
 
 def dispatch_main_button(cid, uid, rkey):
     """Dispatches a press of a bottom reply-keyboard button to the right flow.
-    Each category sets the appropriate filter so search results stay within it."""
+    Each category sets the appropriate filter so search results stay within it.
+    Now uses reply keyboards (bottom bar) for emirate/proptype/bedrooms wizard steps."""
     if rkey == "rbtn_buy":
         _reset(uid)
         gs(uid)["filters"]["deal_type"] = "sale"
         gs(uid)["filters"]["property_type_not_in"] = COMMERCIAL_TYPES + LAND_TYPES
-        _send(cid, _t(uid, "emirate_q"), kb_emirate(uid))
+        gs(uid)["wizard"] = "emirate"
+        _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
     elif rkey == "rbtn_rent":
         _reset(uid)
         gs(uid)["filters"]["deal_type"] = "rent"
         gs(uid)["filters"]["property_type_not_in"] = COMMERCIAL_TYPES + LAND_TYPES
-        _send(cid, _t(uid, "emirate_q"), kb_emirate(uid))
+        gs(uid)["wizard"] = "emirate"
+        _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
     elif rkey == "rbtn_commercial":
         _reset(uid)
         gs(uid)["filters"]["property_type_in"] = COMMERCIAL_TYPES
-        _send(cid, _t(uid, "emirate_q"), kb_emirate(uid))
+        gs(uid)["wizard"] = "emirate"
+        _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
     elif rkey == "rbtn_plot":
         _reset(uid)
         gs(uid)["filters"]["property_type"] = "plot"
-        _send(cid, _t(uid, "emirate_q"), kb_emirate(uid))
+        gs(uid)["wizard"] = "emirate"
+        _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
     elif rkey == "rbtn_hot":
         _reset(uid)
         gs(uid)["filters"] = {"hot_only": True, "sort": "best_deals"}
@@ -2041,6 +2114,69 @@ def dispatch_main_button(cid, uid, rkey):
         _send(cid, "Select language:", kb_lang())
     elif rkey == "rbtn_home":
         show_main(cid, uid)
+
+
+def dispatch_wizard_button(cid, uid, text):
+    """Handle wizard reply-keyboard button presses (emirate, property_type, bedrooms).
+    Returns True if the text matched a wizard button and was handled."""
+    state = gs(uid)
+    wizard = state.get("wizard")
+    filters = state.get("filters", {})
+
+    # Emirate step
+    if wizard == "emirate" and text in EMIRATE_BUTTONS:
+        em = EMIRATE_BUTTONS[text]
+        if em:
+            filters["emirate"] = em
+        # Next: property type (commercial or residential or skip if plot)
+        if filters.get("property_type") == "plot":
+            # Plot: skip property type, go straight to budget
+            state["wizard"] = "budget"
+            _send(cid, _t(uid, "budget_q"), kb_budget(uid, is_rent=False))
+        elif filters.get("property_type_in"):
+            # Commercial sub-type
+            state["wizard"] = "proptype"
+            _send(cid, _t(uid, "prop_q"), kb_reply_proptype_commercial(uid))
+        else:
+            # Residential sub-type
+            state["wizard"] = "proptype"
+            _send(cid, _t(uid, "prop_q"), kb_reply_proptype_residential(uid))
+        return True
+
+    # Property type step
+    if wizard == "proptype" and text in PROPTYPE_BUTTONS:
+        pt = PROPTYPE_BUTTONS[text]
+        if pt:
+            # Commercial uses _in, residential uses single property_type
+            if pt in COMMERCIAL_TYPES:
+                filters["property_type_in"] = [pt]
+            else:
+                filters["property_type"] = pt
+                filters.pop("property_type_in", None)
+        # Next: bedrooms (skip for commercial/plot, go to budget)
+        if filters.get("property_type") == "plot" or filters.get("property_type_in"):
+            state["wizard"] = "budget"
+            is_rent = filters.get("deal_type") == "rent"
+            _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
+                  kb_budget(uid, is_rent=is_rent))
+        else:
+            state["wizard"] = "bedrooms"
+            _send(cid, _t(uid, "br_q"), kb_reply_bedrooms(uid))
+        return True
+
+    # Bedrooms step
+    if wizard == "bedrooms" and text in BEDROOM_BUTTONS:
+        br = BEDROOM_BUTTONS[text]
+        if br is not None:
+            filters["bedrooms"] = br
+        # Next: budget
+        state["wizard"] = "budget"
+        is_rent = filters.get("deal_type") == "rent"
+        _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
+              kb_budget(uid, is_rent=is_rent))
+        return True
+
+    return False
 
 
 # ── Admin Panel ───────────────────────────────────────────────────────────────
@@ -3106,6 +3242,10 @@ def handle_msg(msg):
     rkey = is_main_menu_text(text)
     if rkey:
         dispatch_main_button(cid, uid, rkey)
+        return
+
+    # Wizard step buttons (emirate / property_type / bedrooms)
+    if dispatch_wizard_button(cid, uid, text):
         return
 
     if text.startswith("/"):
