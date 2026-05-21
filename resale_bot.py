@@ -281,6 +281,26 @@ T = {
     "btn_similar": "Similar Properties",
     "btn_analysis":"Investment Analysis",
     "btn_send":    "Send to Client",
+    "btn_fav_add":   "❤️ Save",
+    "btn_fav_rem":   "💔 Remove",
+    "btn_map":       "🗺 Map",
+    "btn_compare":   "⚖️ Compare",
+    "btn_photos":    "📸 All photos",
+    "rbtn_favs":     "❤️ Saved",
+    "rbtn_alerts":   "🔔 Alerts",
+    "rbtn_compare":  "⚖️ Compare ({n})",
+    "favs_empty":    "No saved properties yet. Tap ❤️ on any listing.",
+    "favs_title":    "──── ❤️ SAVED PROPERTIES ────",
+    "alerts_empty":  "No active alerts.\nRun a search → tap «Create alert» on results.",
+    "alerts_title":  "──── 🔔 PRICE ALERTS ────",
+    "alert_created": "✅ Alert created. We'll notify you about new matches.",
+    "alert_deleted": "Alert removed.",
+    "rbtn_create_alert": "🔔 Create alert",
+    "compare_empty": "Cart is empty. Tap ⚖️ on listings to compare.",
+    "compare_added": "✅ Added to compare ({n}/3).",
+    "compare_full":  "⚠ Compare cart full (3). Open ⚖️ Compare to clear.",
+    "compare_title": "──── ⚖️ COMPARISON ────",
+    "compare_clear": "🗑 Clear",
     "ai_start": "────────────────────\n  AI PROPERTY ADVISOR\n────────────────────\n\nI'll find the perfect property\nbased on your goals.\n\nLet's begin:",
     "ai_goal_q":    "What is your goal?",
     "ai_invest":    "💼 Investment",
@@ -498,6 +518,26 @@ T = {
     "btn_similar": "Похожие объекты",
     "btn_analysis":"Инвестиционный анализ",
     "btn_send":    "Отправить клиенту",
+    "btn_fav_add":   "❤️ В избранное",
+    "btn_fav_rem":   "💔 Убрать",
+    "btn_map":       "🗺 На карте",
+    "btn_compare":   "⚖️ Сравнить",
+    "btn_photos":    "📸 Все фото",
+    "rbtn_favs":     "❤️ Избранное",
+    "rbtn_alerts":   "🔔 Уведомления",
+    "rbtn_compare":  "⚖️ Сравнить ({n})",
+    "favs_empty":    "Список избранного пуст. Нажмите ❤️ на любом объявлении.",
+    "favs_title":    "──── ❤️ ИЗБРАННОЕ ────",
+    "alerts_empty":  "Активных уведомлений нет.\nЗапустите поиск → нажмите «Создать уведомление».",
+    "alerts_title":  "──── 🔔 УВЕДОМЛЕНИЯ О ЦЕНАХ ────",
+    "alert_created": "✅ Уведомление создано. Сообщим о новых подходящих объектах.",
+    "alert_deleted": "Уведомление удалено.",
+    "rbtn_create_alert": "🔔 Создать уведомление",
+    "compare_empty": "Корзина пуста. Нажмите ⚖️ на объявлении.",
+    "compare_added": "✅ Добавлено в сравнение ({n}/3).",
+    "compare_full":  "⚠ В сравнении уже 3 объекта. Очистите чтобы добавить.",
+    "compare_title": "──── ⚖️ СРАВНЕНИЕ ────",
+    "compare_clear": "🗑 Очистить",
     "ai_start": "────────────────────\n  AI ПОДБОР ОБЪЕКТА\n────────────────────\n\nНайду идеальный объект\nпод ваши цели.\n\nНачнём:",
     "ai_goal_q":    "Цель покупки?",
     "ai_invest":    "💼 Инвестиция",
@@ -734,6 +774,26 @@ T = {
     "btn_similar": "عقارات مشابهة",
     "btn_analysis":"التحليل الاستثماري",
     "btn_send":    "إرسال للعميل",
+    "btn_fav_add":   "❤️ حفظ",
+    "btn_fav_rem":   "💔 إزالة",
+    "btn_map":       "🗺 الخريطة",
+    "btn_compare":   "⚖️ مقارنة",
+    "btn_photos":    "📸 كل الصور",
+    "rbtn_favs":     "❤️ المحفوظة",
+    "rbtn_alerts":   "🔔 التنبيهات",
+    "rbtn_compare":  "⚖️ مقارنة ({n})",
+    "favs_empty":    "لا توجد عقارات محفوظة. اضغط ❤️ على أي إعلان.",
+    "favs_title":    "──── ❤️ المحفوظة ────",
+    "alerts_empty":  "لا توجد تنبيهات نشطة.\nشغّل بحثاً ثم اضغط «إنشاء تنبيه».",
+    "alerts_title":  "──── 🔔 تنبيهات الأسعار ────",
+    "alert_created": "✅ تم إنشاء التنبيه.",
+    "alert_deleted": "تم حذف التنبيه.",
+    "rbtn_create_alert": "🔔 إنشاء تنبيه",
+    "compare_empty": "السلة فارغة.",
+    "compare_added": "✅ تم الإضافة ({n}/3).",
+    "compare_full":  "⚠ السلة ممتلئة (3).",
+    "compare_title": "──── ⚖️ مقارنة ────",
+    "compare_clear": "🗑 مسح",
     "ai_start": "────────────────────\n  مستشار AI العقاري\n────────────────────\n\nسأجد العقار المثالي\nلأهدافك.\n\nلنبدأ:",
     "ai_goal_q":  "ما هدفك؟",
     "ai_invest":  "💼 استثمار",
@@ -929,6 +989,7 @@ def kb_main_reply(uid):
         [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
         [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new")],
         [_t(uid, "rbtn_ai"),         _t(uid, "rbtn_add")],
+        [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts")],
         [_t(uid, "rbtn_lang")],
     ])
 
@@ -977,11 +1038,11 @@ def kb_reply_bedrooms(uid):
 
 
 def kb_reply_results(uid, has_more=False):
-    """Bottom reply keyboard shown AFTER a results batch.
-    Replaces the old inline navigation (Show more / Transaction Type / Back / Main Menu)."""
+    """Bottom reply keyboard shown AFTER a results batch."""
     rows = []
     if has_more:
         rows.append([_t(uid, "rbtn_more")])
+    rows.append([_t(uid, "rbtn_create_alert")])
     rows.append([_t(uid, "rbtn_change_deal"), _t(uid, "rbtn_back")])
     rows.append([_t(uid, "rbtn_home")])
     return _reply_kb(rows)
@@ -2117,10 +2178,19 @@ def send_results(cid, uid, mid=None):
     for i, lst in enumerate(items, start=start+1):
         text = format_card(lst, uid, rank=i)
         lid  = lst.get("id") or lst["id"]
-        kb = _kb(
+        from db_schema import is_favorited as _is_fav
+        try:
+            fav_now = _is_fav(uid, lid)
+        except Exception:
+            fav_now = False
+        fav_label = _t(uid, "btn_fav_rem") if fav_now else _t(uid, "btn_fav_add")
+        kb_rows = [
             [_btn(_t(uid, "btn_analysis"), f"detail|{lid}"), _btn(_t(uid, "btn_book"),    f"book|{lid}")],
+            [_btn(fav_label,               f"fav|{lid}"),    _btn(_t(uid, "btn_compare"), f"cmp|{lid}")],
+            [_btn(_t(uid, "btn_map"),      f"map|{lid}"),    _btn(_t(uid, "btn_photos"),  f"photos|{lid}")],
             [_btn(_t(uid, "btn_similar"),  f"similar|{lid}"), _btn(_t(uid, "btn_send"),   f"send|{lid}")],
-        )
+        ]
+        kb = _kb(*kb_rows)
         # Send with photos (file_id stored directly from Bot API upload)
         images = get_listing_images(lid) if lid else []
         photo_sent = False
@@ -2474,8 +2544,16 @@ def show_detail(cid, uid, mid, lid):
     save_lead(uid, "", lid, "view")
     text     = format_detail(listing, uid)
     lead_url = f"{LEAD_BOT_URL}?start=resale_{lid}"
+    from db_schema import is_favorited as _is_fav
+    try:
+        fav_now = _is_fav(uid, lid)
+    except Exception:
+        fav_now = False
+    fav_label = _t(uid, "btn_fav_rem") if fav_now else _t(uid, "btn_fav_add")
     kb = _kb(
         [_url_btn(_t(uid, "btn_book"), lead_url)],
+        [_btn(fav_label,              f"fav|{lid}"),    _btn(_t(uid, "btn_compare"), f"cmp|{lid}")],
+        [_btn(_t(uid, "btn_map"),     f"map|{lid}"),    _btn(_t(uid, "btn_photos"),  f"photos|{lid}")],
         [_btn(_t(uid, "btn_similar"), f"similar|{lid}"), _btn(_t(uid, "btn_back"), "results|back")],
         [_btn(_t(uid, "btn_menu"), "menu|main")],
     )
@@ -2665,6 +2743,87 @@ def show_main(cid, uid, mid=None):
     _send(cid, _t(uid, "main_menu"), kb_main_reply(uid))
 
 
+def show_favorites(cid, uid):
+    from db_schema import get_user_favorites
+    rows = get_user_favorites(uid)
+    if not rows:
+        _send(cid, _t(uid, "favs_empty"), kb_main_reply(uid))
+        return
+    _send(cid, _t(uid, "favs_title") + f"\n  {len(rows)} items")
+    s = gs(uid)
+    s["results"] = [dict(r) for r in rows]
+    s["total"]   = len(rows)
+    s["page"]    = 0
+    send_results(cid, uid)
+
+
+def show_alerts(cid, uid):
+    from db_schema import get_user_alerts
+    rows = get_user_alerts(uid)
+    if not rows:
+        _send(cid, _t(uid, "alerts_empty"), kb_main_reply(uid))
+        return
+    text = _t(uid, "alerts_title") + "\n\n"
+    for r in rows:
+        parts = []
+        if r.get("deal_type"): parts.append(r["deal_type"].upper())
+        if r.get("property_type"): parts.append(r["property_type"])
+        if r.get("area"): parts.append(r["area"])
+        elif r.get("emirate"): parts.append(r["emirate"])
+        if r.get("bedrooms") is not None: parts.append(f"{r['bedrooms']}BR")
+        if r.get("min_price") or r.get("max_price"):
+            mn = r.get("min_price"); mx = r.get("max_price")
+            if mn and mx:    parts.append(f"{mn//1000}k–{mx//1000}k")
+            elif mx:         parts.append(f"≤{mx//1000}k")
+            elif mn:         parts.append(f"≥{mn//1000}k")
+        text += f"• {' · '.join(parts) or 'Any'}    /alert_del_{r['id']}\n"
+    _send(cid, text, kb_main_reply(uid))
+
+
+def show_compare(cid, uid):
+    """Render the user's compare cart — up to 3 listings side-by-side."""
+    s = gs(uid)
+    cart = s.get("compare", [])
+    if not cart:
+        _send(cid, _t(uid, "compare_empty"), kb_main_reply(uid))
+        return
+    items = [get_listing_by_id(lid) for lid in cart]
+    items = [dict(x) for x in items if x]
+    if not items:
+        s["compare"] = []
+        _send(cid, _t(uid, "compare_empty"), kb_main_reply(uid))
+        return
+    lines = [_t(uid, "compare_title"), ""]
+    def _fmt_price(p, dt):
+        if not p: return "—"
+        if dt == "rent": return f"{p:,} AED/yr"
+        if p >= 1_000_000: return f"{p/1_000_000:.2f}M AED"
+        return f"{p:,} AED"
+    for i, lst in enumerate(items, 1):
+        psf = (lst.get("price") or 0) / (lst.get("size_sqft") or 1) if lst.get("size_sqft") else 0
+        lines.append(f"#{i}  {lst.get('building') or '—'}")
+        lines.append(f"   📍 {lst.get('area') or '—'}, {lst.get('emirate') or '—'}")
+        lines.append(f"   🛏 {lst.get('bedrooms') if lst.get('bedrooms') is not None else '—'} BR  "
+                     f"·  {int(lst.get('size_sqft') or 0)} sqft")
+        lines.append(f"   💰 {_fmt_price(lst.get('price'), lst.get('deal_type'))}"
+                     f"  ·  {int(psf)} AED/sqft" if psf else f"   💰 {_fmt_price(lst.get('price'), lst.get('deal_type'))}")
+        lines.append(f"   🌅 {lst.get('view') or '—'}")
+        lines.append("")
+    lines.append("/compare_clear — clear cart")
+    _send(cid, "\n".join(lines), kb_main_reply(uid))
+
+
+def create_alert_from_filters(cid, uid):
+    """Create a price alert from the user's current search filters."""
+    from db_schema import add_price_alert
+    f = dict(gs(uid).get("filters", {}))
+    # Strip non-alertable keys
+    clean = {k: f.get(k) for k in
+             ("deal_type","property_type","emirate","area","bedrooms","min_price","max_price")}
+    add_price_alert(uid, clean)
+    _send(cid, _t(uid, "alert_created"), kb_main_reply(uid))
+
+
 def dispatch_main_button(cid, uid, rkey):
     """Dispatches a press of a bottom reply-keyboard button to the right flow.
     Each category sets the appropriate filter so search results stay within it.
@@ -2714,6 +2873,10 @@ def dispatch_main_button(cid, uid, rkey):
               kb_lang_reply())
     elif rkey == "rbtn_home":
         show_main(cid, uid)
+    elif rkey == "rbtn_favs":
+        show_favorites(cid, uid)
+    elif rkey == "rbtn_alerts":
+        show_alerts(cid, uid)
 
 
 def dispatch_wizard_button(cid, uid, text):
@@ -2777,12 +2940,15 @@ def dispatch_wizard_button(cid, uid, text):
 
     # Results navigation (bottom reply keyboard after a result batch)
     if wizard == "results":
-        # Match against all 3 languages
-        more_labels   = [T[l]["rbtn_more"]        for l in ("en","ru","ar")]
-        change_labels = [T[l]["rbtn_change_deal"] for l in ("en","ru","ar")]
-        back_labels   = [T[l]["rbtn_back"]        for l in ("en","ru","ar")]
+        more_labels   = [T[l]["rbtn_more"]         for l in ("en","ru","ar")]
+        change_labels = [T[l]["rbtn_change_deal"]  for l in ("en","ru","ar")]
+        back_labels   = [T[l]["rbtn_back"]         for l in ("en","ru","ar")]
+        alert_labels  = [T[l]["rbtn_create_alert"] for l in ("en","ru","ar")]
         if text in more_labels:
             send_results(cid, uid)
+            return True
+        if text in alert_labels:
+            create_alert_from_filters(cid, uid)
             return True
         if text in change_labels:
             state["filters"].pop("deal_type", None)
@@ -3826,6 +3992,64 @@ def handle_cb(cb):
         if parts[1] == "more": send_results(cid, uid)
         elif parts[1] == "back": show_main(cid, uid, mid)
 
+    # ── Favorites ─────────────────────────────────────────────────────────────
+    elif action == "fav":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        from db_schema import add_favorite, remove_favorite, is_favorited
+        if is_favorited(uid, lid):
+            remove_favorite(uid, lid)
+            _api("answerCallbackQuery", callback_query_id=cb["id"],
+                 text=_t(uid, "btn_fav_rem"))
+        else:
+            add_favorite(uid, lid)
+            save_lead(uid, "", lid, "save")
+            _api("answerCallbackQuery", callback_query_id=cb["id"],
+                 text=_t(uid, "btn_fav_add"))
+
+    # ── Compare cart ──────────────────────────────────────────────────────────
+    elif action == "cmp":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        cart = gs(uid).setdefault("compare", [])
+        if lid in cart:
+            cart.remove(lid)
+            _api("answerCallbackQuery", callback_query_id=cb["id"],
+                 text="Removed from compare")
+        elif len(cart) >= 3:
+            _api("answerCallbackQuery", callback_query_id=cb["id"],
+                 text=_t(uid, "compare_full"), show_alert=True)
+        else:
+            cart.append(lid)
+            _api("answerCallbackQuery", callback_query_id=cb["id"],
+                 text=_t(uid, "compare_added", n=len(cart)))
+
+    # ── Map link ──────────────────────────────────────────────────────────────
+    elif action == "map":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        listing = get_listing_by_id(lid)
+        if listing:
+            building = listing.get("building") or ""
+            area     = listing.get("area") or ""
+            emirate  = listing.get("emirate") or "Dubai"
+            q = ", ".join(x for x in [building, area, emirate, "UAE"] if x)
+            url = f"https://www.google.com/maps/search/?api=1&query={requests.utils.quote(q)}"
+            _send(cid, f"🗺 {q}\n\n{url}")
+
+    # ── Photo carousel (all photos) ───────────────────────────────────────────
+    elif action == "photos":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        images = get_listing_images(lid) or []
+        urls = [img for img in images if not img.startswith("tg://")]
+        if not urls:
+            _api("answerCallbackQuery", callback_query_id=cb["id"],
+                 text="No photos available", show_alert=True)
+        else:
+            try:
+                _media_group(cid, urls[:10])
+                _api("answerCallbackQuery", callback_query_id=cb["id"])
+            except Exception:
+                _api("answerCallbackQuery", callback_query_id=cb["id"],
+                     text="Failed to send photos", show_alert=True)
+
     # ── Admin callbacks ───────────────────────────────────────────────────────
     elif action == "admin":
         if uid != ADMIN_ID: return
@@ -4001,6 +4225,26 @@ def handle_msg(msg):
 
     if text.startswith("/"):
         cmd = text.split()[0].lower().lstrip("/").split("@")[0]
+        # /alert_del_42 → remove alert id 42
+        if cmd.startswith("alert_del_"):
+            try:
+                aid = int(cmd[len("alert_del_"):])
+                from db_schema import delete_alert
+                delete_alert(uid, aid)
+                _send(cid, _t(uid, "alert_deleted"), kb_main_reply(uid))
+            except Exception:
+                pass
+            return
+        if cmd == "favs":
+            show_favorites(cid, uid); return
+        if cmd == "alerts":
+            show_alerts(cid, uid); return
+        if cmd == "compare":
+            show_compare(cid, uid); return
+        if cmd == "compare_clear":
+            gs(uid)["compare"] = []
+            _send(cid, "🗑 Compare cart cleared.", kb_main_reply(uid))
+            return
         if cmd == "start":
             user_lang.pop(uid, None); _reset(uid)
             send_welcome_with_logo(cid, uid)
@@ -4059,6 +4303,55 @@ def handle_msg(msg):
                 _send(cid, "\n".join(lines))
             except Exception as e:
                 _send(cid, f"⚠️ Ошибка: {e}")
+        elif cmd == "leads":
+            if uid != ADMIN_ID:
+                _send(cid, "Access denied."); return
+            try:
+                conn = get_conn()
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT l.action, COUNT(*) AS cnt
+                        FROM leads l
+                        WHERE l.created_at > NOW() - INTERVAL '7 days'
+                        GROUP BY l.action ORDER BY cnt DESC
+                    """)
+                    actions = list(cur.fetchall())
+                    cur.execute("""
+                        SELECT lst.building, lst.area, COUNT(*) AS conversions
+                        FROM leads l JOIN listings lst ON lst.id = l.listing_id
+                        WHERE l.created_at > NOW() - INTERVAL '30 days'
+                          AND l.action IN ('book','contact','save')
+                        GROUP BY lst.building, lst.area
+                        ORDER BY conversions DESC LIMIT 15
+                    """)
+                    top = list(cur.fetchall())
+                    cur.execute("SELECT COUNT(*) AS n FROM favorites")
+                    favs_total = cur.fetchone()["n"]
+                    cur.execute("SELECT COUNT(*) AS n FROM price_alerts WHERE is_active=TRUE")
+                    alerts_n = cur.fetchone()["n"]
+                conn.close()
+            except Exception as e:
+                _send(cid, f"DB error: {e}"); return
+
+            txt = ["📈 *LEADS ANALYTICS (7 days)*", ""]
+            for r in actions:
+                txt.append(f"  {r['action']:8} {r['cnt']:>5}")
+            txt += ["", "*TOP-15 buildings by leads (30d):*"]
+            for r in top:
+                txt.append(f"  {r['conversions']:>3}  {r['building'] or '—'} · {r['area'] or '—'}")
+            txt += ["", f"❤️ Total favorites: {favs_total}",
+                          f"🔔 Active alerts:   {alerts_n}"]
+            _send(cid, "\n".join(txt))
+            return
+        elif cmd == "digest":
+            if uid != ADMIN_ID:
+                _send(cid, "Access denied."); return
+            try:
+                from cron_worker import _digest_text
+                _send(cid, _digest_text())
+            except Exception as e:
+                _send(cid, f"Error: {e}")
+            return
         elif cmd == "auditrun":
             if uid != ADMIN_ID:
                 _send(cid, "Access denied."); return
@@ -4272,6 +4565,11 @@ def main():
     from market_updater import start_market_scheduler
     start_market_scheduler()
     print("[bot] Market updater started.")
+    try:
+        from cron_worker import start_all as _start_cron
+        _start_cron()
+    except Exception as e:
+        print(f"[bot] cron_worker init failed: {e}")
     run_bot()
 
 

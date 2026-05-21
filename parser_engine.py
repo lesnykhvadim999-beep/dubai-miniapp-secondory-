@@ -2127,6 +2127,78 @@ def extract_status(text: str) -> Optional[str]:
     return None
 
 
+def extract_offplan(text: str) -> bool:
+    """Returns True if text contains off-plan / under-construction markers."""
+    t = _first_listing_block(text).lower()
+    patterns = [
+        r"\boff[\s\-]?plan\b",
+        r"\bunder\s+construction\b",
+        r"\bnew\s+launch\b",
+        r"\bpre[\s\-]?launch\b",
+        r"\bpost[\s\-]?handover\b",
+        r"\bhandover\s+(?:in\s+)?20\d\d\b",
+        r"\bpayment\s+plan\b.*\bto\s+(?:developer|builder)\b",
+        r"\b(?:q[1-4]\s*[\-/]?\s*20\d\d)\b",
+    ]
+    for p in patterns:
+        if re.search(p, t):
+            return True
+    return False
+
+
+def extract_handover_date(text: str) -> Optional[str]:
+    """Returns ISO date string YYYY-MM-DD for handover, or None.
+    Recognizes 'Q3 2027', 'handover 2026', 'handover Dec 2025', '12/2025'."""
+    t = _first_listing_block(text)
+    # Q1-Q4 YYYY
+    m = re.search(r'\bq([1-4])\s*[\-/]?\s*(20\d\d)\b', t, re.I)
+    if m:
+        q = int(m.group(1)); yr = int(m.group(2))
+        month = (q-1)*3 + 1
+        return f"{yr:04d}-{month:02d}-01"
+    # handover Mon YYYY
+    months = {"jan":1,"feb":2,"mar":3,"apr":4,"may":5,"jun":6,
+              "jul":7,"aug":8,"sep":9,"oct":10,"nov":11,"dec":12}
+    m = re.search(r'\bhandover\s+(?:in\s+)?(' + "|".join(months) + r')\w*\s*(20\d\d)\b', t, re.I)
+    if m:
+        mon = months[m.group(1).lower()[:3]]
+        yr  = int(m.group(2))
+        return f"{yr:04d}-{mon:02d}-01"
+    # handover YYYY
+    m = re.search(r'\bhandover\s+(?:in\s+)?(20\d\d)\b', t, re.I)
+    if m:
+        return f"{int(m.group(1)):04d}-12-31"
+    return None
+
+
+# Currency conversion rates → AED (approximate, refreshed weekly)
+_FX_TO_AED = {
+    "USD": 3.67, "EUR": 4.00, "GBP": 4.65, "RUB": 0.040,
+    "AED": 1.0, "DHS": 1.0, "DH": 1.0,
+}
+
+
+def convert_to_aed(amount: float, currency: str) -> Optional[int]:
+    rate = _FX_TO_AED.get((currency or "AED").upper())
+    if not rate:
+        return None
+    return int(amount * rate)
+
+
+def detect_currency(text: str) -> str:
+    """Returns currency code from text, default AED."""
+    if not text: return "AED"
+    t = text.upper()
+    for ccy in ("USD", "EUR", "GBP", "RUB"):
+        if ccy in t or f"${ccy[0]}" in t:
+            return ccy
+    if "$" in text:  return "USD"
+    if "€" in text:  return "EUR"
+    if "£" in text:  return "GBP"
+    if "₽" in text:  return "RUB"
+    return "AED"
+
+
 def extract_bathrooms(text: str) -> Optional[int]:
     """Returns int (1..20) or None. From FIRST listing block (multi-listing safety).
 
@@ -2582,6 +2654,8 @@ def parse_message(
     status = extract_status(clean)
     furnishing = extract_furnishing(clean)
     contacts = extract_contacts(original_text)
+    is_off_plan   = extract_offplan(clean)
+    handover_date = extract_handover_date(clean)
 
     # ── Price ─────────────────────────────────────────────────────────────────
     price_data = extract_price(clean)
@@ -2632,6 +2706,8 @@ def parse_message(
         "view": view,
         "furnishing": furnishing,
         "status": status,
+        "is_off_plan": is_off_plan,
+        "handover_date": handover_date,
         "extra_info": extra_info if extra_info else None,
 
         "price": price,

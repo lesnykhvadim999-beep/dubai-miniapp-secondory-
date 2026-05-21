@@ -226,6 +226,49 @@ CREATE TABLE IF NOT EXISTS review_queue (
 
 CREATE INDEX IF NOT EXISTS idx_rq_listing ON review_queue(listing_id);
 CREATE INDEX IF NOT EXISTS idx_rq_status  ON review_queue(status);
+
+-- ── Favorites ─────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS favorites (
+    id           SERIAL PRIMARY KEY,
+    uid          BIGINT NOT NULL,
+    listing_id   INT REFERENCES listings(id) ON DELETE CASCADE,
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(uid, listing_id)
+);
+CREATE INDEX IF NOT EXISTS idx_fav_uid ON favorites(uid);
+
+-- ── Price Alerts ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS price_alerts (
+    id           SERIAL PRIMARY KEY,
+    uid          BIGINT NOT NULL,
+    deal_type    VARCHAR(20),
+    property_type VARCHAR(50),
+    emirate      VARCHAR(100),
+    area         VARCHAR(200),
+    bedrooms     INT,
+    min_price    BIGINT,
+    max_price    BIGINT,
+    last_notified TIMESTAMPTZ,
+    last_listing_id INT,
+    is_active    BOOLEAN DEFAULT TRUE,
+    created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_uid ON price_alerts(uid);
+CREATE INDEX IF NOT EXISTS idx_alerts_active ON price_alerts(is_active);
+
+-- ── New listing columns (additive — safe re-run) ─────────────────────────────
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_off_plan BOOLEAN DEFAULT FALSE;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS handover_date DATE;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS photo_phash VARCHAR(64);
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS broker_dedup_key VARCHAR(200);
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS extra_info JSONB;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_audit BOOLEAN DEFAULT FALSE;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS audit_reason TEXT;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS audit_flagged_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_listings_phash ON listings(photo_phash);
+CREATE INDEX IF NOT EXISTS idx_listings_offplan ON listings(is_off_plan);
 """
 
 SEED_SQL = """
@@ -407,7 +450,8 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                 "airbnb_estimate_low","airbnb_estimate_high","investment_score",
                 "agent_name","phone","whatsapp",
                 "has_images","cover_image_url","confidence_score",
-                "extra_info",
+                "extra_info","is_off_plan","handover_date","photo_phash",
+                "broker_dedup_key","description",
             ]
             vals = []
             for c in cols:
@@ -882,5 +926,133 @@ def get_last_parsed_message_id(channel: str) -> int | None:
             )
             row = cur.fetchone()
             return row["mid"] if row and row["mid"] else None
+    finally:
+        conn.close()
+
+
+# ── Favorites ────────────────────────────────────────────────────────────────
+def add_favorite(uid: int, listing_id: int) -> bool:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO favorites (uid, listing_id) VALUES (%s, %s) "
+                "ON CONFLICT (uid, listing_id) DO NOTHING",
+                (uid, listing_id)
+            )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def remove_favorite(uid: int, listing_id: int) -> bool:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM favorites WHERE uid=%s AND listing_id=%s",
+                        (uid, listing_id))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def is_favorited(uid: int, listing_id: int) -> bool:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM favorites WHERE uid=%s AND listing_id=%s",
+                        (uid, listing_id))
+            return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def get_user_favorites(uid: int, limit: int = 50) -> list:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT l.* FROM listings l
+                JOIN favorites f ON f.listing_id = l.id
+                WHERE f.uid = %s AND l.is_active = TRUE
+                  AND (l.is_audit IS NULL OR l.is_audit = FALSE)
+                ORDER BY f.created_at DESC
+                LIMIT %s
+            """, (uid, limit))
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+# ── Price Alerts ─────────────────────────────────────────────────────────────
+def add_price_alert(uid: int, filters: dict) -> int:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO price_alerts (uid, deal_type, property_type, emirate, area,
+                                          bedrooms, min_price, max_price)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (
+                uid,
+                filters.get("deal_type"),
+                filters.get("property_type"),
+                filters.get("emirate"),
+                filters.get("area"),
+                filters.get("bedrooms"),
+                filters.get("min_price"),
+                filters.get("max_price"),
+            ))
+            return cur.fetchone()["id"]
+    finally:
+        conn.commit()
+        conn.close()
+
+
+def get_user_alerts(uid: int) -> list:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM price_alerts WHERE uid=%s AND is_active=TRUE "
+                "ORDER BY created_at DESC", (uid,))
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+def delete_alert(uid: int, alert_id: int) -> bool:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE price_alerts SET is_active=FALSE WHERE id=%s AND uid=%s",
+                        (alert_id, uid))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def get_all_active_alerts() -> list:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM price_alerts WHERE is_active=TRUE")
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+def update_alert_last_notified(alert_id: int, listing_id: int):
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE price_alerts SET last_notified=NOW(), last_listing_id=%s WHERE id=%s",
+                (listing_id, alert_id))
+        conn.commit()
     finally:
         conn.close()

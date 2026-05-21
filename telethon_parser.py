@@ -38,14 +38,20 @@ TELETHON_API_ID   = int(os.environ.get("TELEGRAM_API_ID", "39535588"))
 TELETHON_API_HASH = os.environ.get("TELEGRAM_API_HASH", "e48ee11a80b4ede45dbe097cfbf916ff")
 SESSION_STRING    = os.environ.get("SESSION_STRING", "")
 
-# Channels to parse
+# Channels to parse — extend by adding @username strings here.
+# The parser will resolve chat_id at runtime if not in CHANNEL_CHAT_IDS.
+# TO ADD A CHANNEL: just paste its @username below. Restart bot.
 CHANNELS = [
     "flipluxproperty",
     "dubairealestatedirectorydubilook",
     "secondary_dubai",
+    # Add more channels here:
+    # "channel_username_1",
+    # "channel_username_2",
 ]
 
-# chat_id → channel name mapping (для get_real_last_message_id)
+# chat_id → channel name mapping (для get_real_last_message_id).
+# New channels — chat_id will be resolved at runtime, missing entries are fine.
 CHANNEL_CHAT_IDS = {
     "flipluxproperty":                     "1781686176",
     "dubairealestatedirectorydubilook":    "1125918023",
