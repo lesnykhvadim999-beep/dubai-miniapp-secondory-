@@ -1183,6 +1183,12 @@ def _is_landmark_view_reference(text_lower: str, m: re.Match) -> bool:
     # Post-context markers (the name is followed by "view")
     if re.search(r'^\s*(?:view|views|area|district|community|landmark)\b', after):
         return True
+    # View-list pattern: line starts with a bullet (🔹 ▪ • etc.) AND the
+    # landmark is preceded by comma-separated other landmarks ("Palm, Beach, Burj Khalifa")
+    # — typical "views: A, B, C" list format.
+    # Check if there's a bullet in the last 60 chars before, AND comma before match.
+    if re.search(r'[🔹▪•⚪▫]', before) and ',' in before[-30:]:
+        return True
     return False
 
 
@@ -2309,10 +2315,31 @@ def _first_listing_block(text: str) -> str:
                 r'|\n\s*\n\s*\n\s*\n'
                 # Маркер «новый листинг» — пустая строка, затем ● или ⚫ + текст
                 # с emoji-локатором или CAPS-словом (типичный bullet-style multi-listing)
-                r'|\n\s*\n\s*[●⚫◆◇]\s*')
+                r'|\n\s*\n\s*[●⚫◆◇]\s*'
+                # Маркер «новый листинг» через локатор-emoji 📍/🗺/🌍 после пустой строки
+                # (формат: "...info... \n\n📍 NEW AREA\n🔹 NEW BUILDING ...")
+                r'|\n\s*\n\s*[📍🗺🌍📌]\s*')
     parts = re.split(sep_pat, text, maxsplit=5)
     if len(parts) <= 1:
         return text
+
+    # GUARD 1: если parts[0] — это просто HEADER (нет цены/sqft, короткий типа
+    # "VILLAS" / "FOR SALE" / "EXCLUSIVE"), его надо «вклеить» в parts[1].
+    # Иначе first block станет просто "VILLAS" и потеряется всё содержимое
+    # первого реального объявления.
+    HEADER_RE = re.compile(
+        r'^[\s\W]*(?:villas?|apartments?|penthouses?|townhouses?|plots?|'
+        r'offices?|retails?|studios?|hotels?|luxury\s+apartments?|'
+        r'exclusive|for\s+sale|for\s+rent|hot\s+deals?|available\s+units?|'
+        r'offer\s+list|distress\s+deals?|new\s+listings?|priced\s+to\s+sell|'
+        r'units?\s+for\s+sale|prime\s+deals?)[\s\W]*$',
+        re.I)
+    while len(parts) > 1 and (
+            len(parts[0].strip()) < 40 or HEADER_RE.match(parts[0].strip())):
+        # parts[0] is just a category banner — merge with parts[1]
+        merged = (parts[0] + '\n' + parts[1]) if parts[0].strip() else parts[1]
+        parts = [merged] + parts[2:]
+
     # Price-banner pattern — это лейбл с ценой который идёт ПОСЛЕ visual
     # separator внутри одного объявления (типа __*Asking price 3,200,000 AED*).
     price_banner_re = re.compile(
