@@ -2285,17 +2285,42 @@ def _first_listing_block(text: str) -> str:
       ____ underscores (long visual rules)
       ◆◆◆ ■■■ ◇◇◇ ★★★ ●●● ▪▪▪ ▫▫▫  (Telegram listings often use these)
     For single-listing texts returns the full text unchanged.
+
+    GUARD: если ПОСЛЕ separator идёт price-banner (Asking price / Selling price /
+    SP / OP / Price:), то это НЕ настоящий listing-separator, а косметический
+    разделитель внутри одного объявления (банер с ценой). В этом случае
+    нужно «протянуть» first block до СЛЕДУЮЩЕГО separator после price-banner.
     """
-    return re.split(
-        r'\n\s*(?:'
-        r'[-—–=━─═▬*·_]{3,}'           # длинные линии: ---, ___, ===, ━━━ и т.д.
-        r'|[⸻⸺]+'                      # длинные тире unicode
-        r'|[◆■◇★●▪▫◽◾◻◼]{3,}'           # геометрические разделители
-        r'|[—–]{2,}\s*[—–]{2,}'         # сдвоенные тире
-        r')\s*\n'
-        r'|\n\s*\n\s*\n\s*\n',          # 4+ newlines (3+ пустых строк) — раньше 3 рвало внутри одного листинга
-        text, maxsplit=1
-    )[0]
+    sep_pat = (r'\n\s*(?:'
+                r'[-—–=━─═▬*·_]{3,}'
+                r'|[⸻⸺]+'
+                r'|[◆■◇★●▪▫◽◾◻◼]{3,}'
+                r'|[—–]{2,}\s*[—–]{2,}'
+                r')\s*\n'
+                r'|\n\s*\n\s*\n\s*\n')
+    parts = re.split(sep_pat, text, maxsplit=5)
+    if len(parts) <= 1:
+        return text
+    # Price-banner pattern — это лейбл с ценой который идёт ПОСЛЕ visual
+    # separator внутри одного объявления (типа __*Asking price 3,200,000 AED*).
+    price_banner_re = re.compile(
+        r'^\s*[_\*\s]*(?:asking\s+price|selling\s+price|sale\s+price|'
+        r'\bprice\b|sp\b|op\b|net\s+price|final\s+price|original\s+price|'
+        r'aed\s*[\d,\.]+)', re.I)
+    first = parts[0]
+    # Если СРАЗУ после separator идёт price-banner — берём только первую строку
+    # из next part (это банер с ценой первого объявления), без того что после неё.
+    if len(parts) > 1 and price_banner_re.match(parts[1]):
+        # Берём только первую непустую строку второго блока (это price banner)
+        banner_lines = []
+        for ln in parts[1].split('\n'):
+            if ln.strip():
+                banner_lines.append(ln)
+                # После одной непустой строки — стоп, остальное это уже след. листинг
+                break
+        if banner_lines:
+            first = first + "\n" + banner_lines[0]
+    return first
 
 
 def _extract_view_core(text: str) -> Optional[str]:
