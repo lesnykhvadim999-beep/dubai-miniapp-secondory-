@@ -116,36 +116,36 @@ def get_logo_file_id() -> str:
 
 def send_welcome_with_logo(cid: int, uid: int):
     """
-    Send welcome message with logo on top.
-    Priority: photo + caption in one message.
-    Fallback: text-only welcome if logo unavailable.
+    Send welcome message with logo on top + language selector in bottom bar.
+    Two messages:
+      1) Logo + welcome caption (no keyboard — photo doesn't pair well with reply kb)
+      2) Language prompt with bottom reply keyboard (persistent)
     """
     welcome_text = _t(uid, "welcome")
-    kb = kb_lang()
     fid = get_logo_file_id()
 
+    # 1. Photo + caption (no keyboard)
     if fid:
-        # Try photo + caption (Telegram caption limit = 1024 chars)
-        caption = welcome_text[:1024]
         try:
             resp = _api("sendPhoto",
                         chat_id=cid,
                         photo=fid,
-                        caption=caption,
-                        parse_mode="Markdown",
-                        reply_markup=kb)
+                        caption=welcome_text[:1024],
+                        parse_mode="Markdown")
             if resp.get("ok"):
                 print(f"[logo] Welcome sent with logo to {cid}")
-                return
             else:
                 print(f"[logo] sendPhoto failed: {resp.get('description')} — fallback to text")
+                _send(cid, welcome_text)
         except Exception as e:
             print(f"[logo] sendPhoto error: {e} — fallback to text")
+            _send(cid, welcome_text)
     else:
-        print(f"[logo] No logo file_id — sending text-only welcome")
+        _send(cid, welcome_text)
 
-    # Fallback: text only
-    _send(cid, welcome_text, kb)
+    # 2. Language selector in BOTTOM reply keyboard (persistent)
+    _send(cid, "🌐  Select your language / Выберите язык / اختر لغتك",
+          kb_lang_reply())
 
 # ── Translations ──────────────────────────────────────────────────────────────
 T = {
@@ -1019,11 +1019,30 @@ def is_main_menu_text(text: str):
 
 # ── Keyboards ─────────────────────────────────────────────────────────────────
 def kb_lang():
+    """Inline keyboard for language selection — kept for backward compat
+    (when language is changed from main menu)."""
     return _kb(
         [_btn("🇬🇧  English",  "lang|en")],
         [_btn("🇷🇺  Русский",  "lang|ru")],
         [_btn("🇦🇪  العربية", "lang|ar")],
     )
+
+
+def kb_lang_reply():
+    """Bottom reply keyboard for language selection — used at /start welcome."""
+    return _reply_kb([
+        ["🇬🇧 English"],
+        ["🇷🇺 Русский"],
+        ["🇦🇪 العربية"],
+    ])
+
+
+# Mapping reply-keyboard language buttons to lang codes
+LANG_BUTTONS = {
+    "🇬🇧 English":  "en",
+    "🇷🇺 Русский":  "ru",
+    "🇦🇪 العربية": "ar",
+}
 
 def kb_main(uid):
     return _kb(
@@ -2371,7 +2390,9 @@ def dispatch_main_button(cid, uid, rkey):
     elif rkey == "rbtn_add":
         start_add_listing(cid, uid)
     elif rkey == "rbtn_lang":
-        _send(cid, "Select language:", kb_lang())
+        # Bottom reply keyboard for language change too
+        _send(cid, "🌐  Select your language / Выберите язык / اختر لغتك",
+              kb_lang_reply())
     elif rkey == "rbtn_home":
         show_main(cid, uid)
 
@@ -3534,6 +3555,14 @@ def handle_msg(msg):
             return
 
     if not text:
+        return
+
+    # Language selection (bottom reply keyboard at /start)
+    if text in LANG_BUTTONS:
+        user_lang[uid] = LANG_BUTTONS[text]
+        _reset(uid)
+        save_user(uid, uname, fname, user_lang[uid])
+        _send(cid, _t(uid, "main_menu"), kb_main_reply(uid))
         return
 
     # Bottom reply-keyboard buttons → dispatch to handlers
