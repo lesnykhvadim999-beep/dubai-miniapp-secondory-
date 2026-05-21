@@ -2304,8 +2304,12 @@ def _first_listing_block(text: str) -> str:
                 r'|[⸻⸺]+'
                 r'|[◆■◇★●▪▫◽◾◻◼]{3,}'
                 r'|[—–]{2,}\s*[—–]{2,}'
+                r'|[🔥💎💰⭐🌟❤❗‼️🚨🏠🏡]{3,}'   # 3+ emoji-frames вокруг листингов
                 r')\s*\n'
-                r'|\n\s*\n\s*\n\s*\n')
+                r'|\n\s*\n\s*\n\s*\n'
+                # Маркер «новый листинг» — пустая строка, затем ● или ⚫ + текст
+                # с emoji-локатором или CAPS-словом (типичный bullet-style multi-listing)
+                r'|\n\s*\n\s*[●⚫◆◇]\s*')
     parts = re.split(sep_pat, text, maxsplit=5)
     if len(parts) <= 1:
         return text
@@ -3264,7 +3268,14 @@ def parse_message(
                    'apartment','villa','townhouse','plot','land','unit','flat',
                    '1 bedroom','2 bedroom','3 bedroom','4 bedroom','5 bedroom',
                    'bedroom','available','vacant','furnished','unfurnished',
-                   'high floor','low floor','mid floor','top floor'}:
+                   'high floor','low floor','mid floor','top floor',
+                   'two villas','three villas','multiple units','units for sale',
+                   'one unit','total apartments','floors total apartments',
+                   'distress deal','hot deal','investor deal','flip sale',
+                   # Area-name leak (когда area попадает в building):
+                   'damac lagoon','damac lagoons','damac hills','damac hills 2',
+                   'creek harbour','creek beach','sobha hartland','palm jumeirah',
+                   'dubai marina','business bay','downtown','jumeirah'}:
             building = None
             building_conf = 0.0
         # Starts with digit + bedroom-noun
@@ -3272,7 +3283,7 @@ def parse_message(
             building = None
             building_conf = 0.0
         # Plot Area / GFA / BUA phrases
-        elif re.search(r'\b(?:plot\s+area|sqft\s+area|bua|gfa)\b', bl):
+        elif re.search(r'\b(?:plot\s+area|sqft\s+area|bua|gfa|total\s+apartments)\b', bl):
             building = None
             building_conf = 0.0
         else:
@@ -3282,6 +3293,9 @@ def parse_message(
             cleaned = re.sub(r'^[^\w\d]+', '', cleaned).strip()
             cleaned = re.sub(r'\s*[-–—]\s*plot\s*$', '', cleaned, flags=re.I)
             cleaned = re.sub(r'\s+plot\s*$', '', cleaned, flags=re.I)
+            # Strip trailing " Area" — это типичный лeak когда «Project: X / Area: Y»
+            # парсер схватил вместе с label
+            cleaned = re.sub(r'\s+area\s*$', '', cleaned, flags=re.I).strip()
             if area:
                 pat = re.compile(r'\s*[-–—]\s*' + re.escape(area) + r'\s*$', re.I)
                 cleaned = pat.sub('', cleaned).strip()
