@@ -288,7 +288,9 @@ async def parse_channel(client, channel: str, backfill: bool = False,
                 _price = parsed.get('price') or 0
                 if _seller and _building and _size and _area:
                     try:
-                        _conn = get_conn()
+                        # Local re-import — bullet-proof against Railway pyc cache issues
+                        from db_schema import get_conn as _get_conn_local
+                        _conn = _get_conn_local()
                         with _conn.cursor() as _cur:
                             _cur.execute(
                                 "SELECT id, price FROM listings WHERE seller_username=%s AND building=%s AND area=%s AND (size_sqft=%s OR bua_sqft=%s) AND status='active' ORDER BY created_at DESC LIMIT 1",
