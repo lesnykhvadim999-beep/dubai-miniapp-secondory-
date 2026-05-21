@@ -156,6 +156,47 @@ def _digest_text():
     )
 
 
+# ── 4. DLD re-benchmark (weekly) ───────────────────────────────────────────────
+def rebenchmark_loop():
+    """Re-build price_benchmarks.json from DLD every Monday 04:00 UTC."""
+    last_run_day = None
+    while True:
+        try:
+            now = datetime.utcnow()
+            # Monday = 0
+            if now.weekday() == 0 and now.hour == 4 and last_run_day != now.date():
+                print("[cron] Running DLD re-benchmark...")
+                import subprocess
+                subprocess.run(["python", "build_benchmarks.py"],
+                               cwd=os.path.dirname(__file__) or ".",
+                               check=False, timeout=600)
+                last_run_day = now.date()
+                if ADMIN_ID:
+                    _send(ADMIN_ID, "✅ DLD price_benchmarks.json rebuilt.")
+        except Exception as e:
+            print(f"[cron] rebenchmark error: {e}")
+        time.sleep(30 * 60)
+
+
+# ── 5. Photo dedup (daily) ─────────────────────────────────────────────────────
+def photo_dedup_loop():
+    """Re-run photo dedup every night 02:00 UTC."""
+    last_run_day = None
+    while True:
+        try:
+            now = datetime.utcnow()
+            if now.hour == 2 and last_run_day != now.date():
+                print("[cron] Running photo_dedup...")
+                import subprocess
+                subprocess.run(["python", "photo_dedup.py"],
+                               cwd=os.path.dirname(__file__) or ".",
+                               check=False, timeout=300)
+                last_run_day = now.date()
+        except Exception as e:
+            print(f"[cron] photo_dedup error: {e}")
+        time.sleep(30 * 60)
+
+
 def digest_loop():
     """Sends daily digest to admin at ~09:00 UTC."""
     last_sent_day = None
@@ -214,6 +255,8 @@ def start_health_server(port=8080):
 def start_all():
     threading.Thread(target=alerts_loop, daemon=True).start()
     threading.Thread(target=digest_loop, daemon=True).start()
+    threading.Thread(target=rebenchmark_loop, daemon=True).start()
+    threading.Thread(target=photo_dedup_loop, daemon=True).start()
     start_health_server(port=int(os.environ.get("PORT", "8080")))
     print("[cron] All workers started.")
 

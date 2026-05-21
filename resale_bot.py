@@ -2255,6 +2255,32 @@ def send_results(cid, uid, mid=None):
 
 
 # ── Natural language + Claude ─────────────────────────────────────────────────
+def claude_translate(text, target_lang="en"):
+    """Translate any text to target_lang via Claude Haiku.
+    target_lang: 'en' | 'ru' | 'ar'. Returns translated string or None."""
+    if not ANTHROPIC_KEY or not text: return None
+    lang_full = {"en": "English", "ru": "Russian", "ar": "Arabic"}.get(target_lang, "English")
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": ANTHROPIC_KEY,
+                     "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": "claude-haiku-4-5-20251001",
+                  "max_tokens": 600,
+                  "messages": [{"role": "user", "content":
+                    f"Translate the following UAE real estate listing to {lang_full}. "
+                    f"Preserve numbers, prices, and proper names. Return ONLY the "
+                    f"translated text, no preface:\n\n{text[:1500]}"}]},
+            timeout=15,
+        )
+        if resp.status_code != 200: return None
+        return resp.json()["content"][0]["text"].strip()
+    except Exception as e:
+        print(f"[claude_translate] {e}")
+        return None
+
+
 def claude_parse(text, lang="en"):
     """Use Claude Haiku to parse a free-form real estate query into filters.
     Supports EN/RU/AR with slang ("у моря", "семейный район", "за моллом")."""
@@ -2622,10 +2648,12 @@ def show_detail(cid, uid, mid, lid):
     except Exception:
         fav_now = False
     fav_label = _t(uid, "btn_fav_rem") if fav_now else _t(uid, "btn_fav_add")
+    lang_user = user_lang.get(uid, "en")
     kb = _kb(
         [_url_btn(_t(uid, "btn_book"), lead_url)],
         [_btn(fav_label,              f"fav|{lid}"),    _btn(_t(uid, "btn_compare"), f"cmp|{lid}")],
         [_btn(_t(uid, "btn_map"),     f"map|{lid}"),    _btn(_t(uid, "btn_photos"),  f"photos|{lid}")],
+        [_btn("🌐 Translate",         f"translate|{lid}|{lang_user}")],
         [_btn(_t(uid, "btn_similar"), f"similar|{lid}"), _btn(_t(uid, "btn_back"), "results|back")],
         [_btn(_t(uid, "btn_menu"), "menu|main")],
     )
@@ -4105,6 +4133,22 @@ def handle_cb(cb):
             q = ", ".join(x for x in [building, area, emirate, "UAE"] if x)
             url = f"https://www.google.com/maps/search/?api=1&query={requests.utils.quote(q)}"
             _send(cid, f"🗺 {q}\n\n{url}")
+
+    # ── Auto-translate listing description via Claude ─────────────────────────
+    elif action == "translate":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        target_lang = parts[2] if len(parts) > 2 else user_lang.get(uid, "en")
+        listing = get_listing_by_id(lid)
+        if listing and listing.get("original_text"):
+            translated = claude_translate(listing["original_text"], target_lang)
+            if translated:
+                _send(cid, f"🌐 *Translation ({target_lang.upper()})*\n\n{translated}")
+            else:
+                _api("answerCallbackQuery", callback_query_id=cb["id"],
+                     text="Translation unavailable", show_alert=True)
+        else:
+            _api("answerCallbackQuery", callback_query_id=cb["id"],
+                 text="No text to translate", show_alert=True)
 
     # ── Photo carousel (all photos) ───────────────────────────────────────────
     elif action == "photos":
