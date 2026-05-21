@@ -1384,6 +1384,32 @@ def _extract_building_heuristic(text: str) -> Optional[str]:
         if cand:
             return cand
 
+    # Pattern 10: <KnownArea> [optional emoji/decor]
+    #             <BuildingCandidate>
+    #             <line containing bedroom / sqft / floor / price / view>
+    # Examples:
+    #   "Dubai Marina 🛥️\nSulafa Tower\n1 bedroom, 920 sqft"
+    #   "Dubai Hills\n*Greenside Building*\n- 1 bedroom"
+    #   "JBR Sadaf 7\n2 bedroom, 1211 sqft"  (area + building on same line)
+    #   "Arjan ✅ Hot deal\nKYOTO by ORO24\n1 bedroom"
+    property_signal = r'\b(?:bedroom|studio|sqft|sq\.?\s*ft|sq\.?\s*m|sqm|m2|m²|floor|price|aed|view|handover|paid|cheque|/year|/month|annual\s*rent|selling\s*price|asking|сдам|сдается|для\s+продажи)\b'
+    # Build a single alternation of known areas (sorted longest-first to win greedy match)
+    area_names_long_first = sorted(
+        [n for area_name, info in AREAS.items()
+         for n in [area_name] + info.get("aliases", [])],
+        key=len, reverse=True
+    )
+    area_pat = '|'.join(re.escape(n) for n in area_names_long_first)
+    pat10 = (
+        r'(?:^|\n)\s*(?:' + area_pat + r')\b[^\n]{0,30}\n'   # area line (with optional decor/emoji)
+        r'\s*([^\n]{3,70})\n'                                 # building candidate (capture)
+        r'[^\n]*' + property_signal                           # next-line property signal
+    )
+    for m in re.finditer(pat10, head, re.IGNORECASE):
+        cand = _clean_building_candidate(m.group(1))
+        if cand:
+            return cand
+
     return None
 
 
