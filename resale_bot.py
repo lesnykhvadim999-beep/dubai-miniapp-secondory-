@@ -2405,9 +2405,27 @@ def send_results(cid, uid, mid=None):
     total   = s.get("total", 0)
 
     if not results:
-        kb = _kb([_btn(_t(uid, "btn_menu"), "menu|main")])
-        if mid: _edit(cid, mid, _t(uid, "no_results"), kb)
-        else:   _send(cid, _t(uid, "no_results"), kb)
+        # При 0 results — предлагаем расширить фильтры (убрать самый строгий)
+        filters = s.get("filters", {})
+        relax_buttons = []
+        if filters.get("building"):
+            relax_buttons.append([_btn(f"❌ Без здания: «{filters['building'][:20]}»",
+                                        "relax|building")])
+        if filters.get("min_price") or filters.get("max_price"):
+            relax_buttons.append([_btn("💰 Без ограничения бюджета", "relax|budget")])
+        if filters.get("bedrooms") is not None:
+            relax_buttons.append([_btn("🛏 Без фильтра спален", "relax|bedrooms")])
+        if filters.get("area"):
+            relax_buttons.append([_btn(f"📍 Без района: «{filters['area'][:20]}»",
+                                        "relax|area")])
+        relax_buttons.append([_btn(_t(uid, "btn_menu"), "menu|main")])
+        kb = _kb(*relax_buttons)
+        # Текст с подсказкой что фильтры можно ослабить
+        hint_text = _t(uid, "no_results")
+        if any(filters.get(k) for k in ("building","area","bedrooms","min_price","max_price")):
+            hint_text += "\n\n_Попробуйте убрать один из фильтров ниже:_"
+        if mid: _edit(cid, mid, hint_text, kb)
+        else:   _send(cid, hint_text, kb)
         return
 
     start = page * PER_PAGE
@@ -3385,18 +3403,12 @@ def dispatch_wizard_button(cid, uid, text):
             return True
         # Поиск по введённому тексту
         emirate = filters.get("emirate")
-        matches = search_areas_by_query(text, emirate=emirate, limit=8)
+        matches = search_areas_by_query(text, emirate=emirate, limit=10)
         if not matches:
             _send(cid, _t(uid, "wiz_area_nomatch").replace("{q}", text),
                   kb_reply_area_input(uid))
             return True
-        # Один точный матч — применяем + переходим к building
-        if len(matches) == 1:
-            filters["area"] = matches[0]["name"]
-            state["wizard"] = "building_input"
-            _send(cid, _t(uid, "wiz_bld_q"), kb_reply_building_input(uid))
-            return True
-        # Несколько — показываем inline-кнопки для выбора
+        # ВСЕГДА показываем suggestions (даже при 1 матче) — юзер сверяется + skip option
         rows = []
         for it in matches:
             label = it["name"]
@@ -3422,19 +3434,13 @@ def dispatch_wizard_button(cid, uid, text):
             return True
         emirate = filters.get("emirate")
         area = filters.get("area")
-        matches = search_buildings_by_query(text, emirate=emirate, area=area, limit=8)
+        matches = search_buildings_by_query(text, emirate=emirate, area=area, limit=10)
         if not matches:
             _send(cid, _t(uid, "wiz_bld_nomatch").replace("{q}", text),
                   kb_reply_building_input(uid))
             return True
-        if len(matches) == 1:
-            filters["building"] = matches[0]["name"]
-            state["wizard"] = None
-            _send(cid, _t(uid, "searching"), kb_main_reply(uid))
-            do_search(uid)
-            send_results(cid, uid)
-            return True
-        # Несколько — показываем inline-кнопки
+        # ВСЕГДА показываем suggestions (даже при 1 матче) — юзер может проверить
+        # что попало в фильтр + видит фактический count объявлений в каждом.
         rows = []
         for it in matches:
             cnt = it.get("count", 0)
@@ -4391,6 +4397,23 @@ def handle_cb(cb):
         elif parts[1] == "back": show_main(cid, uid, mid)
 
     # ── Favorites ─────────────────────────────────────────────────────────────
+    # ── Relax filter — убрать конкретный фильтр и заново поискать ──────
+    elif action == "relax":
+        which = parts[1] if len(parts) > 1 else ""
+        s = gs(uid)
+        if which == "building":
+            s["filters"].pop("building", None)
+        elif which == "area":
+            s["filters"].pop("area", None)
+        elif which == "bedrooms":
+            s["filters"].pop("bedrooms", None)
+        elif which == "budget":
+            s["filters"].pop("min_price", None)
+            s["filters"].pop("max_price", None)
+        _edit(cid, mid, _t(uid, "searching"))
+        do_search(uid)
+        send_results(cid, uid, mid)
+
     # ── Area picker — выбор района из suggestions → переход к building ──────
     elif action == "pickarea":
         chosen = parts[1] if len(parts) > 1 else "__any__"
