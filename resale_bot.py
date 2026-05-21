@@ -383,6 +383,10 @@ T = {
     "wiz_area_any":       "🌍 Any location",
     "wiz_area_match":     "Matching areas — tap one:",
     "wiz_area_nomatch":   "_No area matched «{q}». Try shorter spelling or tap «Any location»._",
+    "wiz_bld_q":          "🏢 *Choose building*\n\nType building name (full or part: Burj, Aykon, Sobha One, Sidra…)\nor tap «Any building» to skip.",
+    "wiz_bld_any":        "🏢 Any building",
+    "wiz_bld_match":      "Matching buildings — tap one:",
+    "wiz_bld_nomatch":    "_No building matched «{q}». Try shorter spelling or tap «Any building»._",
     "area_custom_none":   "No properties found for \"{text}\". Try a different area name.",
     "add_area_custom_btn": "✏️  Enter custom area",
     "add_area_custom_q":   "Type your area name:",
@@ -619,6 +623,10 @@ T = {
     "wiz_area_any":       "🌍 Любой район",
     "wiz_area_match":     "Подходящие районы — нажмите:",
     "wiz_area_nomatch":   "_Район «{q}» не найден. Попробуйте сократить или нажмите «Любой район»._",
+    "wiz_bld_q":          "🏢 *Выберите здание*\n\nНапишите название (полностью или часть: Burj, Aykon, Sobha One, Sidra…)\nили нажмите «Любое здание» чтобы пропустить.",
+    "wiz_bld_any":        "🏢 Любое здание",
+    "wiz_bld_match":      "Подходящие здания — нажмите:",
+    "wiz_bld_nomatch":    "_Здание «{q}» не найдено. Попробуйте сократить или нажмите «Любое здание»._",
     "area_custom_none":   "По запросу \"{text}\" ничего не найдено. Попробуйте другое название.",
     "add_area_custom_btn": "✏️  Ввести свой район",
     "add_area_custom_q":   "Напишите название района:",
@@ -864,6 +872,10 @@ T = {
     "wiz_area_any":       "🌍 أي منطقة",
     "wiz_area_match":     "المناطق المطابقة — اضغط:",
     "wiz_area_nomatch":   "_لم تتطابق منطقة مع «{q}»._",
+    "wiz_bld_q":          "🏢 *اختر المبنى*\n\nاكتب اسم المبنى (كامل أو جزء: Burj, Aykon…)\nأو اضغط «أي مبنى» لتخطي.",
+    "wiz_bld_any":        "🏢 أي مبنى",
+    "wiz_bld_match":      "المباني المطابقة — اضغط:",
+    "wiz_bld_nomatch":    "_لم يتطابق مبنى مع «{q}»._",
     "area_custom_none":   "لا نتائج لـ \"{text}\". جرب اسماً آخر.",
     "add_area_custom_btn": "✏️  أدخل منطقتك",
     "add_area_custom_q":   "اكتب اسم المنطقة:",
@@ -1275,6 +1287,114 @@ def search_areas_by_query(q: str, emirate: str = None, limit: int = 8) -> list:
         if len(result) >= limit:
             break
     return result
+
+
+# ── Smart BUILDING search ────────────────────────────────────────────────────
+_BUILDING_CACHE = {"data": None, "expires": 0}
+
+
+def _load_all_buildings() -> list:
+    """Возвращает list of dicts: {name, area, emirate, listings_count}.
+    Источник — DISTINCT building из listings (auto-grow: новые здания подхватываются
+    автоматически при следующем перечитывании кэша).
+    Кэш 1 час."""
+    import time as _time
+    now = _time.time()
+    if _BUILDING_CACHE["data"] and _BUILDING_CACHE["expires"] > now:
+        return _BUILDING_CACHE["data"]
+    out: dict = {}   # name → {name, area, emirate, count}
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            # buildings table (если непустая — приоритет)
+            cur.execute("""
+                SELECT name, area, emirate, aliases FROM buildings
+                WHERE name IS NOT NULL
+            """)
+            for r in cur.fetchall():
+                out[r["name"]] = {
+                    "name":    r["name"],
+                    "area":    r.get("area"),
+                    "emirate": r.get("emirate"),
+                    "aliases": list(r.get("aliases") or []),
+                    "count":   0,
+                }
+            # Дополнить из listings (DISTINCT building) — auto-grow
+            cur.execute("""
+                SELECT building, area, emirate, COUNT(*) AS n
+                FROM listings WHERE is_active = TRUE
+                  AND building IS NOT NULL AND LENGTH(TRIM(building)) >= 4
+                  AND (is_audit IS NULL OR is_audit = FALSE)
+                GROUP BY building, area, emirate
+            """)
+            for r in cur.fetchall():
+                name = r["building"]
+                if not name: continue
+                if name in out:
+                    out[name]["count"] = out[name].get("count", 0) + int(r["n"])
+                    if not out[name].get("area") and r.get("area"):
+                        out[name]["area"] = r["area"]
+                    if not out[name].get("emirate") and r.get("emirate"):
+                        out[name]["emirate"] = r["emirate"]
+                else:
+                    out[name] = {
+                        "name":    name,
+                        "area":    r.get("area"),
+                        "emirate": r.get("emirate"),
+                        "aliases": [],
+                        "count":   int(r["n"]),
+                    }
+        conn.close()
+    except Exception as e:
+        print(f"[building_search] DB error: {e}")
+    items = list(out.values())
+    # Сортируем по count DESC чтобы популярные были в топе
+    items.sort(key=lambda x: x.get("count", 0), reverse=True)
+    _BUILDING_CACHE["data"] = items
+    _BUILDING_CACHE["expires"] = now + 3600
+    return items
+
+
+def search_buildings_by_query(q: str, emirate: str = None, area: str = None,
+                              limit: int = 8) -> list:
+    """Возвращает top-N matching buildings.
+       Логика: exact match → startswith → contains.
+       При совпадениях — по count DESC (популярные первыми).
+       Если emirate / area задан — фильтр."""
+    if not q or len(q.strip()) < 1:
+        return []
+    qn = q.strip().lower()
+    items = _load_all_buildings()
+    if emirate:
+        items = [i for i in items if not i.get("emirate") or i["emirate"] == emirate]
+    if area:
+        items = [i for i in items if not i.get("area") or i["area"] == area]
+
+    exact, starts, contains = [], [], []
+    for item in items:
+        names_to_check = [item["name"]] + list(item.get("aliases") or [])
+        names_lower = [n.lower() for n in names_to_check if n]
+        if qn in names_lower:
+            exact.append(item); continue
+        if any(n.startswith(qn) for n in names_lower):
+            starts.append(item); continue
+        if any(qn in n for n in names_lower):
+            contains.append(item)
+    seen, result = set(), []
+    for it in exact + starts + contains:
+        if it["name"] in seen: continue
+        seen.add(it["name"]); result.append(it)
+        if len(result) >= limit:
+            break
+    return result
+
+
+def kb_reply_building_input(uid):
+    """Bottom keyboard для шага «введите здание»."""
+    return _reply_kb([
+        [_t(uid, "wiz_bld_any")],
+        [_t(uid, "rbtn_home")],
+    ])
 
 
 # AI Assistant flow — bottom reply keyboard buttons
@@ -3254,16 +3374,14 @@ def dispatch_wizard_button(cid, uid, text):
 
     # Area input step — текстовый ввод с автоподсказками
     if wizard == "area_input":
-        # Skip — поиск без area filter
-        if text == _t(uid, "wiz_area_any") or text == _t(uid, "rbtn_home"):
-            if text == _t(uid, "rbtn_home"):
-                state["wizard"] = None
-                show_main(cid, uid)
-                return True
+        # Skip — переходим к building шагу без area filter
+        if text == _t(uid, "rbtn_home"):
             state["wizard"] = None
-            _send(cid, _t(uid, "searching"), kb_main_reply(uid))
-            do_search(uid)
-            send_results(cid, uid)
+            show_main(cid, uid)
+            return True
+        if text == _t(uid, "wiz_area_any"):
+            state["wizard"] = "building_input"
+            _send(cid, _t(uid, "wiz_bld_q"), kb_reply_building_input(uid))
             return True
         # Поиск по введённому тексту
         emirate = filters.get("emirate")
@@ -3272,13 +3390,11 @@ def dispatch_wizard_button(cid, uid, text):
             _send(cid, _t(uid, "wiz_area_nomatch").replace("{q}", text),
                   kb_reply_area_input(uid))
             return True
-        # Один точный матч — сразу применяем
+        # Один точный матч — применяем + переходим к building
         if len(matches) == 1:
             filters["area"] = matches[0]["name"]
-            state["wizard"] = None
-            _send(cid, _t(uid, "searching"), kb_main_reply(uid))
-            do_search(uid)
-            send_results(cid, uid)
+            state["wizard"] = "building_input"
+            _send(cid, _t(uid, "wiz_bld_q"), kb_reply_building_input(uid))
             return True
         # Несколько — показываем inline-кнопки для выбора
         rows = []
@@ -3289,6 +3405,45 @@ def dispatch_wizard_button(cid, uid, text):
             rows.append([_btn(label, f"pickarea|{it['name']}")])
         rows.append([_btn(_t(uid, "wiz_area_any"), "pickarea|__any__")])
         _send(cid, _t(uid, "wiz_area_match"),
+              {"inline_keyboard": rows})
+        return True
+
+    # ── Building input step (smart search, auto-grow по listings DB) ─────────
+    if wizard == "building_input":
+        if text == _t(uid, "rbtn_home"):
+            state["wizard"] = None
+            show_main(cid, uid)
+            return True
+        if text == _t(uid, "wiz_bld_any"):
+            state["wizard"] = None
+            _send(cid, _t(uid, "searching"), kb_main_reply(uid))
+            do_search(uid)
+            send_results(cid, uid)
+            return True
+        emirate = filters.get("emirate")
+        area = filters.get("area")
+        matches = search_buildings_by_query(text, emirate=emirate, area=area, limit=8)
+        if not matches:
+            _send(cid, _t(uid, "wiz_bld_nomatch").replace("{q}", text),
+                  kb_reply_building_input(uid))
+            return True
+        if len(matches) == 1:
+            filters["building"] = matches[0]["name"]
+            state["wizard"] = None
+            _send(cid, _t(uid, "searching"), kb_main_reply(uid))
+            do_search(uid)
+            send_results(cid, uid)
+            return True
+        # Несколько — показываем inline-кнопки
+        rows = []
+        for it in matches:
+            cnt = it.get("count", 0)
+            label = it["name"]
+            if cnt > 0:
+                label = f"{it['name']}  · {cnt}"
+            rows.append([_btn(label, f"pickbld|{it['name']}")])
+        rows.append([_btn(_t(uid, "wiz_bld_any"), "pickbld|__any__")])
+        _send(cid, _t(uid, "wiz_bld_match"),
               {"inline_keyboard": rows})
         return True
 
@@ -4236,12 +4391,22 @@ def handle_cb(cb):
         elif parts[1] == "back": show_main(cid, uid, mid)
 
     # ── Favorites ─────────────────────────────────────────────────────────────
-    # ── Area picker — выбор района из suggestions ────────────────────────────
+    # ── Area picker — выбор района из suggestions → переход к building ──────
     elif action == "pickarea":
         chosen = parts[1] if len(parts) > 1 else "__any__"
         s = gs(uid)
         if chosen != "__any__":
             s["filters"]["area"] = chosen
+        # После area переходим к building выбору
+        s["wizard"] = "building_input"
+        _send(cid, _t(uid, "wiz_bld_q"), kb_reply_building_input(uid))
+
+    # ── Building picker — выбор здания из suggestions → запуск поиска ───────
+    elif action == "pickbld":
+        chosen = parts[1] if len(parts) > 1 else "__any__"
+        s = gs(uid)
+        if chosen != "__any__":
+            s["filters"]["building"] = chosen
         s["wizard"] = None
         _send(cid, _t(uid, "searching"), kb_main_reply(uid))
         do_search(uid)
