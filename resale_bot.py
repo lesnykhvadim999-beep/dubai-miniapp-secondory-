@@ -3273,6 +3273,50 @@ def handle_msg(msg):
                 "Прогресс: смотри Railway logs или вызывай /stats через 15–30 мин.")
             from telethon_parser import run_parser_thread
             run_parser_thread(backfill=True)
+        elif cmd == "auditreview":
+            if uid != ADMIN_ID:
+                _send(cid, "Access denied."); return
+            # Show audit stats + sample
+            try:
+                conn = get_conn()
+                with conn.cursor() as c:
+                    c.execute("SELECT COUNT(*) AS n FROM listings WHERE is_active=TRUE AND is_audit=TRUE")
+                    total = c.fetchone()["n"]
+                    c.execute("""
+                        SELECT split_part(audit_reason, '_', 1) || '_' || split_part(audit_reason, '_', 2) AS bucket,
+                               COUNT(*) AS n
+                        FROM listings
+                        WHERE is_active=TRUE AND is_audit=TRUE
+                        GROUP BY bucket ORDER BY n DESC LIMIT 10
+                    """)
+                    buckets = c.fetchall()
+                    c.execute("""
+                        SELECT id, audit_reason, LEFT(original_text, 150) AS snippet
+                        FROM listings
+                        WHERE is_active=TRUE AND is_audit=TRUE
+                        ORDER BY audit_flagged_at DESC NULLS LAST LIMIT 5
+                    """)
+                    samples = c.fetchall()
+                conn.close()
+                lines = [f"📋 *Audit Review*\n\n*Total flagged:* {total}\n\n*Top reasons:*"]
+                for b in buckets:
+                    lines.append(f"  `{b['bucket']}`: {b['n']}")
+                lines.append("\n*Recent samples:*")
+                for s in samples:
+                    lines.append(f"\n• id={s['id']} reason: `{s['audit_reason'][:80]}`")
+                    lines.append(f"  text: _{s['snippet'][:120].replace('`','')}_")
+                _send(cid, "\n".join(lines))
+            except Exception as e:
+                _send(cid, f"⚠️ Ошибка: {e}")
+        elif cmd == "auditrun":
+            if uid != ADMIN_ID:
+                _send(cid, "Access denied."); return
+            _send(cid, "🔍 Запускаю flag_audit.py в фоне — займёт ~5 мин на 5k записей.")
+            def _run_audit():
+                import subprocess, os
+                os.chdir(os.path.dirname(__file__) or ".")
+                subprocess.Popen(["python", "flag_audit.py"])
+            threading.Thread(target=_run_audit, daemon=True).start()
         elif cmd == "cleanup":
             if uid != ADMIN_ID:
                 _send(cid, "Access denied."); return
@@ -3326,6 +3370,8 @@ def handle_msg(msg):
                 "/parse — Trigger incremental parse (admin)\n"
                 "/catchup — Resume from last known message (admin)\n"
                 "/backfillall — Full backfill all channels from 01.01.2026 (admin)\n"
+                "/auditreview — Show audit stats + sample (admin)\n"
+                "/auditrun — Re-run audit flagging on all records (admin)\n"
                 "/airescan — AI deal_type rescan (admin)\n"
                 "/fullrescan — Full AI re-parse all listings (admin)")
         return

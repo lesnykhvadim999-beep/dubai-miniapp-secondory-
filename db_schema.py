@@ -737,7 +737,10 @@ def search_listings(filters: dict, limit: int = 10, offset: int = 0) -> tuple[li
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            where = ["is_active = TRUE"]
+            # Audit-flagged records are hidden from regular searches (low quality,
+            # price mismatch with DLD, missing key fields). Admin can still see
+            # them via /auditreview command.
+            where = ["is_active = TRUE", "(is_audit IS NULL OR is_audit = FALSE)"]
             params = []
 
             if filters.get("emirate"):
