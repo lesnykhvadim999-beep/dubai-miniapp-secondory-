@@ -1774,15 +1774,29 @@ ADD_AREAS_RAK = ["Al Marjan Island", "Mina Al Arab", "Al Hamra Village"]
 ADD_AREAS_SHJ = ["Al Zahia", "Aljada"]
 
 
+ADD_EMIRATES = ["🇦🇪  Dubai", "🕌  Abu Dhabi", "🏝  Ras Al Khaimah", "🏙  Sharjah"]
+ADD_EMIRATE_MAP = {
+    "🇦🇪  Dubai": "Dubai", "🕌  Abu Dhabi": "Abu Dhabi",
+    "🏝  Ras Al Khaimah": "Ras Al Khaimah", "🏙  Sharjah": "Sharjah",
+}
+
+
+def _reply_with_cancel(uid, rows):
+    """Append [Cancel] to bottom of any /add reply keyboard."""
+    rows = list(rows) + [[_t(uid, "add_cancel")]]
+    return _reply_kb(rows)
+
+
+def _reply_with_skip_cancel(uid):
+    return _reply_kb([[_t(uid, "add_skip")], [_t(uid, "add_cancel")]])
+
+
 def start_add_listing(cid, uid, mid=None):
+    """/add wizard entry — now in BOTTOM reply keyboard."""
     add_states[uid] = {"step": 0, "data": {}, "photos": []}
-    text = _t(uid, "add_start")
-    kb = _kb(
-        [_btn(_t(uid, "d_sale"), "add|deal|sale"), _btn(_t(uid, "d_rent"), "add|deal|rent")],
-        [_btn(_t(uid, "add_cancel"), "add|cancel")],
-    )
-    if mid: _edit(cid, mid, text + "\n\n" + _t(uid, "add_deal_q"), kb)
-    else:   _send(cid, text + "\n\n" + _t(uid, "add_deal_q"), kb)
+    text = _t(uid, "add_start") + "\n\n" + _t(uid, "add_deal_q")
+    kb = _reply_with_cancel(uid, [[_t(uid, "d_sale"), _t(uid, "d_rent")]])
+    _send(cid, text, kb)
 
 
 def add_next_step(cid, uid):
@@ -1797,11 +1811,10 @@ def add_next_step(cid, uid):
     current = ADD_STEPS[step]
 
     if current == "emirate":
-        kb = _kb(
-            [_btn("🇦🇪  Dubai", "add|emirate|Dubai"),          _btn("🕌  Abu Dhabi", "add|emirate|Abu Dhabi")],
-            [_btn("🏝  Ras Al Khaimah", "add|emirate|Ras Al Khaimah"), _btn("🏙  Sharjah", "add|emirate|Sharjah")],
-            [_btn(_t(uid, "add_cancel"), "add|cancel")],
-        )
+        kb = _reply_with_cancel(uid, [
+            [ADD_EMIRATES[0], ADD_EMIRATES[1]],
+            [ADD_EMIRATES[2], ADD_EMIRATES[3]],
+        ])
         _send(cid, _t(uid, "add_emirate_q"), kb)
 
     elif current == "area":
@@ -1812,95 +1825,175 @@ def add_next_step(cid, uid):
             "Ras Al Khaimah": ADD_AREAS_RAK,
             "Sharjah": ADD_AREAS_SHJ,
         }.get(emirate, ADD_AREAS_DUBAI)
-
-        rows = [[_btn(a, f"add|area|{a}")] for a in areas]
-        rows.append([_btn(_t(uid, "add_area_custom_btn"), "add|area|_custom_")])
-        rows.append([_btn(_t(uid, "add_cancel"), "add|cancel")])
-        _send(cid, _t(uid, "add_area_q"), {"inline_keyboard": rows})
+        # 2-column layout
+        rows = []
+        for i in range(0, len(areas), 2):
+            rows.append(areas[i:i+2])
+        rows.append([_t(uid, "add_area_custom_btn")])
+        kb = _reply_with_cancel(uid, rows)
+        _send(cid, _t(uid, "add_area_q"), kb)
 
     elif current == "building":
         add_states[uid]["waiting_text"] = "building"
         _send(cid, _t(uid, "add_building_q"),
-              _kb([_btn(_t(uid, "add_cancel"), "add|cancel")]))
+              _reply_with_cancel(uid, []))
 
     elif current == "type":
-        kb = _kb(
-            [_btn(_t(uid, "pt_apt"),  "add|type|apartment"), _btn(_t(uid, "pt_villa"), "add|type|villa")],
-            [_btn(_t(uid, "pt_town"), "add|type|townhouse"),  _btn(_t(uid, "pt_pent"), "add|type|penthouse")],
-            [_btn(_t(uid, "add_cancel"), "add|cancel")],
-        )
+        kb = _reply_with_cancel(uid, [
+            [_t(uid, "pt_apt"),  _t(uid, "pt_villa")],
+            [_t(uid, "pt_town"), _t(uid, "pt_pent")],
+        ])
         _send(cid, _t(uid, "add_type_q"), kb)
 
     elif current == "bedrooms":
-        kb = _kb(
-            [_btn(_t(uid, "br_studio"), "add|br|0"), _btn(_t(uid, "br_1"), "add|br|1"), _btn(_t(uid, "br_2"), "add|br|2")],
-            [_btn(_t(uid, "br_3"),      "add|br|3"), _btn(_t(uid, "br_4p"), "add|br|4")],
-            [_btn(_t(uid, "add_cancel"), "add|cancel")],
-        )
+        kb = _reply_with_cancel(uid, [
+            [_t(uid, "br_studio"), _t(uid, "br_1"), _t(uid, "br_2")],
+            [_t(uid, "br_3"),      _t(uid, "br_4p")],
+        ])
         _send(cid, _t(uid, "add_br_q"), kb)
 
     elif current == "size":
         add_states[uid]["waiting_text"] = "size"
-        _send(cid, _t(uid, "add_size_q"),
-              _kb([_btn(_t(uid, "add_skip"), "add|skip_field"),
-                   _btn(_t(uid, "add_cancel"), "add|cancel")]))
+        _send(cid, _t(uid, "add_size_q"), _reply_with_skip_cancel(uid))
 
     elif current == "floor":
         add_states[uid]["waiting_text"] = "floor"
-        _send(cid, _t(uid, "add_floor_q"),
-              _kb([_btn(_t(uid, "add_skip"), "add|skip_field"),
-                   _btn(_t(uid, "add_cancel"), "add|cancel")]))
+        _send(cid, _t(uid, "add_floor_q"), _reply_with_skip_cancel(uid))
 
     elif current == "unit":
         add_states[uid]["waiting_text"] = "unit"
-        _send(cid, _t(uid, "add_unit_q"),
-              _kb([_btn(_t(uid, "add_skip"), "add|skip_field"),
-                   _btn(_t(uid, "add_cancel"), "add|cancel")]))
+        _send(cid, _t(uid, "add_unit_q"), _reply_with_skip_cancel(uid))
 
     elif current == "description":
         add_states[uid]["waiting_text"] = "description"
-        _send(cid, _t(uid, "add_description_q"),
-              _kb([_btn(_t(uid, "add_skip"), "add|skip_field"),
-                   _btn(_t(uid, "add_cancel"), "add|cancel")]))
+        _send(cid, _t(uid, "add_description_q"), _reply_with_skip_cancel(uid))
 
     elif current == "price":
         add_states[uid]["waiting_text"] = "price"
-        _send(cid, _t(uid, "add_price_q"),
-              _kb([_btn(_t(uid, "add_cancel"), "add|cancel")]))
+        _send(cid, _t(uid, "add_price_q"), _reply_with_cancel(uid, []))
 
     elif current == "status":
-        kb = _kb(
-            [_btn(_t(uid, "add_status_vacant"), "add|status|vacant"),
-             _btn(_t(uid, "add_status_rented"), "add|status|rented")],
-            [_btn(_t(uid, "add_cancel"), "add|cancel")],
-        )
+        kb = _reply_with_cancel(uid, [
+            [_t(uid, "add_status_vacant"), _t(uid, "add_status_rented")],
+        ])
         _send(cid, _t(uid, "add_status_q"), kb)
 
     elif current == "furnishing":
-        kb = _kb(
-            [_btn(_t(uid, "add_furn_yes"),  "add|furn|furnished"),
-             _btn(_t(uid, "add_furn_no"),   "add|furn|unfurnished")],
-            [_btn(_t(uid, "add_furn_semi"), "add|furn|semi-furnished")],
-            [_btn(_t(uid, "add_cancel"),    "add|cancel")],
-        )
+        kb = _reply_with_cancel(uid, [
+            [_t(uid, "add_furn_yes"),  _t(uid, "add_furn_no")],
+            [_t(uid, "add_furn_semi")],
+        ])
         _send(cid, _t(uid, "add_furn_q"), kb)
 
     elif current == "view":
-        rows = [[_btn(v, f"add|view|{v}")] for v in ADD_VIEWS]
-        rows.append([_btn(_t(uid, "add_cancel"), "add|cancel")])
-        _send(cid, _t(uid, "add_view_q"), {"inline_keyboard": rows})
+        rows = []
+        for i in range(0, len(ADD_VIEWS), 2):
+            rows.append(ADD_VIEWS[i:i+2])
+        _send(cid, _t(uid, "add_view_q"), _reply_with_cancel(uid, rows))
 
     elif current == "contact":
         add_states[uid]["waiting_text"] = "contact"
-        _send(cid, _t(uid, "add_contact_q"),
-              _kb([_btn(_t(uid, "add_cancel"), "add|cancel")]))
+        _send(cid, _t(uid, "add_contact_q"), _reply_with_cancel(uid, []))
 
     elif current == "photos":
         add_states[uid]["waiting_text"] = "photos"
-        _send(cid, _t(uid, "add_photo_q"), _kb(
-            [_btn(_t(uid, "add_skip"),   "add|skip_photos")],
-            [_btn(_t(uid, "add_cancel"), "add|cancel")],
-        ))
+        _send(cid, _t(uid, "add_photo_q"), _reply_with_skip_cancel(uid))
+
+
+def _label_all_langs(key):
+    """Return the labels of a translation key across all 3 languages."""
+    return [T[l].get(key) for l in ("en", "ru", "ar") if T[l].get(key)]
+
+
+def dispatch_add_button(cid, uid, text):
+    """Handle a press of a reply-keyboard button inside the /add wizard.
+    Returns True if the text matched a button and was handled."""
+    s = add_states.get(uid)
+    if not s:
+        return False
+
+    # Universal — Cancel
+    if text in _label_all_langs("add_cancel"):
+        add_states.pop(uid, None)
+        _send(cid, _t(uid, "add_cancelled"), kb_main_reply(uid))
+        return True
+
+    step = s.get("step", 0)
+    if step >= len(ADD_STEPS):
+        return False
+    current = ADD_STEPS[step]
+
+    # Universal — Skip (only on skippable steps)
+    if text in _label_all_langs("add_skip"):
+        if current in ("size", "floor", "unit", "description"):
+            s["waiting_text"] = None
+            s["step"] += 1
+            add_states[uid] = s
+            add_next_step(cid, uid)
+            return True
+        if current == "photos":
+            s["step"] = len(ADD_STEPS)
+            add_states[uid] = s
+            submit_listing(cid, uid)
+            return True
+
+    def _advance(field, value):
+        s["data"][field] = value
+        s["waiting_text"] = None
+        s["step"] += 1
+        add_states[uid] = s
+        add_next_step(cid, uid)
+        return True
+
+    # Step 0 — deal
+    if current == "deal":
+        if text in _label_all_langs("d_sale"): return _advance("deal", "sale")
+        if text in _label_all_langs("d_rent"): return _advance("deal", "rent")
+
+    if current == "emirate":
+        if text in ADD_EMIRATE_MAP:
+            return _advance("emirate", ADD_EMIRATE_MAP[text])
+
+    if current == "area":
+        emirate = s.get("data", {}).get("emirate", "Dubai")
+        areas = {
+            "Dubai": ADD_AREAS_DUBAI, "Abu Dhabi": ADD_AREAS_AD,
+            "Ras Al Khaimah": ADD_AREAS_RAK, "Sharjah": ADD_AREAS_SHJ,
+        }.get(emirate, ADD_AREAS_DUBAI)
+        if text in areas:
+            return _advance("area", text)
+        if text in _label_all_langs("add_area_custom_btn"):
+            s["waiting_text"] = "custom_area"
+            add_states[uid] = s
+            _send(cid, _t(uid, "add_area_custom_q"), _reply_with_cancel(uid, []))
+            return True
+
+    if current == "type":
+        for k, v in [("pt_apt","apartment"), ("pt_villa","villa"),
+                     ("pt_town","townhouse"), ("pt_pent","penthouse")]:
+            if text in _label_all_langs(k):
+                return _advance("type", v)
+
+    if current == "bedrooms":
+        for k, v in [("br_studio",0),("br_1",1),("br_2",2),("br_3",3),("br_4p",4)]:
+            if text in _label_all_langs(k):
+                return _advance("bedrooms", v)
+
+    if current == "status":
+        if text in _label_all_langs("add_status_vacant"): return _advance("status", "vacant")
+        if text in _label_all_langs("add_status_rented"): return _advance("status", "rented")
+
+    if current == "furnishing":
+        for k, v in [("add_furn_yes","furnished"),("add_furn_no","unfurnished"),
+                     ("add_furn_semi","semi-furnished")]:
+            if text in _label_all_langs(k):
+                return _advance("furnishing", v)
+
+    if current == "view":
+        if text in ADD_VIEWS:
+            return _advance("view", text)
+
+    return False
 
 
 def submit_listing(cid, uid):
@@ -1962,8 +2055,8 @@ def submit_listing(cid, uid):
     else:
         _send(ADMIN_ID, text, kb)
 
-    # Notify user
-    _send(cid, _t(uid, "add_done"), _kb([_btn(_t(uid, "btn_menu"), "menu|main")]))
+    # Notify user — return to bottom main menu
+    _send(cid, _t(uid, "add_done"), kb_main_reply(uid))
     add_states.pop(uid, None)
 
 
@@ -3882,10 +3975,7 @@ def handle_msg(msg):
             add_states[uid] = s
             count = len(s["photos"])
             _send(cid, f"✅ Photo {count} received. Send more or tap Skip.",
-                  _kb(
-                      [_btn(_t(uid, "add_skip"),   "add|skip_photos")],
-                      [_btn(_t(uid, "add_cancel"), "add|cancel")],
-                  ))
+                  _reply_with_skip_cancel(uid))
             return
 
     if not text:
@@ -4063,6 +4153,11 @@ def handle_msg(msg):
             idx   = astate.get("idx", 0)
             if queue:
                 show_review_item(cid, uid, idx)
+            return
+
+    # /add wizard — bottom reply keyboard buttons
+    if uid in add_states:
+        if dispatch_add_button(cid, uid, text):
             return
 
     # Handle add listing text inputs
