@@ -501,7 +501,19 @@ COMMERCIAL_KEYWORDS = [
 # Iteration: penthouse > hotel apartment > serviced apartment > villa > townhouse > duplex >
 # > commercial types > land/plot > studio > apartment.
 PROP_TYPE_MAP = {
-    # Specific residential types (check FIRST)
+    # Whole building offerings — check FIRST so they don't get bucketed as apartment/villa
+    "whole_building":    [
+        "full building for sale", "full building for rent",
+        "whole building for sale", "whole building for rent",
+        "entire building for sale", "entire building for rent",
+        "building for sale", "building for rent",
+        "residential building for sale", "commercial building for sale",
+        "apartment building for sale", "mixed use building for sale",
+        "mixed-use building for sale",
+        "tower for sale", "tower for rent",
+        "целое здание", "здание целиком", "здание на продажу",
+    ],
+    # Specific residential types (check after whole_building)
     "penthouse":         ["penthouse", "pent house", "пентхаус"],
     "hotel_apartment":   ["hotel apartment", "hotel apt", "hotel residence", "hotel residences"],
     "serviced_apartment":["serviced apartment", "serviced apt", "serviced residence"],
@@ -511,9 +523,12 @@ PROP_TYPE_MAP = {
     # Commercial — keywords must be in specific commercial-context phrases, not casual mentions
     "hotel":             ["hotel for sale", "hotel for lease", "branded hotel", "boutique hotel"],
     "office":            ["office for sale", "office for rent", "office sale", "for sale | office",
-                          "for rent | office", "office space for sale", "office space for rent", "офис на продажу"],
+                          "for rent | office", "office space for sale", "office space for rent",
+                          "office unit", "office space", "office floor", "fitted office",
+                          "shell and core office", "офис на продажу"],
     "retail":            ["retail for sale", "retail for rent", "retail unit",
-                          "retail space", "shop for sale", "shop for rent"],
+                          "retail space", "retail opportunity", "premium retail", "prime retail",
+                          "retail shop", "shop for sale", "shop for rent"],
     "warehouse":         ["warehouse for sale", "warehouse for rent", "warehouse unit", "storage facility"],
     # Land — must be in explicit plot/land offer context, not just "Plot: 1,873 sq.ft" size field
     "plot":              ["plot for sale", "plot for rent", "plot for lease", "land for sale",
@@ -893,6 +908,14 @@ def detect_deal_type(text: str, price: Optional[int] = None,
     rent_score = sum(1 for s in rent_signals if s in tl)
     sale_score = sum(1 for s in sale_signals if s in tl)
 
+    # ── Price magnitude override ────────────────────────────────────────────
+    # Любая сумма > 500к AED при отсутствии явного rent-сигнала = SALE.
+    # Cheapest UAE annual rent is ~25k. 500k+ is sale territory only.
+    # Это ловит мульти-листинги где первая цена sale (миллионы), но parser
+    # ошибочно ставит rent потому что в тексте позже встретилось "rent".
+    if price and price >= 500_000 and rent_score == 0:
+        return "sale"
+
     if rent_score > sale_score:
         return "rent"
     if sale_score > rent_score:
@@ -1135,15 +1158,22 @@ def _is_landmark_view_reference(text_lower: str, m: re.Match) -> bool:
     """Returns True if the matched name is a 'view/near/facing' reference, not the actual building.
     e.g. 'Burj Khalifa view', '... overlooking Burj Khalifa', 'near Burj Khalifa'.
     """
-    # 35 chars before
-    before = text_lower[max(0, m.start() - 35): m.start()]
+    # 80 chars before (увеличен с 35 — чтобы поймать "walking distance to X and Y")
+    before = text_lower[max(0, m.start() - 80): m.start()]
     after = text_lower[m.end(): m.end() + 20]
-    # Pre-context markers (word that comes BEFORE the name)
-    pre_markers = r'\b(?:view|views|viewing|facing|near|from|overlooking|opposite|towards?|towards|stunning|with|close\s+to|next\s+to|distance\s+from|walking\s+distance)\b\s*[a-z]*\s*$'
+    # Pre-context markers (word/phrase that comes BEFORE the name, может быть с
+    # несколькими словами между маркером и landmark-именем).
+    pre_markers = (
+        r'\b(?:view|views|viewing|facing|near|from|overlooking|opposite|'
+        r'towards?|stunning|close\s+to|next\s+to|distance\s+(?:from|to)|'
+        r'walking\s+distance|minutes?\s+from|minutes?\s+to|drive\s+to|'
+        r'beside|adjacent\s+to|right\s+next\s+to)\b'
+        r'(?:\s+[a-z][a-z\s,]{0,40})?\s*(?:and\s+)?$'
+    )
     if re.search(pre_markers, before):
         return True
     # Post-context markers (the name is followed by "view")
-    if re.search(r'^\s*(?:view|views)\b', after):
+    if re.search(r'^\s*(?:view|views|area|district|community|landmark)\b', after):
         return True
     return False
 
@@ -1229,6 +1259,77 @@ def _is_building_stopword(s: str) -> bool:
     if not sl or len(sl) < 3:
         return True
     if sl in _BUILDING_HEUR_STOPWORDS:
+        return True
+    # Directional/distance phrases starting with "To/Near/Opposite/Close to/...":
+    # эти фразы — это relative location ("opp. to Miracle Gardens"), не building.
+    if re.match(
+        r'^(?:to |from |near |opposite |close |behind |opp[\.\s]|across |'
+        r'next to |walking |minutes? |drive |around |before |after |adjacent |'
+        r'beside |overlooking |facing |with\s+view |view\s+of )',
+        sl):
+        return True
+    # Descriptor-style: "Spacious Villa", "Modern Apartment", "Luxury Penthouse",
+    # "Studio for Sale", "Office for Rent", "Fully Furnished Studio" etc —
+    # это типы недвижимости с одним-двумя прилагательными
+    ADJ = (r'(?:spacious|luxurious|stunning|modern|brand\s+new|new|amazing|'
+            r'beautiful|large|huge|massive|premium|exclusive|elegant|cozy|bright|'
+            r'sunny|big|rare|unique|distress|hot|prime|cheap|affordable|'
+            r'best|top|excellent|gorgeous|charming|fully|partially|semi[\s\-]?'
+            r'furnished|upgraded|renovated|vacant|rented|ready|fitted|furnished|'
+            r'unfurnished|partial|fully\s+furnished|semi\s+furnished|fully\s+fitted)')
+    TYPE = (r'(?:villa|apartment|townhouse|penthouse|studio|duplex|plot|'
+             r'office|unit|home|mansion|residence|deal|opportunity|investment|room)')
+    # 1 or 2 adjectives + type
+    if re.match(rf'^{ADJ}(?:\s+{ADJ})?\s+{TYPE}s?$', sl):
+        return True
+    if re.match(
+        r'^(?:office|retail|plot|villa|apartment|townhouse|penthouse|studio|'
+        r'duplex|unit|property|home|land|building|tower|hotel)\s+'
+        r'(?:for\s+)?(?:sale|rent|lease|exchange)$', sl):
+        return True
+    # Pure property type word alone
+    if sl in {'villa','apartment','townhouse','penthouse','studio','duplex',
+               'plot','office','retail','property','unit','land','home',
+               'mansion','residence','tower','building','complex','hotel'}:
+        return True
+    # «Bedroom Apartment» / «Bedroom Villa» / «Bedroom Townhouse» — typical bug
+    # парсера: текст "3 Bedroom Apartment" → building="Bedroom Apartment"
+    if re.match(r'^bedroom\s+(?:villa|apartment|townhouse|penthouse|studio|'
+                 r'duplex|plot|office|home|mansion|residence|unit)s?$', sl):
+        return True
+    # Leading numbers + descriptor («2 bedroom villa», «3BR apartment»)
+    if re.match(r'^\d+\s*(?:br|bdr|bedroom|bed)\s+(?:villa|apartment|townhouse|'
+                 r'penthouse|studio|duplex)s?$', sl):
+        return True
+    # Marketing phrases / call-to-action / deal-flags
+    if re.match(
+        r'^(?:for\s+sale|for\s+rent|for\s+salle|hot\s+deal|hot\s+offer|distress\s+deal|'
+        r'best\s+deal|best\s+price|new\s+launch|new\s+price|special\s+offer|'
+        r'urgent\s+sale|exclusive\s+deal|investment\s+opportunity|'
+        r'cash\s+(?:buyer|deal)|payment\s+plan|free\s+hold|freehold|'
+        r'covered|for\s+serious|huge\s+(?:terrace|balcony|rooftop)|'
+        r'big\s+(?:terrace|balcony|rooftop)|spacious\s+layout|'
+        r'prime\s+(?:business|tower)|new\s+tower)\s*\b',
+        sl):
+        return True
+    # Standalone area-acronyms (used as building) — these are area codes, not buildings
+    if sl in {'jvc','jvt','jlt','jbr','dxb','dch','dhe','dha','dlrc','dso'}:
+        return True
+    # Single-feature labels ("Covered", "Huge Terrace", "Spacious") — pure descriptors
+    if sl in {'covered','spacious','luxury','modern','elegant','exclusive',
+               'distress','premium','prime','huge terrace','huge balcony',
+               'big terrace','big balcony','spacious layout','brand new',
+               'new tower','prime tower','prime business bay',
+               'for serious buyers','huge rooftop terrace'}:
+        return True
+    # Building name shouldn't contain phone digits or currency
+    if re.search(r'\+?\d{6,}|aed\s*\d|\$\s*\d|€\s*\d', sl):
+        return True
+    # Building shouldn't contain too many words (real building 1-5 words max)
+    if len(sl.split()) > 7:
+        return True
+    # Building shouldn't be question / call
+    if '?' in sl or sl.startswith(('hello','hi ','dear','dm ','call ','contact','please')):
         return True
     # Check against AREAS keys/aliases — area names are not buildings
     for area_name, info in AREAS.items():
@@ -1475,6 +1576,82 @@ def _extract_building_heuristic(text: str) -> Optional[str]:
         if cand:
             return cand
 
+    # ── Pattern 11: "X Tower/Residences/Bay/Heights/etc." case-insensitive ─
+    # Ловит "Zada tower", "Canal Front Residences", "Bayview Tower 1"
+    # Trailing digit MUST be on same line (no newline in pattern).
+    for m in re.finditer(
+        r'\b([A-Za-z][A-Za-z0-9&\']+(?:[ \t]+[A-Za-z0-9&\']+){0,4})[ \t]+'
+        r'(?:tower|towers|residence|residences|bay|villa|villas|heights|court|'
+        r'place|square|apartment|apartments|mansion|mansions|hills|gardens|'
+        r'crescent|hotel|views|estates?|island|park|terraces?|plaza|grove)\b'
+        r'(?:[ \t]+\d{1,2}(?!\d))?',
+        head, re.IGNORECASE):
+        full = m.group(0).strip()
+        # Title-case
+        words = full.split()
+        cand_str = ' '.join(w.capitalize() if (w.isupper() or w.islower())
+                             and len(w) > 1 else w for w in words)
+        cand = _clean_building_candidate(cand_str)
+        if cand:
+            return cand
+
+    # ── Pattern 12: First Title-Case line with 2-6 capitalised words ───────
+    # "ELIE SAAB A VIE at THE FIELDS D11", "Burj Binghatti Jacob & Co"
+    for line in head.split('\n')[:5]:
+        line_s = line.strip().strip('*_•-—|🌟🏡🏛🏢🏠🏘🚨🏗📍✨🔥💎💰 ')
+        line_s = re.sub(r'\*+', '', line_s).strip()
+        if not line_s or len(line_s) < 4 or len(line_s) > 70:
+            continue
+        words = line_s.split()
+        if not (2 <= len(words) <= 7):
+            continue
+        cap_words = sum(1 for w in words if w and w[0].isupper())
+        if cap_words >= max(2, len(words) - 1):
+            ll = line_s.lower()
+            # Reject category headers
+            if any(b in ll for b in (
+                'for sale', 'for rent', 'sale price', 'asking price',
+                'distress', 'property type', 'off plan', 'off-plan',
+                'available', 'sale:', 'rent:', 'new price', 'urgent sale',
+                'commission', 'status:', 'price:', 'size:', 'looking for',
+                'who is', 'admin', 'hello', 'hi ', 'subscribe',
+            )):
+                continue
+            cand = _clean_building_candidate(line_s)
+            if cand:
+                return cand
+
+    # ── Pattern 13: "<Building> at <KnownArea>" / "<Building> in <KnownArea>" ─
+    # "ELIE SAAB A VIE at THE FIELDS"
+    for m in re.finditer(
+        r'\b([A-Z][A-Za-z0-9&\'\s]{3,40})\s+(?:at|in)\s+([A-Z][A-Za-z0-9&\'\s]{3,40})',
+        head):
+        cand = _clean_building_candidate(m.group(1))
+        if cand and not _is_building_stopword(cand):
+            return cand
+
+    # ── Pattern 14: "<Building> by <Developer>"
+    # "Galaxy by Binghatti", "ESPLORA by BNW", "Skyz By Danube"
+    for m in re.finditer(
+        r'\b([A-Z][A-Za-z0-9&\'\-\s]{2,40})\s+by\s+([A-Z][A-Za-z]+)\b',
+        head, re.IGNORECASE):
+        cand_raw = m.group(1).strip()
+        # Title-case if all caps or all lower
+        if cand_raw.isupper() or cand_raw.islower():
+            cand_raw = cand_raw.title()
+        cand = _clean_building_candidate(cand_raw)
+        if cand and not _is_building_stopword(cand):
+            return cand
+
+    # ── Pattern 15: NUMBER + Title-Case + Suffix (e.g. "17 Icon Bay", "320 Riverside Crescent")
+    for m in re.finditer(
+        r'(?:^|\n)\s*(\d{1,4}\s+[A-Z][A-Za-z0-9&\'\s]{3,40}\s+'
+        r'(?:Tower|Towers|Bay|Crescent|Residences?|Heights|Place|Court|Plaza))',
+        head):
+        cand = _clean_building_candidate(m.group(1).strip())
+        if cand:
+            return cand
+
     return None
 
 
@@ -1598,20 +1775,25 @@ def extract_bedrooms(text: str) -> Optional[int]:
     tl = text.lower()
     def _ok(v):
         return v if 0 <= v <= 15 else None
+    # ── European decimal: "2,5 bedroom" / "1.5 bedroom" → integer floor.
+    # Это означает «2 BR + study» (полкомнаты = кабинет). Парсер раньше брал
+    # 5 как BR, что ломало sqft/br ratio.
+    m = re.search(r'(\d)[,.]5\s*(?:bedroom|bed\b|br\b|bdr\b|bhk)', tl)
+    if m:
+        v = _ok(int(m.group(1)))
+        if v is not None: return v
     # Numeric patterns FIRST (higher confidence than 'studio')
-    m = re.search(r'(\d+)[ \t]*bhk\b', tl)
+    # Separator class `[ \t\-]*` allows "1-bed", "1bed", "1 bed", "1bd"
+    m = re.search(r'(\d+)[ \t\-]*bhk\b', tl)
     if m:
         v = _ok(int(m.group(1)))
         if v is not None: return v
-    m = re.search(r'(\d+)[ \t]*(?:br|bed(?:room)?s?)\b', tl)
+    # bd | bdr | br | bed | bedroom | beds | bedrooms — all with optional `-`/space
+    m = re.search(r'(\d+)[ \t\-]*(?:bedrooms?|bdrs?|brs?|beds?|bds?)\b', tl)
     if m:
         v = _ok(int(m.group(1)))
         if v is not None: return v
-    m = re.search(r'(\d+)[ \t]*(?:bedroom|bed)\b', tl)
-    if m:
-        v = _ok(int(m.group(1)))
-        if v is not None: return v
-    m = re.search(r'(\d+)[ \t]*(?:bdr|b/r)\b', tl)
+    m = re.search(r'(\d+)[ \t\-]*(?:bdr|b/r)\b', tl)
     if m:
         v = _ok(int(m.group(1)))
         if v is not None: return v
@@ -1777,6 +1959,8 @@ def _parse_amount(s: str) -> Optional[int]:
     s = re.sub(r'\bAED\b|\bUSD\b|\bEUR\b|\bДРХ\b|د\.إ', '', s, flags=re.IGNORECASE).strip()
     # Now collapse internal spaces
     s = s.replace(" ", "")
+    # Strip leading punctuation (period/comma/dash) — иначе "Price. 650k" → ".650k" → 0.65k=650.
+    s = s.lstrip(".,-*:")
     # European decimal handling: "1,59" → "1.59" (single comma, 1-2 digits after).
     # Multiple commas → thousand separators (US style): "1,200,000" → "1200000".
     if s.count(",") == 1 and "." not in s:
@@ -1821,17 +2005,21 @@ def _parse_amount(s: str) -> Optional[int]:
 
 def _strip_phones(text: str) -> str:
     """Remove phone numbers so they can't be mistaken for prices."""
-    # ANY international format: +XXX followed by 8-14 digits (with optional spaces/dashes)
-    # Catches +971, +380, +1, +44, +7, etc.
-    text = re.sub(r'(?<!\d)\+\d[\d\s\-\(\)]{8,16}\d(?!\d)', ' ', text)
+    # ANY international format: +XXX followed by 8-20 chars (digits/space/dash/paren).
+    # Catches +971, +380, +1, +44, +7, +44, etc. Range bumped to 20 chars to handle
+    # heavily-spaced formats like '+ 971 55 109 0599' (18 chars).
+    text = re.sub(r'(?<!\d)\+\s*\d[\d\s\-\(\)]{6,22}\d(?!\d)', ' ', text)
     # 00XXX international prefix
-    text = re.sub(r'(?<!\d)00\d{1,3}[\s\-]?\d[\d\s\-]{7,13}(?!\d)', ' ', text)
+    text = re.sub(r'(?<!\d)00\d{1,3}[\s\-]?\d[\d\s\-]{7,16}(?!\d)', ' ', text)
     # 05X-XXX-XXXX (local UAE mobile)
     text = re.sub(r'(?<!\d)0(?:50|52|54|55|56|58|2|3|4|6|7|9)\d{7}(?!\d)', ' ', text)
+    # 50/52/54/55/56/58 XXX XXXX (mobile without leading 0/+, common in posts)
+    text = re.sub(r'(?<!\d)(?:50|52|54|55|56|58)[\s\-]?\d{3}[\s\-]?\d{4}(?!\d)', ' ', text)
     # Bare 971XXXXXXXXX at word boundary (no + prefix)
-    text = re.sub(r'(?<!\d)971[5][0-9]{8}(?!\d)', ' ', text)
-    # Bare long digit run >= 10 digits without M/K context (likely phone)
-    text = re.sub(r'(?<![\d.,])\d{10,15}(?!\s*[mkbMKB])', ' ', text)
+    text = re.sub(r'(?<!\d)971\s*\d[\d\s\-]{7,12}(?!\d)', ' ', text)
+    # Bare long digit run >= 9 digits without M/K context (likely phone)
+    # (was 10 — bumped down to 9 to catch '551090599' which is a mobile minus country code)
+    text = re.sub(r'(?<![\d.,])\d{9,15}(?!\s*[mkbMKB])(?!\.\d)', ' ', text)
     return text
 
 
@@ -1872,12 +2060,75 @@ def extract_price(text: str) -> dict:
     text = re.sub(
         r'\bdld\s+(?:fee|4%)?[\s:=]*(?:aed\s+)?[\d,]+(?:\.\d+)?', ' ',
         text, flags=re.I)
-    # ── Normalise space-separated numbers ("560 000" → "560000") ────────
-    # Только для последовательностей которые точно outside phones (не ловим +971 50 ...)
-    # Pattern: 3-4 digit + (space + 3 digits)+
+    # ── Rental income / yield mentions — это НЕ цена объекта, а доход.
+    # «Rental income: AED 1.34M / Annual rental: 330,000 / Rented at 110k»
     text = re.sub(
-        r'(\d{1,3})(?:\s(\d{3}))+',
-        lambda m: m.group(0).replace(" ", ""),
+        r'\b(?:rental?\s+income|annual\s+rental?|rented\s+(?:at|for)|rent\s+income|net\s+roi)[\s:=]+(?:aed\s+)?[\d,.\s]+\s*(?:k|m|mln|million)?',
+        ' ', text, flags=re.I)
+    text = re.sub(
+        r'\bexpected\s+(?:roi|yield|return)[\s:=]+[\d,.~\-– ]+\s*%?',
+        ' ', text, flags=re.I)
+    # Strip per-sqft/per-sqm references — these are unit prices, NOT total price.
+    # Examples: "1000aed per sqft", "1,300 AED/sqft", "$450 psf",
+    #           "market price 1300aed per sqft", "1.5K per sqm"
+    text = re.sub(
+        r'[\d,\.]+\s*(?:aed|usd|eur)?\s*[/\\]?\s*(?:per\s+)?'
+        r'(?:sq\.?\s*ft|sqft|psf|sq\.?\s*m|sqm|psm|кв\.?\s*м|кв\.?\s*фут)',
+        ' ', text, flags=re.I)
+    # Также фразы "X aed/m²" с любыми вариациями
+    text = re.sub(
+        r'\b[\d,\.]+\s*(?:aed|\$|€)\s*/?\s*m[²2]\b',
+        ' ', text, flags=re.I)
+    # Strip "market price/avg price/list price X" reference numbers — these are
+    # not the actual sale price but a comparison value.
+    text = re.sub(
+        r'\bmarket\s+price[\s:=]+[\d,\.]+\s*(?:k|m|aed)?',
+        ' ', text, flags=re.I)
+    text = re.sub(
+        r'\b(?:avg|average)\s+price[\s:=]+[\d,\.]+\s*(?:k|m|aed)?',
+        ' ', text, flags=re.I)
+    # ── Normalise Cyrillic suffixes (often used in RU listings) ─────────
+    # 'AED 3.5М' → 'AED 3.5M', '500К' → '500K'
+    text = text.replace('М', 'M').replace('м', 'm').replace('К', 'K').replace('к', 'k')
+    # ── Mixed European format: "2.300 000" / "1.500 000" (dot + space thousands)
+    # ВАЖНО: ДО space-norm — иначе пробел между группами цифр съест и весь
+    # формат развалится.
+    text = re.sub(
+        r'\b(\d{1,3})\.(\d{3})\s+(\d{3})\b',
+        lambda m: f"{m.group(1)}{m.group(2)}{m.group(3)}",
+        text)
+    # ── Broken mixed: "7.800,000" / "1.500,000" — dot + comma 3-digit groups.
+    # Это часто опечатка вместо "7.800.000" — все разделители thousands.
+    text = re.sub(
+        r'\b(\d{1,3})\.(\d{3}),(\d{3})\b',
+        lambda m: f"{m.group(1)}{m.group(2)}{m.group(3)}",
+        text)
+    # ── Broken mixed: "7,800.000" — comma + dot 3-digit groups.
+    text = re.sub(
+        r'\b(\d{1,3}),(\d{3})\.(\d{3})\b',
+        lambda m: f"{m.group(1)}{m.group(2)}{m.group(3)}",
+        text)
+    # ── Normalise space-separated numbers ("560 000" → "560000") ────────
+    # Также ловим двойные пробелы: "1 500  000" → "1500000"
+    text = re.sub(
+        r'(\d{1,3})(?:\s+(\d{3}))+(?!\d)',
+        lambda m: re.sub(r'\s+', '', m.group(0)),
+        text)
+    # ── European thousand-separator with dots: "AED 3.000.000" / "230.000 AED"
+    # If a number has 2+ dots with 3-digit groups, collapse them.
+    text = re.sub(
+        r'\b(\d{1,3}(?:\.\d{3}){2,})\b',
+        lambda m: m.group(0).replace('.', ''),
+        text)
+    # Single-dot European thousand-sep ONLY when adjacent to AED/Dhs and YYY is 3 digits
+    # AND not followed by M/K/mln suffix (those mean millions, not thousands).
+    text = re.sub(
+        r'(?i)(\bAED|\bDhs|درهم)\s*(\d{1,3})\.(\d{3})\b(?!\s*[mk])',
+        lambda m: f"{m.group(1)} {m.group(2)}{m.group(3)}",
+        text)
+    text = re.sub(
+        r'(?i)\b(\d{1,3})\.(\d{3})\s*(AED|Dhs|درهم)\b',
+        lambda m: f"{m.group(1)}{m.group(2)} {m.group(3)}",
         text)
     t = text  # preserve original case for Cash regex
 
@@ -1915,7 +2166,9 @@ def extract_price(text: str) -> dict:
             return result
 
     if not result["price"]:
-        m = re.search(r'(?:price|asking price)\s*[:\-]?\s*([\d,\. ]+\s*(?:mln|m|k)?)', t, re.I)
+        # NB: после 'Price' может стоять период/двоеточие/тире/звёздочка/whitespace.
+        # Группа должна СТАРТОВАТЬ С ЦИФРЫ (не с точки!), иначе '. 650k' даёт 0.65k=650.
+        m = re.search(r'(?:price|asking\s*price)\s*[:.\-*]*\s*(\d[\d,\. ]*\s*(?:mln|m|k)?)', t, re.I)
         if m:
             v = _parse_amount(m.group(1))
             if v: result["price"] = v
@@ -1975,18 +2228,23 @@ def extract_price(text: str) -> dict:
 
     # ── Generic: number + K/M/ML ──────────────────────────────────────────────
     if not result["price"]:
-        for pat in [
-            r'([\d\.]+\s*[Mm][Ll])\b',     # 3.2ML
-            r'([\d\.]+)\s*[Mm]\b',          # 1.5M  (separate to avoid ML clash)
-            r'([\d\.]+)\s*[Kk]\b',          # 750k
-            r'(?:aed\s*)?([\d,\.]+)\s*([mk])\b',
-            r'(?:aed\s*)?([\d,]{6,})',
-        ]:
+        # (pattern, min_amount) — explicit AED-suffixed prices allow rents from 20k
+        patterns = [
+            (r'([\d\.]+\s*[Mm][Ll])\b', 100_000),     # 3.2ML
+            (r'([\d\.]+)\s*[Mm]\b', 100_000),          # 1.5M
+            (r'([\d\.]+)\s*[Kk]\b', 20_000),           # 750k / 78k (rent)
+            (r'(?:aed\s*)?([\d,\.]+)\s*([mk])\b', 20_000),
+            # Bare number with AED suffix: explicit currency = high confidence
+            (r'\b(\d{4,8})\s*(?:aed|dhs|درهم)\b', 20_000),
+            (r'(?:aed|dhs|درهم)\s*(\d{4,8})\b', 20_000),
+            (r'(?:aed\s*)?([\d,]{6,})', 100_000),
+        ]
+        for pat, min_amt in patterns:
             for m in re.finditer(pat, t, re.I):
                 groups = m.groups()
                 raw = "".join(g for g in groups if g)
                 amount = _parse_amount(raw)
-                if amount and amount > 100_000:
+                if amount and amount > min_amt:
                     result["price"] = amount
                     break
             if result["price"]:
@@ -2035,7 +2293,7 @@ def _first_listing_block(text: str) -> str:
         r'|[◆■◇★●▪▫◽◾◻◼]{3,}'           # геометрические разделители
         r'|[—–]{2,}\s*[—–]{2,}'         # сдвоенные тире
         r')\s*\n'
-        r'|\n\s*\n\s*\n',               # тройной \n (2+ пустых строки)
+        r'|\n\s*\n\s*\n\s*\n',          # 4+ newlines (3+ пустых строк) — раньше 3 рвало внутри одного листинга
         text, maxsplit=1
     )[0]
 
@@ -2065,15 +2323,21 @@ def extract_view(text: str) -> Optional[str]:
 
 def extract_floor(text: str) -> Optional[int]:
     """Floor from FIRST listing block only (multi-listing safety).
-    Sanity cap: 0..200 (Burj Khalifa is 163, tallest in UAE).
+    Sanity cap: 0..165 (Burj Khalifa is 163, tallest residential in UAE).
     All patterns are bound to same-line whitespace so 'High floor\\n2500 sqft'
-    does NOT capture 2500 as the floor."""
+    does NOT capture 2500 as the floor.
+    Также: число НЕ должно быть рядом с sq.m/sqm/sqft/m² (это размер, не этаж)."""
     text = _first_listing_block(text)
     def _ok(v):
-        return v if 0 <= v <= 200 else None
+        return v if 0 <= v <= 165 else None
+    def _not_sqm(text_around: str, pos: int) -> bool:
+        """Returns True если в радиусе 40 символов после числа НЕТ sq.m/sqft/m²."""
+        snippet = text_around[pos:pos+40].lower()
+        return not re.search(r'\bsq\.?\s*m\b|\bsqft\b|\bsq\.?\s*ft\b|\bm[²2]\b|\bкв', snippet)
     # "Floor: 5", "fl#7", "floor 12"  — same-line whitespace only (no newline)
-    m = re.search(r'(?:floor|fl)[ \t:#]*(\d+)', text, re.I)
-    if m:
+    # 'floor' as full word — иначе ловит fl... в любом слове
+    m = re.search(r'\bfloor[ \t:#]*(\d+)', text, re.I)
+    if m and _not_sqm(text, m.end()):
         v = _ok(int(m.group(1)))
         if v is not None:
             return v
@@ -2086,14 +2350,14 @@ def extract_floor(text: str) -> Optional[int]:
     # "8 floor", "5 floor" — number + space + floor (no ordinal)
     m = re.search(r'(?<!\d)(\d+)\s+floor\b', text, re.I)
     if m:
-        v = int(m.group(1))
-        if 0 <= v <= 200:
+        v = _ok(int(m.group(1)))
+        if v is not None:
             return v
     # "23floor" — number directly attached
     m = re.search(r'(?<!\d)(\d+)floor\b', text, re.I)
     if m:
-        v = int(m.group(1))
-        if 0 <= v <= 200:
+        v = _ok(int(m.group(1)))
+        if v is not None:
             return v
     return None
 
@@ -2144,6 +2408,12 @@ def extract_property_type(text: str, bedrooms: Optional[int] = None) -> str:
     head_stripped = re.sub(r'\bduplex\s+views?\b', ' ', head_stripped, flags=re.I)
     head_stripped = re.sub(r'\btwo[\s\-]storey\s+(?:apartment|apartments)\b', ' ',
                             head_stripped, flags=re.I)
+
+    # GUARD: "G+X building for sale" / "G+12 tower" — whole-building offer.
+    # Has explicit floor count + building/tower noun.
+    if re.search(r'\bg\s*\+\s*\d{1,2}\b.*\b(?:building|tower)\b.*\b(?:for\s+sale|for\s+rent|for\s+lease)\b',
+                  head_stripped, re.I):
+        return "whole_building"
 
     # GUARD: "VILLA PLOT" / "VILLA LAND" / "Residential Plot" — это PLOT, не villa.
     # Парсер сейчас матчит 'villa' первой раньше 'plot'. Override:
@@ -2252,11 +2522,23 @@ def extract_extra_info(text: str, property_type: str) -> dict:
 
 
 def extract_status(text: str) -> Optional[str]:
+    """Property status. Priority: offplan > rented > vacant > ready.
+    'Ready to sell/sign/deal' — seller intent, NOT property status.
+    """
     tl = text.lower()
-    for status, keywords in STATUS_KEYWORDS.items():
-        for kw in keywords:
-            if kw in tl:
-                return status
+    # Off-plan markers (highest priority — supersedes "ready" mentions)
+    if re.search(r'\boff[\s-]?plan\b|\bunder\s+construction\b|\bhandover\s+(?:q[1-4]|in\s+\d{4}|\d{4}|date)', tl):
+        return "offplan"
+    # Rented / tenanted
+    if re.search(r'\b(?:rented|tenanted|with\s+tenant|leased)\b', tl):
+        return "rented"
+    # Vacant
+    if re.search(r'\bvacant\b|\bunoccupied\b|\bvacant\s+on\s+transfer\b', tl):
+        return "vacant"
+    # Ready (real) — must be "ready to move in", "completed", "handed over"
+    # NOT "ready to sell/sign/deal/negotiate" (that's seller intent)
+    if re.search(r'\bready\s+to\s+(?:move\s+in|occupy)\b|\bcompleted\b|\bhanded\s+over\b', tl):
+        return "ready"
     return None
 
 
@@ -2861,6 +3143,122 @@ def parse_message(
             price = None
             price_per_sqft = None
 
+    # ── KEYWORD-BASED reclassification (strict text-content check) ──────────
+    # Парсер должен ВИДЕТЬ ключевое слово в тексте, иначе reclass на правильное.
+    tl_head = first_block[:500].lower()
+    has_kw = {
+        "villa":          "villa" in tl_head or "mansion" in tl_head,
+        "townhouse":      "townhouse" in tl_head or "town house" in tl_head,
+        "penthouse":      "penthouse" in tl_head or "pent house" in tl_head,
+        "studio":         "studio" in tl_head,
+        "duplex":         "duplex" in tl_head,
+        "plot":           "plot" in tl_head or "land for sale" in tl_head[:300],
+        "office":         "office" in tl_head,
+        "retail":         "retail" in tl_head or "shop for" in tl_head,
+        "whole_building": any(k in tl_head for k in (
+            "whole building","full building","building for sale","tower for sale",
+            "entire building","residential building")),
+    }
+    has_plot_bua = bool(re.search(r'\bplot\s*[:]\s*\d', tl_head)
+                         and re.search(r'\bbua\s*[:]\s*\d', tl_head))
+
+    # PENTHOUSE без "penthouse" в тексте → реклассификация
+    if prop_type == "penthouse" and not has_kw["penthouse"]:
+        if has_kw["whole_building"]:
+            prop_type = "whole_building"
+        elif has_kw["plot"] or "gfa" in tl_head:
+            prop_type = "plot"
+        elif (has_kw["villa"] or "mansion" in tl_head) or has_plot_bua:
+            prop_type = "villa"
+        else:
+            prop_type = "apartment"
+
+    # WHOLE_BUILDING без явных ключевых слов → реклассификация
+    if prop_type == "whole_building" and not has_kw["whole_building"]:
+        if "full floor" in tl_head and has_kw["office"]:
+            prop_type = "office"
+        elif (("land" in tl_head[:200] or "plot" in tl_head[:200]) and "gfa" in tl_head):
+            prop_type = "plot"
+        elif has_plot_bua and (has_kw["villa"] or "bedroom" in tl_head):
+            prop_type = "villa"
+        elif has_kw["villa"]:
+            prop_type = "villa"
+
+    # VILLA без "villa"/"mansion" → реклассификация
+    if prop_type == "villa" and not has_kw["villa"]:
+        if has_kw["townhouse"]:
+            prop_type = "townhouse"
+        elif has_kw["apartment"] if False else "apartment" in tl_head:
+            prop_type = "apartment"
+
+    # TOWNHOUSE без "townhouse" → реклассификация
+    if prop_type == "townhouse" and not has_kw["townhouse"]:
+        if has_kw["villa"]:
+            prop_type = "villa"
+        elif "apartment" in tl_head:
+            prop_type = "apartment"
+
+    # PLOT — building always NULL (земля не имеет building, только community)
+    if prop_type == "plot" and building:
+        building = None
+        building_conf = 0.0
+
+    # PLOT — bedrooms not meaningful (плот — это земля, не квартира).
+    # Текст вроде «5 bedroom villa plot» означает «участок под виллу на 5 BR»,
+    # но ещё не построено. Bedrooms должен быть NULL для plot.
+    if prop_type == "plot" and bedrooms is not None:
+        bedrooms = None
+
+    # WHOLE_BUILDING — bedrooms тоже не имеет смысла (это всё здание)
+    if prop_type == "whole_building" and bedrooms is not None:
+        bedrooms = None
+
+    # building == area (case-insensitive) → удалить building, это area-как-building bug
+    if building and area and building.strip().lower() == area.strip().lower():
+        building = None
+        building_conf = 0.0
+
+    # Final stopword check на extracted building (на случай если detect_building не отсек)
+    if building and _is_building_stopword(building):
+        building = None
+        building_conf = 0.0
+
+    # ── Building post-clean (Round 6 rules) ────────────────────────────────
+    if building:
+        bl = building.strip().lower()
+        # Hard-NULL noise words
+        if bl in {'year','month','day','week','price','sale','rent','studio',
+                   'apartment','villa','townhouse','plot','land','unit','flat',
+                   '1 bedroom','2 bedroom','3 bedroom','4 bedroom','5 bedroom',
+                   'bedroom','available','vacant','furnished','unfurnished',
+                   'high floor','low floor','mid floor','top floor'}:
+            building = None
+            building_conf = 0.0
+        # Starts with digit + bedroom-noun
+        elif re.match(r'^\d+[\s\-]*(?:bedroom|bed|br|bdr|bhk)s?\b', bl):
+            building = None
+            building_conf = 0.0
+        # Plot Area / GFA / BUA phrases
+        elif re.search(r'\b(?:plot\s+area|sqft\s+area|bua|gfa)\b', bl):
+            building = None
+            building_conf = 0.0
+        else:
+            cleaned = building
+            cleaned = re.sub(r'^(?:apartment|studio|villa|townhouse|penthouse|'
+                              r'duplex|office|flat|unit)\s+in\s+', '', cleaned, flags=re.I)
+            cleaned = re.sub(r'^[^\w\d]+', '', cleaned).strip()
+            cleaned = re.sub(r'\s*[-–—]\s*plot\s*$', '', cleaned, flags=re.I)
+            cleaned = re.sub(r'\s+plot\s*$', '', cleaned, flags=re.I)
+            if area:
+                pat = re.compile(r'\s*[-–—]\s*' + re.escape(area) + r'\s*$', re.I)
+                cleaned = pat.sub('', cleaned).strip()
+            cleaned = cleaned.strip(' -—–|*')
+            if not cleaned or len(cleaned) < 3:
+                building = None
+                building_conf = 0.0
+            else:
+                building = cleaned
+
     # ── Property type sanity by price/size — переклассификация ───────────────
     # Villa в Дубае реально не дешевле 2M AED. Если price<2M + type=villa,
     # это не villa (парсер угадал по 'villas view' или из multi-listing).
@@ -2917,7 +3315,9 @@ def parse_message(
         "message_date": message_date.isoformat() if hasattr(message_date, 'isoformat') else str(message_date),
         "original_text": original_text[:2000],
         "seller_username": seller_username,
-        "deal_type": deal_type,
+        # GUARD: plot/whole_building почти всегда sale (rent для земли в UAE — крайняя редкость).
+        # Multi-listing posts с rent-сигналами могли неверно классифицировать plot как rent.
+        "deal_type": "sale" if prop_type in ("plot", "whole_building") else deal_type,
         "property_type": prop_type,
 
         "emirate": emirate,
@@ -3023,6 +3423,17 @@ def _validate_listing_strict(data: dict) -> list:
 
     # Price plausibility
     residential = {"apartment","villa","townhouse","penthouse","studio","duplex"}
+
+    # АБСОЛЮТНЫЕ полы независимо от bedrooms (защита от мусора):
+    # - rent < 15000 AED/год = невозможно (минимум в UAE ~25k)
+    # - sale < 200000 AED = невозможно (минимум в UAE ~350k)
+    if price and pt in residential:
+        if deal == "rent" and price < 15000:
+            reasons.append(f"rent_absurd_low_{price}")
+        elif deal == "sale" and price < 200000:
+            reasons.append(f"sale_absurd_low_{price}")
+
+    # Контекстные полы (с учётом bedrooms)
     if price and br is not None and br > 0 and pt in residential:
         if deal == "rent":
             min_rent = {1:40000,2:60000,3:90000,4:120000}.get(br, 30000)
@@ -3032,6 +3443,17 @@ def _validate_listing_strict(data: dict) -> list:
             min_sale = {1:500000,2:900000,3:1500000,4:2500000}.get(br, 350000)
             if price < min_sale * 0.4:
                 reasons.append(f"sale_too_low_{price}")
+
+    # Sqft-based plausibility for rent: < 8 AED/sqft/year = почти точно битая цена
+    if price and sqft and sqft > 200 and deal == "rent" and pt in residential:
+        psf = price / sqft
+        if psf < 8:
+            reasons.append(f"rent_psf_absurd_{int(psf)}")
+    # Sqft-based for sale: < 150 AED/sqft = битая цена
+    if price and sqft and sqft > 200 and deal == "sale" and pt in residential:
+        psf = price / sqft
+        if psf < 150:
+            reasons.append(f"sale_psf_absurd_{int(psf)}")
 
     # Sqft plausibility
     if sqft and br is not None and br > 0:
