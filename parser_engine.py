@@ -1849,16 +1849,25 @@ def extract_view(text: str) -> Optional[str]:
 
 
 def extract_floor(text: str) -> Optional[int]:
-    """Floor from FIRST listing block only (multi-listing safety)."""
+    """Floor from FIRST listing block only (multi-listing safety).
+    Sanity cap: 0..200 (Burj Khalifa is 163, tallest in UAE).
+    All patterns are bound to same-line whitespace so 'High floor\\n2500 sqft'
+    does NOT capture 2500 as the floor."""
     text = _first_listing_block(text)
-    # "Floor: 5", "fl#7", "floor 12"
-    m = re.search(r'(?:floor|fl)[:\s#]*(\d+)', text, re.I)
+    def _ok(v):
+        return v if 0 <= v <= 200 else None
+    # "Floor: 5", "fl#7", "floor 12"  — same-line whitespace only (no newline)
+    m = re.search(r'(?:floor|fl)[ \t:#]*(\d+)', text, re.I)
     if m:
-        return int(m.group(1))
+        v = _ok(int(m.group(1)))
+        if v is not None:
+            return v
     # "5th floor", "23rd Floor"
     m = re.search(r'(\d+)(?:st|nd|rd|th)\s*floor', text, re.I)
     if m:
-        return int(m.group(1))
+        v = _ok(int(m.group(1)))
+        if v is not None:
+            return v
     # "8 floor", "5 floor" — number + space + floor (no ordinal)
     m = re.search(r'(?<!\d)(\d+)\s+floor\b', text, re.I)
     if m:
