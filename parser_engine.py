@@ -193,7 +193,8 @@ AREA_ABBR = {
     "SC":   "Sports City",
     "MC":   "Motor City",
     "DH2":  "DAMAC Hills 2",
-    "AR":   "Arabian Ranches",
+    # NOTE: "AR" alone removed — слишком короткий, ловит "Ar**ea" (markdown break)
+    # и "Area" во многих текстах. AR2/AR3 безопасны (с цифрой).
     "AR2":  "Arabian Ranches 2",
     "AR3":  "Arabian Ranches 3",
     "MJL":  "Madinat Jumeirah",
@@ -1100,11 +1101,18 @@ def detect_area(text: str, known_emirate: Optional[str] = None) -> tuple[Optiona
     Returns (area_name, confidence, emirate_from_area, possible_emirates).
     possible_emirates is non-empty only for ambiguous areas.
     """
-    # Expand abbreviations in text before matching
+    # Expand abbreviations in text before matching.
+    # CASE-SENSITIVE: эти аббревиатуры в реальной речи всегда UPPERCASE
+    # (JVC, JBR, DCH, ...). Раньше с flags=re.I мы ловили "dh" внутри
+    # "downhill" и т.п. — теперь требуем точное uppercase.
+    # Также требуем space/punct по краям (не markdown ** или _).
     expanded_text = text
     for abbr, full in AREA_ABBR.items():
-        # Only replace standalone abbreviations (word boundaries)
-        expanded_text = re.sub(r'\b' + re.escape(abbr) + r'\b', full, expanded_text, flags=re.I)
+        # `\b` matches at `**` boundary which leaks `AR` inside `Ar**ea`.
+        # Use stricter: surrounded by whitespace, comma, slash, paren, or start/end.
+        expanded_text = re.sub(
+            r'(?<![A-Za-z0-9])' + re.escape(abbr) + r'(?![A-Za-z0-9])',
+            full, expanded_text)
 
     tl = expanded_text.lower()
     # Sort by name length DESC to avoid partial matches (e.g. "Marina" before "Dubai Marina")

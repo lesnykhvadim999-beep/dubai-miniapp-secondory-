@@ -25,6 +25,8 @@ for lid, bld, area, ptype, br, sz, pr, txt in rows:
         new = parse_message(txt, lid, None, 0)
     except Exception:
         continue
+    if not new:
+        continue
 
     updates = {}
     new_bld = (new.get('building') or '').strip() or None
