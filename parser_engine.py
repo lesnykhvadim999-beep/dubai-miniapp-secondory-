@@ -1490,27 +1490,46 @@ def nominatim_lookup(query: str) -> Optional[dict]:
 # PROPERTY DETAILS EXTRACTION
 # ══════════════════════════════════════════════════════════════════════════════
 def extract_bedrooms(text: str) -> Optional[int]:
-    """Bedrooms from FIRST listing block. Numeric patterns (N BR, N Bed)
-    take priority over the 'studio' keyword — a multi-listing where the
-    primary is '4 bedroom' but a later listing is studio used to return 0.
+    """Bedrooms from FIRST listing block. Numeric patterns take priority over
+    'studio'. All patterns are same-line bound — `\\s*` would otherwise eat
+    `\\n` and capture the next line's sqft/year (e.g. "Three bedroom\\n2300 sqft"
+    => bedrooms=2300). Sanity cap: 0..15.
     """
     text = _first_listing_block(text)
     tl = text.lower()
+    def _ok(v):
+        return v if 0 <= v <= 15 else None
     # Numeric patterns FIRST (higher confidence than 'studio')
-    m = re.search(r'(\d+)\s*bhk\b', tl)
-    if m: return int(m.group(1))
-    m = re.search(r'(\d+)\s*(?:br|bed(?:room)?s?)\b', tl)
-    if m: return int(m.group(1))
-    m = re.search(r'(\d+)\s*(?:bedroom|bed)\b', tl)
-    if m: return int(m.group(1))
-    m = re.search(r'(\d+)\s*(?:bdr|b/r)\b', tl)
-    if m: return int(m.group(1))
-    m = re.search(r'bedrooms?\s*[:\-]?\s*(\d+)', tl)
-    if m: return int(m.group(1))
-    m = re.search(r'(\d+)\s*bedrooms?', tl)
-    if m: return int(m.group(1))
-    m = re.search(r'rooms?\s*[:\-]\s*(\d+)', tl)
-    if m: return int(m.group(1))
+    m = re.search(r'(\d+)[ \t]*bhk\b', tl)
+    if m:
+        v = _ok(int(m.group(1)))
+        if v is not None: return v
+    m = re.search(r'(\d+)[ \t]*(?:br|bed(?:room)?s?)\b', tl)
+    if m:
+        v = _ok(int(m.group(1)))
+        if v is not None: return v
+    m = re.search(r'(\d+)[ \t]*(?:bedroom|bed)\b', tl)
+    if m:
+        v = _ok(int(m.group(1)))
+        if v is not None: return v
+    m = re.search(r'(\d+)[ \t]*(?:bdr|b/r)\b', tl)
+    if m:
+        v = _ok(int(m.group(1)))
+        if v is not None: return v
+    # Label-before-number: 'Bedrooms: 1' — same-line only
+    m = re.search(r'\bbedrooms?[ \t]*[:\-]?[ \t]*(\d+)', tl)
+    if m:
+        v = _ok(int(m.group(1)))
+        if v is not None: return v
+    m = re.search(r'(\d+)[ \t]*bedrooms?', tl)
+    if m:
+        v = _ok(int(m.group(1)))
+        if v is not None: return v
+    # 'Rooms: 2' — require explicit separator (avoid catching "rooms\n2026")
+    m = re.search(r'\brooms?[ \t]*[:\-][ \t]*(\d+)', tl)
+    if m:
+        v = _ok(int(m.group(1)))
+        if v is not None: return v
     # Studio only if no numeric pattern found
     if re.search(r'\bstudio\b|\bstd\b', tl):
         return 0
