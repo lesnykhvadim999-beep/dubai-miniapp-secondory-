@@ -379,6 +379,10 @@ T = {
     "stats_last_sync":   "Last sync",
     "area_custom_btn":    "✏️  Enter area name",
     "area_custom_q":      "Type the area or district name:",
+    "wiz_area_q":         "🏙 *Choose location*\n\nType area name (full or abbreviation: Marina, JVC, DT, Palm, JBR…)\nor tap «Any location» to skip.",
+    "wiz_area_any":       "🌍 Any location",
+    "wiz_area_match":     "Matching areas — tap one:",
+    "wiz_area_nomatch":   "_No area matched «{q}». Try shorter spelling or tap «Any location»._",
     "area_custom_none":   "No properties found for \"{text}\". Try a different area name.",
     "add_area_custom_btn": "✏️  Enter custom area",
     "add_area_custom_q":   "Type your area name:",
@@ -611,6 +615,10 @@ T = {
     "stats_searches":    "Поисков сегодня",
     "area_custom_btn":    "✏️  Ввести свой район",
     "area_custom_q":      "Напишите название района или района:",
+    "wiz_area_q":         "🏙 *Выберите район*\n\nНапишите название (полностью или сокращение: Marina, JVC, DT, Palm, JBR, Бизнес-Бей…)\nили нажмите «Любой район» чтобы пропустить.",
+    "wiz_area_any":       "🌍 Любой район",
+    "wiz_area_match":     "Подходящие районы — нажмите:",
+    "wiz_area_nomatch":   "_Район «{q}» не найден. Попробуйте сократить или нажмите «Любой район»._",
     "area_custom_none":   "По запросу \"{text}\" ничего не найдено. Попробуйте другое название.",
     "add_area_custom_btn": "✏️  Ввести свой район",
     "add_area_custom_q":   "Напишите название района:",
@@ -852,6 +860,10 @@ T = {
     "mod_rejected": "❌ مرفوض",
     "area_custom_btn":    "✏️  أدخل اسم المنطقة",
     "area_custom_q":      "اكتب اسم المنطقة أو الحي:",
+    "wiz_area_q":         "🏙 *اختر المنطقة*\n\nاكتب اسم المنطقة (كامل أو اختصار: Marina, JVC, DT, Palm…)\nأو اضغط «أي منطقة» لتخطي.",
+    "wiz_area_any":       "🌍 أي منطقة",
+    "wiz_area_match":     "المناطق المطابقة — اضغط:",
+    "wiz_area_nomatch":   "_لم تتطابق منطقة مع «{q}»._",
     "area_custom_none":   "لا نتائج لـ \"{text}\". جرب اسماً آخر.",
     "add_area_custom_btn": "✏️  أدخل منطقتك",
     "add_area_custom_q":   "اكتب اسم المنطقة:",
@@ -1037,6 +1049,14 @@ def kb_reply_bedrooms(uid):
     ])
 
 
+def kb_reply_area_input(uid):
+    """Bottom keyboard для шага «введите район»."""
+    return _reply_kb([
+        [_t(uid, "wiz_area_any")],
+        [_t(uid, "rbtn_home")],
+    ])
+
+
 def kb_reply_results(uid, has_more=False):
     """Bottom reply keyboard shown AFTER a results batch."""
     rows = []
@@ -1177,6 +1197,85 @@ BEDROOM_KEYS = {
     "br_4p_btn":     99,
     "br_any_btn":    None,
 }
+
+
+# ── Smart area search ────────────────────────────────────────────────────────
+_AREA_CACHE = {"data": None, "expires": 0}
+
+def _load_all_areas() -> list:
+    """Возвращает list of dicts: {name, emirate, aliases:[..]}.
+    Кэш на 1 час — areas/listings не меняются часто."""
+    import time as _time
+    now = _time.time()
+    if _AREA_CACHE["data"] and _AREA_CACHE["expires"] > now:
+        return _AREA_CACHE["data"]
+    out: dict = {}   # name → {name, emirate, aliases}
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            # 1. Базовый список — areas table (с aliases)
+            cur.execute("SELECT name, emirate, aliases FROM areas WHERE name IS NOT NULL")
+            for r in cur.fetchall():
+                aliases = list(r.get("aliases") or [])
+                out[r["name"]] = {
+                    "name": r["name"],
+                    "emirate": r.get("emirate"),
+                    "aliases": aliases,
+                }
+            # 2. Дополнить — все уникальные area из listings (если их нет в areas)
+            cur.execute("""
+                SELECT DISTINCT area, emirate FROM listings
+                WHERE is_active = TRUE AND area IS NOT NULL
+                  AND (is_audit IS NULL OR is_audit = FALSE)
+            """)
+            for r in cur.fetchall():
+                if r["area"] and r["area"] not in out:
+                    out[r["area"]] = {
+                        "name": r["area"],
+                        "emirate": r.get("emirate"),
+                        "aliases": [],
+                    }
+        conn.close()
+    except Exception as e:
+        print(f"[area_search] DB error: {e}")
+    items = list(out.values())
+    _AREA_CACHE["data"] = items
+    _AREA_CACHE["expires"] = now + 3600
+    return items
+
+
+def search_areas_by_query(q: str, emirate: str = None, limit: int = 8) -> list:
+    """Возвращает top-N matching areas. Логика:
+       1. Точное совпадение name / alias (case-insensitive) — топ
+       2. startswith — следующие
+       3. contains — последние
+    Если emirate задан — фильтруем."""
+    if not q or len(q.strip()) < 1:
+        return []
+    qn = q.strip().lower()
+    items = _load_all_areas()
+    if emirate:
+        items = [i for i in items if not i.get("emirate") or i["emirate"] == emirate]
+
+    exact, starts, contains = [], [], []
+    for item in items:
+        names_to_check = [item["name"]] + list(item.get("aliases") or [])
+        names_lower = [n.lower() for n in names_to_check if n]
+        if qn in names_lower:
+            exact.append(item); continue
+        if any(n.startswith(qn) for n in names_lower):
+            starts.append(item); continue
+        if any(qn in n for n in names_lower):
+            contains.append(item)
+    # Дедуп — name уникален
+    seen, result = set(), []
+    for it in exact + starts + contains:
+        if it["name"] in seen: continue
+        seen.add(it["name"]); result.append(it)
+        if len(result) >= limit:
+            break
+    return result
+
 
 # AI Assistant flow — bottom reply keyboard buttons
 AI_GOAL_KEYS = {
@@ -3140,20 +3239,58 @@ def dispatch_wizard_button(cid, uid, text):
     if wizard == "budget":
         # "Any" → no min/max
         if text == _t(uid, "b_any_btn"):
-            state["wizard"] = None
-            _send(cid, _t(uid, "searching"), kb_main_reply(uid))
-            do_search(uid)
-            send_results(cid, uid)
+            # Skip budget, go to area input
+            state["wizard"] = "area_input"
+            _send(cid, _t(uid, "wiz_area_q"), kb_reply_area_input(uid))
             return True
         if text in BUDGET_BUTTONS:
             mn, mx = BUDGET_BUTTONS[text]
             if mn is not None: filters["min_price"] = mn
             if mx is not None: filters["max_price"] = mx
+            # Next step — area input with smart suggestions
+            state["wizard"] = "area_input"
+            _send(cid, _t(uid, "wiz_area_q"), kb_reply_area_input(uid))
+            return True
+
+    # Area input step — текстовый ввод с автоподсказками
+    if wizard == "area_input":
+        # Skip — поиск без area filter
+        if text == _t(uid, "wiz_area_any") or text == _t(uid, "rbtn_home"):
+            if text == _t(uid, "rbtn_home"):
+                state["wizard"] = None
+                show_main(cid, uid)
+                return True
             state["wizard"] = None
             _send(cid, _t(uid, "searching"), kb_main_reply(uid))
             do_search(uid)
             send_results(cid, uid)
             return True
+        # Поиск по введённому тексту
+        emirate = filters.get("emirate")
+        matches = search_areas_by_query(text, emirate=emirate, limit=8)
+        if not matches:
+            _send(cid, _t(uid, "wiz_area_nomatch").replace("{q}", text),
+                  kb_reply_area_input(uid))
+            return True
+        # Один точный матч — сразу применяем
+        if len(matches) == 1:
+            filters["area"] = matches[0]["name"]
+            state["wizard"] = None
+            _send(cid, _t(uid, "searching"), kb_main_reply(uid))
+            do_search(uid)
+            send_results(cid, uid)
+            return True
+        # Несколько — показываем inline-кнопки для выбора
+        rows = []
+        for it in matches:
+            label = it["name"]
+            if it.get("aliases"):
+                label = f"{it['name']}  ({it['aliases'][0]})"
+            rows.append([_btn(label, f"pickarea|{it['name']}")])
+        rows.append([_btn(_t(uid, "wiz_area_any"), "pickarea|__any__")])
+        _send(cid, _t(uid, "wiz_area_match"),
+              {"inline_keyboard": rows})
+        return True
 
     return False
 
@@ -4099,6 +4236,17 @@ def handle_cb(cb):
         elif parts[1] == "back": show_main(cid, uid, mid)
 
     # ── Favorites ─────────────────────────────────────────────────────────────
+    # ── Area picker — выбор района из suggestions ────────────────────────────
+    elif action == "pickarea":
+        chosen = parts[1] if len(parts) > 1 else "__any__"
+        s = gs(uid)
+        if chosen != "__any__":
+            s["filters"]["area"] = chosen
+        s["wizard"] = None
+        _send(cid, _t(uid, "searching"), kb_main_reply(uid))
+        do_search(uid)
+        send_results(cid, uid)
+
     elif action == "fav":
         lid = int(parts[1]) if len(parts) > 1 else 0
         from db_schema import add_favorite, remove_favorite, is_favorited
