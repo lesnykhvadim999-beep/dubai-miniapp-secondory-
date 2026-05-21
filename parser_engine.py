@@ -1836,12 +1836,21 @@ def extract_price(text: str) -> dict:
         # Slash price: 8,000/m or 8000/month
         m = re.search(r'([\d][\d,\. ]*)/(?:m\b|mo\b|month)', t, re.I)
     # Slash price: 8,000/m or 8000/month
-    m = re.search(r'([\d][\d,\. ]*)/(?:m\b|mo\b|month)', t, re.I)
-    if m:
-        v = _parse_amount(m.group(1).replace(" ", ""))
-        if v and v > 1000:
-            result["price"] = v
-            return result
+    # BUT NOT if the match is an installment from a payment plan (e.g. "14,950/monthly"
+    # in "Payment Plan: AED 14,950/monthly until 2028"). For those we want the FULL
+    # sale price (already captured above via Selling/Asking/Price patterns), not the
+    # monthly installment.
+    has_payment_plan = bool(re.search(
+        r'\b(?:payment\s+plan|installments?|instalments?|to\s+developer|to\s+seller|until\s+(?:\d{4}|noc|title|handover)|post[\s\-]?handover)\b',
+        t, re.I
+    ))
+    if not has_payment_plan:
+        m = re.search(r'([\d][\d,\. ]*)/(?:m\b|mo\b|month|yr|year)', t, re.I)
+        if m:
+            v = _parse_amount(m.group(1).replace(" ", ""))
+            if v and v > 1000:
+                result["price"] = v
+                return result
     if not result["price"]:
         m = re.search(r'(?:rent|for\s+rent)\s*:?\s*([\d,\.]+\s*[mkb]?l?)', t, re.I)
         if m:
