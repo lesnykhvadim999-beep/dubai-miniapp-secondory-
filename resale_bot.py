@@ -964,6 +964,70 @@ def kb_reply_bedrooms(uid):
     ])
 
 
+def kb_reply_budget(uid, is_rent=False, is_commercial=False, is_plot=False):
+    """Budget selection in the BOTTOM reply keyboard (was inline before)."""
+    any_btn = _t(uid, "b_any_btn")
+    home    = _t(uid, "rbtn_home")
+    if is_rent:
+        return _reply_kb([
+            ["≤ 60k AED",  "60–100k"],
+            ["100–200k",   "200–500k"],
+            ["500k+ AED",  any_btn],
+            [home],
+        ])
+    if is_commercial:
+        return _reply_kb([
+            ["≤ 1M AED",   "1–5M"],
+            ["5–20M",      "20–100M"],
+            ["100M+ AED",  any_btn],
+            [home],
+        ])
+    if is_plot:
+        return _reply_kb([
+            ["≤ 5M AED",   "5–20M"],
+            ["20–50M",     "50–100M"],
+            ["100M+ AED",  any_btn],
+            [home],
+        ])
+    # Default: sale residential
+    return _reply_kb([
+        ["≤ 1M AED",   "1–2M"],
+        ["2–3M",       "3–5M"],
+        ["5–10M",      "10–25M"],
+        ["25M+ AED",   any_btn],
+        [home],
+    ])
+
+
+# Budget reply-button text → (min, max) AED range. Same range may map to multiple
+# button labels (e.g. "≤ 1M AED" in residential vs commercial).
+BUDGET_BUTTONS = {
+    # Sale residential
+    "≤ 1M AED":  (None,        1_000_000),
+    "1–2M":      (1_000_000,   2_000_000),
+    "2–3M":      (2_000_000,   3_000_000),
+    "3–5M":      (3_000_000,   5_000_000),
+    "5–10M":     (5_000_000,  10_000_000),
+    "10–25M":    (10_000_000, 25_000_000),
+    "25M+ AED":  (25_000_000,        None),
+    # Rent
+    "≤ 60k AED":  (None,    60_000),
+    "60–100k":    (60_000, 100_000),
+    "100–200k":   (100_000, 200_000),
+    "200–500k":   (200_000, 500_000),
+    "500k+ AED":  (500_000,    None),
+    # Commercial
+    "1–5M":       (1_000_000,   5_000_000),
+    "5–20M":      (5_000_000,  20_000_000),
+    "20–100M":    (20_000_000, 100_000_000),
+    "100M+ AED":  (100_000_000,       None),
+    # Plot
+    "≤ 5M AED":   (None,      5_000_000),
+    "20–50M":     (20_000_000, 50_000_000),
+    "50–100M":    (50_000_000, 100_000_000),
+}
+
+
 # Canonical key → (translation_key, filter_value) mapping
 # We look up which canonical button was pressed across ALL languages.
 EMIRATE_KEYS = {
@@ -2413,7 +2477,7 @@ def dispatch_wizard_button(cid, uid, text):
                 filters["emirate"] = em
             if filters.get("property_type") == "plot":
                 state["wizard"] = "budget"
-                _send(cid, _t(uid, "budget_q"), kb_budget(uid, is_plot=True))
+                _send(cid, _t(uid, "budget_q"), kb_reply_budget(uid, is_plot=True))
             elif filters.get("property_type_in"):
                 state["wizard"] = "proptype"
                 _send(cid, _t(uid, "prop_q"), kb_reply_proptype_commercial(uid))
@@ -2438,7 +2502,7 @@ def dispatch_wizard_button(cid, uid, text):
             if is_plot or is_comm:
                 state["wizard"] = "budget"
                 _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
-                      kb_budget(uid, is_rent=is_rent, is_commercial=is_comm, is_plot=is_plot))
+                      kb_reply_budget(uid, is_rent=is_rent, is_commercial=is_comm, is_plot=is_plot))
             else:
                 state["wizard"] = "bedrooms"
                 _send(cid, _t(uid, "br_q"), kb_reply_bedrooms(uid))
@@ -2453,7 +2517,26 @@ def dispatch_wizard_button(cid, uid, text):
             state["wizard"] = "budget"
             is_rent = filters.get("deal_type") == "rent"
             _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
-                  kb_budget(uid, is_rent=is_rent))
+                  kb_reply_budget(uid, is_rent=is_rent))
+            return True
+
+    # Budget step (bottom reply keyboard)
+    if wizard == "budget":
+        # "Any" → no min/max
+        if text == _t(uid, "b_any_btn"):
+            state["wizard"] = None
+            _send(cid, _t(uid, "searching"), kb_main_reply(uid))
+            do_search(uid)
+            send_results(cid, uid)
+            return True
+        if text in BUDGET_BUTTONS:
+            mn, mx = BUDGET_BUTTONS[text]
+            if mn is not None: filters["min_price"] = mn
+            if mx is not None: filters["max_price"] = mx
+            state["wizard"] = None
+            _send(cid, _t(uid, "searching"), kb_main_reply(uid))
+            do_search(uid)
+            send_results(cid, uid)
             return True
 
     return False
