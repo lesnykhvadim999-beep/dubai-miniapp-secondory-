@@ -7,3 +7,4 @@ rapidfuzz
 anthropic
 streamlit
 pandas
+PySocks

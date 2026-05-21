@@ -366,11 +366,35 @@ async def run_parser_once(backfill: bool = False):
         print("[telethon] SESSION_STRING not set — skipping parse.")
         return
 
-    from telethon.network import ConnectionTcpAbridged
+    from telethon.network import ConnectionTcpObfuscated
+    # Build proxy from env if MTPROXY_* set: format ip:port:secret
+    proxy = None
+    mtp = os.environ.get("MTPROXY")
+    if mtp:
+        try:
+            host, port, secret = mtp.split(":", 2)
+            proxy = (host, int(port), secret)
+        except Exception as e:
+            print(f"[telethon] Bad MTPROXY env: {e}")
+    socks = os.environ.get("SOCKS5_PROXY")  # format host:port[:user:pass]
+    if socks and not proxy:
+        try:
+            import socks as _socks
+            parts = socks.split(":")
+            if len(parts) >= 2:
+                proxy = (_socks.SOCKS5, parts[0], int(parts[1]),
+                         True,
+                         parts[2] if len(parts) > 2 else None,
+                         parts[3] if len(parts) > 3 else None)
+        except Exception as e:
+            print(f"[telethon] Bad SOCKS5_PROXY env: {e}")
+
     client = TelegramClient(StringSession(SESSION_STRING), TELETHON_API_ID, TELETHON_API_HASH,
-                            connection=ConnectionTcpAbridged,
-                            connection_retries=10, retry_delay=3, timeout=20,
-                            request_retries=5)
+                            connection=ConnectionTcpObfuscated,
+                            connection_retries=15, retry_delay=5, timeout=30,
+                            request_retries=8,
+                            use_ipv6=os.environ.get("USE_IPV6", "0") == "1",
+                            proxy=proxy)
 
     async with client:
         for channel in CHANNELS:
@@ -392,11 +416,35 @@ async def run_catchup(channels: list[str] = None):
         return
 
     channels = channels or CHANNELS
-    from telethon.network import ConnectionTcpAbridged
+    from telethon.network import ConnectionTcpObfuscated
+    # Build proxy from env if MTPROXY_* set: format ip:port:secret
+    proxy = None
+    mtp = os.environ.get("MTPROXY")
+    if mtp:
+        try:
+            host, port, secret = mtp.split(":", 2)
+            proxy = (host, int(port), secret)
+        except Exception as e:
+            print(f"[telethon] Bad MTPROXY env: {e}")
+    socks = os.environ.get("SOCKS5_PROXY")  # format host:port[:user:pass]
+    if socks and not proxy:
+        try:
+            import socks as _socks
+            parts = socks.split(":")
+            if len(parts) >= 2:
+                proxy = (_socks.SOCKS5, parts[0], int(parts[1]),
+                         True,
+                         parts[2] if len(parts) > 2 else None,
+                         parts[3] if len(parts) > 3 else None)
+        except Exception as e:
+            print(f"[telethon] Bad SOCKS5_PROXY env: {e}")
+
     client = TelegramClient(StringSession(SESSION_STRING), TELETHON_API_ID, TELETHON_API_HASH,
-                            connection=ConnectionTcpAbridged,
-                            connection_retries=10, retry_delay=3, timeout=20,
-                            request_retries=5)
+                            connection=ConnectionTcpObfuscated,
+                            connection_retries=15, retry_delay=5, timeout=30,
+                            request_retries=8,
+                            use_ipv6=os.environ.get("USE_IPV6", "0") == "1",
+                            proxy=proxy)
 
     print(f"[telethon] Starting CATCHUP for channels: {channels}")
 
