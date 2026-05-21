@@ -366,7 +366,11 @@ async def run_parser_once(backfill: bool = False):
         print("[telethon] SESSION_STRING not set — skipping parse.")
         return
 
-    client = TelegramClient(StringSession(SESSION_STRING), TELETHON_API_ID, TELETHON_API_HASH)
+    from telethon.network import ConnectionTcpAbridged
+    client = TelegramClient(StringSession(SESSION_STRING), TELETHON_API_ID, TELETHON_API_HASH,
+                            connection=ConnectionTcpAbridged,
+                            connection_retries=10, retry_delay=3, timeout=20,
+                            request_retries=5)
 
     async with client:
         for channel in CHANNELS:
@@ -388,7 +392,11 @@ async def run_catchup(channels: list[str] = None):
         return
 
     channels = channels or CHANNELS
-    client = TelegramClient(StringSession(SESSION_STRING), TELETHON_API_ID, TELETHON_API_HASH)
+    from telethon.network import ConnectionTcpAbridged
+    client = TelegramClient(StringSession(SESSION_STRING), TELETHON_API_ID, TELETHON_API_HASH,
+                            connection=ConnectionTcpAbridged,
+                            connection_retries=10, retry_delay=3, timeout=20,
+                            request_retries=5)
 
     print(f"[telethon] Starting CATCHUP for channels: {channels}")
 
