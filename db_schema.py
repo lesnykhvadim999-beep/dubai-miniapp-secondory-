@@ -266,6 +266,8 @@ ALTER TABLE listings ADD COLUMN IF NOT EXISTS extra_info JSONB;
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_audit BOOLEAN DEFAULT FALSE;
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS audit_reason TEXT;
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS audit_flagged_at TIMESTAMPTZ;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_frozen BOOLEAN DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS idx_listings_frozen ON listings(is_frozen) WHERE is_frozen = TRUE;
 
 CREATE INDEX IF NOT EXISTS idx_listings_phash ON listings(photo_phash);
 CREATE INDEX IF NOT EXISTS idx_listings_offplan ON listings(is_off_plan);
@@ -394,6 +396,12 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
     """
     Insert or update listing. Returns (id, is_new).
     Uses listing_key for dedup.
+
+    FREEZE LOGIC:
+      - Если найден existing record с is_frozen=TRUE → возвращаем id
+        без каких-либо UPDATE (даже price). Это сохраняет ручную
+        очистку базы (audit flags, building/area corrections и т.д.).
+      - Новые записи (INSERT) — is_frozen=FALSE по умолчанию.
     """
     conn = get_conn()
     try:
@@ -401,7 +409,7 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
             # Check by telegram_message_id first (exact dedup)
             if data.get("telegram_message_id"):
                 cur.execute(
-                    "SELECT id FROM listings WHERE telegram_message_id=%s AND telegram_chat_id=%s",
+                    "SELECT id, is_frozen FROM listings WHERE telegram_message_id=%s AND telegram_chat_id=%s",
                     (data["telegram_message_id"], data.get("telegram_chat_id", ""))
                 )
                 row = cur.fetchone()
@@ -411,13 +419,17 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
             # Check by listing_key (property dedup)
             key = data.get("listing_key")
             if key:
-                cur.execute("SELECT id, price FROM listings WHERE listing_key=%s", (key,))
+                cur.execute("SELECT id, price, is_frozen FROM listings WHERE listing_key=%s", (key,))
                 row = cur.fetchone()
                 if row:
                     existing_id = row["id"]
+                    # FROZEN — ничего не трогаем, защищаем cleanup
+                    if row.get("is_frozen"):
+                        return existing_id, False
+
                     old_price = row["price"]
                     new_price = data.get("price")
-                    # Update price history if price changed
+                    # Update price history if price changed (для нефрозен записей)
                     if new_price and old_price and new_price != old_price:
                         cur.execute(
                             "INSERT INTO price_history(listing_id, price, source_msg) VALUES(%s,%s,%s)",

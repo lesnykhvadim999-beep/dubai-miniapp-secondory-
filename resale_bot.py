@@ -4787,6 +4787,58 @@ def handle_msg(msg):
             except Exception as e:
                 _send(cid, f"Error: {e}")
             return
+        elif cmd == "freeze":
+            if uid != ADMIN_ID:
+                _send(cid, "Access denied."); return
+            try:
+                conn = get_conn()
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE listings SET is_frozen=TRUE WHERE is_active=TRUE AND is_frozen=FALSE")
+                    n = cur.rowcount
+                conn.commit()
+                conn.close()
+                _send(cid, f"🧊 Заморожено {n} записей. Парсер больше не будет их апдейтить.")
+            except Exception as e:
+                _send(cid, f"Error: {e}")
+            return
+        elif cmd == "unfreeze":
+            if uid != ADMIN_ID:
+                _send(cid, "Access denied."); return
+            args = text.split()
+            try:
+                conn = get_conn()
+                with conn.cursor() as cur:
+                    if len(args) > 1 and args[1] == "all":
+                        cur.execute("UPDATE listings SET is_frozen=FALSE WHERE is_frozen=TRUE")
+                        n = cur.rowcount
+                        _send(cid, f"🔥 Разморожено всех ({n}). Парсер снова сможет апдейтить.")
+                    elif len(args) > 1:
+                        lid = int(args[1])
+                        cur.execute("UPDATE listings SET is_frozen=FALSE WHERE id=%s", (lid,))
+                        n = cur.rowcount
+                        _send(cid, f"🔥 Разморожено id={lid} (rows={n}).")
+                    else:
+                        _send(cid, "Использование: /unfreeze <id> | /unfreeze all")
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                _send(cid, f"Error: {e}")
+            return
+        elif cmd == "freezestat":
+            if uid != ADMIN_ID:
+                _send(cid, "Access denied."); return
+            try:
+                conn = get_conn()
+                with conn.cursor() as cur:
+                    cur.execute("SELECT COUNT(*) FROM listings WHERE is_frozen=TRUE")
+                    frozen = cur.fetchone()["count"]
+                    cur.execute("SELECT COUNT(*) FROM listings WHERE is_active=TRUE AND is_frozen=FALSE")
+                    not_frozen = cur.fetchone()["count"]
+                conn.close()
+                _send(cid, f"🧊 Заморожено: *{frozen}*\n🆕 Незамороженных активных: *{not_frozen}*\n\nНовые записи добавляются с `is_frozen=FALSE` — парсер их обновляет; ручную чистку отрабатывают `/freeze` после правок.")
+            except Exception as e:
+                _send(cid, f"Error: {e}")
+            return
         elif cmd == "auditrun":
             if uid != ADMIN_ID:
                 _send(cid, "Access denied."); return
