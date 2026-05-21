@@ -1749,7 +1749,15 @@ def _parse_amount(s: str) -> Optional[int]:
                 return None
             return int(v * 1000)
         if s.endswith("B"):
-            return int(float(s[:-1]) * 1_000_000_000)
+            base = s[:-1]
+            # B suffix requires a decimal — "1B" is too vague (often comes from "1 BHK").
+            # Real prices in billions are written as "2.93B" or "1.5 Billion".
+            if "." not in base:
+                return None
+            v = float(base)
+            if not (0.05 <= v <= 100):
+                return None
+            return int(v * 1_000_000_000)
         v = int(float(s))
         return v if v > 1000 else None
     except:
@@ -1784,6 +1792,10 @@ def extract_price(text: str) -> dict:
 
     # Strip phone numbers (international + local) before any price pattern matching
     text = _strip_phones(text)
+    # Strip bedroom abbreviations — "1 BHK", "2 BR", "3 Bed" — so price regex
+    # can't accidentally match "1 B" (BHK) as a billion-AED value.
+    text = re.sub(r'\b(\d+)\s*(?:BHK|BR|BHRs?|BDR|B/R|BD|BED(?:ROOM)?S?|BHRM)\b',
+                  r'\1 ', text, flags=re.I)
     t = text  # preserve original case for Cash regex
 
     # -- Original / Purchase price — ONLY these go to original_price
@@ -2000,8 +2012,19 @@ def extract_property_type(text: str, bedrooms: Optional[int] = None) -> str:
     head = first_block[:500].lower()
     full = text.lower()
 
+    # GUARD: if first block looks like a townhouse/villa with explicit BUA/Plot dimensions
+    # (e.g. "Plot Area: 1,225 Sqft - Built-up Area: 2,261 Sqft"), do NOT treat as plot
+    # even if "residential plot" appears later in the multi-listing dump.
+    has_townhouse_dimensions = bool(
+        re.search(r'\b(?:bua|built[\s\-]?up\s+area)\s*[:\-~]?\s*[\d,.]+\s*sq', head, re.I) and
+        re.search(r'\bplot\s+(?:area|size)\s*[:\-~]?\s*[\d,.]+\s*sq', head, re.I)
+    )
+
     # Pass 1: check first listing block (most reliable)
     for ptype, keywords in PROP_TYPE_MAP.items():
+        # Skip "plot" if the first block has townhouse-style dimensions
+        if ptype == "plot" and has_townhouse_dimensions:
+            continue
         for kw in keywords:
             pat = kw if kw.endswith('\\b') else r'\b' + re.escape(kw) + r'\b'
             if re.search(pat, head):
