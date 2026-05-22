@@ -39,6 +39,10 @@
 | 1.30 | Dash `-` как separator между label и price | «Selling price -3M» = 3,000,000 |
 | 1.31 | «Rented MONTH YEAR -N AED» multi-listing rent-leak strip | «Rented July 2026 -250 000 AED» → не sale 250K |
 | 1.32 | Cyrillic→Latin homoglyph translate (с→c, о→o, р→p) | «Priсe: 4 690 000» = 4,690,000 (раньше не матчилось) |
+| 1.33 | Strikethrough markdown `~~X~~` / `~~~X~~~` (1-3 тильд) strip | Telegram-разметка для перечёркнутой устаревшей цены |
+| 1.34 | «Reduced from X to Y» / «From X to Y» strip левой части | Берём только Y (новую цену) |
+| 1.35 | NEW PRICE приоритет: при наличии «NEW PRICE Y» strip «Selling price X» | «~~SP 1.16M~~ NEW PRICE 1.09M» = 1.09M |
+| 1.36 | `\bnew\s+price\b` regex как первый кандидат selling-pat | приоритет над OLD selling price |
 
 ## 2. Определение deal_type (`detect_deal_type`)
 

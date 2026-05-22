@@ -2145,6 +2145,22 @@ def extract_price(text: str) -> dict:
         r'(?<![\d.])(\d)\.(\d{3})\.(\d{2})(?!\d)',
         r'\1,\2,000', text)
 
+    # ── Strikethrough markdown ~~X~~ — это перечёркнутая (устаревшая) цена.
+    # Telegram-markdown ~~X~~ / ~X~ / ~~~X~~~ означает «было X, теперь Y».
+    # Использует DOTALL и {1,3} тильд чтобы покрыть варианты.
+    text = re.sub(r'~{1,3}[^~]{1,200}~{1,3}', ' ', text, flags=re.S)
+    # Также «Reduced from X to Y» / «From X To Y» — берём только Y.
+    text = re.sub(
+        r'\b(?:reduced\s+from|from)\s+(?:aed\s+)?[\d,. ]+\s*(?:k|m|aed)?\s+(?:to|→|->)\s+',
+        ' ', text, flags=re.I)
+    # «Selling price X ... NEW PRICE Y» — strip OLD selling price когда NEW PRICE
+    # явно указана дальше. Парсер раньше брал OLD как актуальную цену.
+    if re.search(r'\bnew\s+price\b', text, re.I):
+        # Удаляем строку с старой "Selling price/SP X" если есть NEW PRICE дальше
+        text = re.sub(
+            r'\b(?:selling\s+price|sp|sale\s+price)\s*[:\-]?\s*[\d,. ]+\s*(?:aed|k|m)?',
+            ' ', text, flags=re.I)
+
     # ── Strip payment-plan portions: "50k on handover", "X on transfer",
     # "X to the owner / X to developer". Это куски сплит-платежа, не цена.
     text = re.sub(
@@ -2290,6 +2306,8 @@ def extract_price(text: str) -> dict:
     # price. Priority order matters: специфичные label сначала, plain price в конце.
     # NB: [\s:\-]* допускает дефис как разделитель ("Selling price -3M")
     for selling_pat in [
+        # NEW PRICE сначала — приоритет над OLD selling price если есть оба
+        r'\bnew\s+price\s*[:\-]*\s*(?:aed\s+)?([\d,\. ]+\s*[mkb]?l?)',
         r'(?:\bsp\b|sales?\s*price|selling\s*price|sale\s*price|final\s*price|asking\s*price|net\s+price|net\s+to\s+seller)[\s:\-]*(?:aed\s+)?([\d,\. ]+\s*[mkb]?l?)',
         r'\bselling[\s:\-]+(?:aed\s+)?(\d[\d,\. ]*\s*[mkb]?l?)',
         # plain "price" но не «Op is price», «from price»
@@ -2458,7 +2476,7 @@ def _first_listing_block(text: str) -> str:
                 r'|\n\s*\n\s*\n\s*\n'
                 # Маркер «новый листинг» — пустая строка, затем ● или ⚫ + текст
                 # с emoji-локатором или CAPS-словом (типичный bullet-style multi-listing)
-                r'|\n\s*\n\s*[●⚫◆◇]\s*'
+                r'|\n\s*\n\s*[●⚫◆◇❌⛔🚫]\s*'
                 # Маркер «новый листинг» через локатор-emoji 📍/🗺/🌍 — ТОЛЬКО когда
                 # 3+ blank lines подряд (т.е. реальный разделитель листингов).
                 # Просто `\n\n📍` встречается ВНУТРИ одного объявления как
@@ -3455,6 +3473,9 @@ def parse_message(
                    'asking price','selling price','sale price','final price',
                    'offer price','starting price','with maid','plus maid',
                    'maid room',"maid's room","maids room",
+                   # Month names (часто захватываются из «vacant in March»)
+                   'january','february','march','april','may','june','july',
+                   'august','september','october','november','december',
                    # Area-name leak (когда area попадает в building):
                    'damac lagoon','damac lagoons','damac hills','damac hills 2',
                    'creek harbour','creek beach','sobha hartland','palm jumeirah',
