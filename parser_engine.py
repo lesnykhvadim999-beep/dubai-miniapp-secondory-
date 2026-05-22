@@ -4344,6 +4344,14 @@ def parse_message(
     if data.get("area") and len(data["area"]) > 100:
         data["area"] = None
 
+    # ── v105: AI quality gate — last-mile LLM verification for tough cases
+    # Runs only when stakes are high (price ≥ 1.5M), critical field missing,
+    # or multi-listing risk. Pacing handled by llm_chain provider cooldowns.
+    try:
+        data = _llm_quality_gate(data, text)
+    except Exception as _qe:
+        print(f"[parser] qgate exception: {_qe}")
+
     # ── Strict validator — помечаем подозрительные сразу в audit ───────────
     audit_reasons = _validate_listing_strict(data)
     if audit_reasons:
@@ -4353,6 +4361,159 @@ def parse_message(
         # Но помечаем review_reason для админ-обзора.
 
     data["listing_key"] = make_listing_key(data)
+
+    return data
+
+
+def _llm_quality_gate(data: dict, full_text: str, timeout: int = 15) -> dict:
+    """v105: AI verification layer — последний фильтр качества.
+
+    Запускается ТОЛЬКО для high-stakes/ambiguous кейсов:
+      - price > 1.5M AED (high-stakes)
+      - OR price IS NULL (parser fail)
+      - OR building IS NULL (already flagged by reasonable_review)
+      - OR area IS NULL (we don't infer aggressively any more)
+      - OR is_likely_multi_listing (multi-listing leak risk)
+
+    Pacing: 1 LLM call/sec via sleep(0) гарантированно — caller отвечает.
+
+    Cache: md5(text[:2000] + 'qgate') → corrections, 7-day TTL in-memory.
+    """
+    if not full_text or len(full_text) < 100:
+        return data
+    price = data.get("price") or 0
+    high_stakes = price >= 1_500_000
+    missing_critical = not data.get("price") or not data.get("building") or not data.get("area")
+    multi_risk = _is_likely_multi_listing(full_text)
+
+    if not (high_stakes or missing_critical or multi_risk):
+        return data  # low-risk simple case — trust regex
+
+    # Cache check
+    h = _hashlib.md5((full_text[:2000] + "::qgate").encode('utf-8', 'ignore')).hexdigest()
+    if h in _MULTI_SPLIT_CACHE:
+        cached = _MULTI_SPLIT_CACHE[h]
+        if isinstance(cached, dict):
+            return _apply_qgate_corrections(data, cached)
+
+    snippet = full_text[:1500].strip()
+    parsed_summary = (
+        f"building={data.get('building')!r}, area={data.get('area')!r}, "
+        f"price={data.get('price')!r}, bedrooms={data.get('bedrooms')!r}, "
+        f"deal_type={data.get('deal_type')!r}"
+    )
+    prompt = (
+        "You are a Dubai real estate parser QA. Compare PARSED fields vs ORIGINAL text. "
+        "Output corrections as a JSON object. If a field is already correct, set it to null.\n\n"
+        "PARSED:\n"
+        f"{parsed_summary}\n\n"
+        "ORIGINAL TEXT:\n```\n" + snippet + "\n```\n\n"
+        "Output JSON with these keys (set value to null if parsed is correct):\n"
+        '  "building": str|null (correct building name from text, or null if parsed is fine)\n'
+        '  "area": str|null (correct district/community using FAMILIAR name like JVC, Marina, '
+        'Palm Jumeirah, Palm Jebel Ali; null if fine)\n'
+        '  "price": int|null (correct AED price as integer; null if fine)\n'
+        '  "bedrooms": int|null (0 for studio, 1-N otherwise; null if fine)\n'
+        '  "deal_type": "sale"|"rent"|null (null if fine)\n'
+        '  "confidence": 0-100 integer for your overall confidence\n'
+        '  "should_reject": bool — true if listing is spam/non-Dubai/car/business and should be dropped\n\n'
+        "Rules:\n"
+        "- For Palm Jumeirah vs Palm Jebel Ali — read text carefully, they are DIFFERENT islands\n"
+        "- For multi-listing posts — focus on the FIRST listing only\n"
+        "- If parsed building looks like marketing ('Below OP', 'Iconic Views') — return real building name\n"
+        "- ONLY output valid JSON, no markdown fences, no commentary"
+    )
+
+    try:
+        resp = _llm(prompt, max_tokens=300, timeout=timeout)
+        if not resp:
+            return data
+        cleaned = re.sub(r'^```\w*\s*', '', resp)
+        cleaned = re.sub(r'\s*```\s*$', '', cleaned).strip()
+        m = re.search(r'\{.*\}', cleaned, re.S)
+        if not m:
+            return data
+        corrections = _json.loads(m.group(0))
+        if not isinstance(corrections, dict):
+            return data
+        # Cache
+        if len(_MULTI_SPLIT_CACHE) >= _MULTI_SPLIT_MAX:
+            try:
+                _MULTI_SPLIT_CACHE.pop(next(iter(_MULTI_SPLIT_CACHE)))
+            except StopIteration:
+                pass
+        _MULTI_SPLIT_CACHE[h] = corrections
+        return _apply_qgate_corrections(data, corrections)
+    except Exception as e:
+        print(f"[parser] qgate err: {e}")
+        return data
+
+
+def _apply_qgate_corrections(data: dict, corrections: dict) -> dict:
+    """Применяет LLM-corrections если confidence >= 75 и поле было null/suspicious."""
+    if not isinstance(corrections, dict):
+        return data
+    conf = corrections.get("confidence") or 0
+    try:
+        conf = int(conf)
+    except (TypeError, ValueError):
+        conf = 0
+
+    # should_reject — spam/car/non-Dubai
+    if corrections.get("should_reject") and conf >= 80:
+        data["needs_manual_review"] = True
+        data["auto_audit"] = True
+        existing = data.get("review_reason") or ""
+        data["review_reason"] = (existing + "; llm_reject").lstrip("; ")
+
+    # building correction
+    new_bld = corrections.get("building")
+    if new_bld and isinstance(new_bld, str) and conf >= 75:
+        # Override if parsed was NULL or if LLM-suggested differs significantly
+        old = (data.get("building") or "").strip().lower()
+        new = new_bld.strip().lower()
+        if not old or (old != new and not _is_building_stopword(new_bld)):
+            cleaned_new = _clean_building_candidate(new_bld)
+            if cleaned_new and not _is_building_stopword(cleaned_new):
+                data["building"] = cleaned_new
+                data["building_source"] = "llm_qgate"
+
+    # area correction
+    new_area = corrections.get("area")
+    if new_area and isinstance(new_area, str) and conf >= 75:
+        old = (data.get("area") or "").strip().lower()
+        new = new_area.strip().lower()
+        if not old or old != new:
+            data["area"] = new_area.strip()
+            data["area_source"] = "llm_qgate"
+
+    # price correction — only if parsed was NULL or wildly off (>50% diff)
+    new_price = corrections.get("price")
+    if new_price and isinstance(new_price, (int, float)) and conf >= 80:
+        new_price = int(new_price)
+        old_price = data.get("price") or 0
+        if not old_price or (
+            old_price > 0 and abs(new_price - old_price) / max(old_price, 1) > 0.5
+        ):
+            # Sanity bounds
+            if 50_000 <= new_price <= 5_000_000_000:
+                data["price"] = new_price
+                data["price_source"] = "llm_qgate"
+
+    # bedrooms correction
+    new_bed = corrections.get("bedrooms")
+    if new_bed is not None and isinstance(new_bed, (int, float)) and conf >= 80:
+        new_bed = int(new_bed)
+        if 0 <= new_bed <= 20 and data.get("bedrooms") != new_bed:
+            data["bedrooms"] = new_bed
+            data["bedrooms_source"] = "llm_qgate"
+
+    # deal_type correction
+    new_deal = corrections.get("deal_type")
+    if new_deal in ("sale", "rent") and conf >= 85:
+        if data.get("deal_type") != new_deal:
+            data["deal_type"] = new_deal
+            data["deal_type_source"] = "llm_qgate"
 
     return data
 
