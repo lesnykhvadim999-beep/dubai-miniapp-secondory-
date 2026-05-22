@@ -897,6 +897,10 @@ def detect_deal_type(text: str, price: Optional[int] = None,
         "rented", "leased", "للإيجار", "аренда", "сдаётся", "сдам",
         "сдаю", "в аренду", "per month", "aed/yr", "aed/month",
     ]
+    # Also match "N cheques" / "N chq" formula common in UAE rentals
+    if re.search(r'\b\d+\s*(?:cheques?|chq|chk)\b', tl):
+        rent_signals = rent_signals + ["_cheque_pattern_"]
+        tl += " _cheque_pattern_"
     # Comprehensive sale signals
     sale_signals = [
         "for sale", "selling price", "sale price", "sp:", "op:", "asking price",
@@ -912,10 +916,15 @@ def detect_deal_type(text: str, price: Optional[int] = None,
     # ── Price magnitude override ────────────────────────────────────────────
     # Любая сумма > 500к AED при отсутствии явного rent-сигнала = SALE.
     # Cheapest UAE annual rent is ~25k. 500k+ is sale territory only.
-    # Это ловит мульти-листинги где первая цена sale (миллионы), но parser
-    # ошибочно ставит rent потому что в тексте позже встретилось "rent".
     if price and price >= 500_000 and rent_score == 0:
         return "sale"
+    # Price >= 1.2M — это ВСЕГДА sale, даже если есть rent-слова в тексте
+    # (типичный кейс: мульти-листинг продаж с упоминанием текущих rentals).
+    if price and price >= 1_200_000:
+        # Но НЕ если первый параграф явно про аренду
+        first_para = tl[:300]
+        if not re.search(r'\bfor\s+rent\b|\bto\s+rent\b|\brental\b|\bв\s+аренду\b', first_para):
+            return "sale"
 
     if rent_score > sale_score:
         return "rent"
@@ -2089,6 +2098,32 @@ def extract_price(text: str) -> dict:
 
     # Strip phone numbers (international + local) before any price pattern matching
     text = _strip_phones(text)
+
+    # ── Strip dollar-conversion parenthesis "($387K)" / "(~$1.5M)" — это
+    # пересчёт в долларах внутри объявления типа "AED 1,420,000 (~$387K)".
+    # Парсер раньше брал $387K как цену.
+    text = re.sub(r'\(\s*[~≈]?\s*\$\s*[\d.,]+\s*[kmKM]?\s*\)', ' ', text)
+
+    # ── Strip "rented at/till/until X" / "rented N AED" — это арендный
+    # доход из текущего тенанта, не sale price. Раньше брал rent как sale.
+    text = re.sub(
+        r'\brent(?:ed)?\s*(?:at|@|till|until|for)?[\s:]*[\d.,]+\s*(?:k|m|aed)?'
+        r'(?:\s+till\s+\d|\s+per\s+year)?', ' ',
+        text, flags=re.I)
+
+    # ── Strip payment-plan portions: "50k on handover", "X on transfer",
+    # "X to the owner / X to developer". Это куски сплит-платежа, не цена.
+    text = re.sub(
+        r'[\d.,]+\s*[km]?\s*(?:aed)?\s*'
+        r'(?:on\s+(?:handover|transfer|completion)|to\s+(?:the\s+)?(?:owner|developer|builder)|'
+        r'left\s+(?:on\s+)?(?:post[\s\-]?handover|to\s+pay)|remaining)',
+        ' ', text, flags=re.I)
+    # Также: "Pay X now, Y on handover" — strip pay X now
+    text = re.sub(r'\bpay\s+[\d.,]+\s*[km]?\s*(?:aed)?\s*now\b', ' ', text, flags=re.I)
+    # "X each month" / "X monthly during N years" — installment, not total
+    text = re.sub(
+        r'[\d.,]+\s*[km]?\s*(?:aed)?\s+(?:each\s+month|monthly|per\s+month)'
+        r'(?:\s+during\s+\d+\s+years?)?', ' ', text, flags=re.I)
     # Strip bedroom abbreviations — "1 BHK", "2 BR", "3 Bed" — so price regex
     # can't accidentally match "1 B" (BHK) as a billion-AED value.
     text = re.sub(r'\b(\d+)\s*(?:BHK|BR|BHRs?|BDR|B/R|BD|BED(?:ROOM)?S?|BHRM)\b',
