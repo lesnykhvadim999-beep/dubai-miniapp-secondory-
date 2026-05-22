@@ -30,6 +30,12 @@
 | 1.21 | `(N k/year)` / `(N yearly)` parenthesised rent strip | rent leak в скобках |
 | 1.22 | `(OP N)` без K/M suffix strip | "OP 2,355" → ambiguous |
 | 1.23 | Broken European «N.NNN.NN» → N,NNN,000 | «3.100.00 AED» = 3,100,000 |
+| 1.24 | `detect_currency` теперь с `\bRUB\b` (word boundary) | «Binghatti **Ruby**» → не RUB-конверсия |
+| 1.25 | Multi-dot European без trailing `\b` (slipped AED) | «13.290.000AED» = 13,290,000 |
+| 1.26 | «AED X BELOW ORIGINAL PRICE» strip | discount-фрагмент не цена |
+| 1.27 | «Paid X» / «Down payment X» / «NET TO OWNER X» strip | первый взнос не цена |
+| 1.28 | «Final/Sale/Selling/Asking price» приоритет перед plain «Price» | «Op is price 675k Final Price 600k» → 600K |
+| 1.29 | `(?<!is\s)(?<!from\s)price` lookbehind | «Op is price 675k» → не price=675K |
 
 ## 2. Определение deal_type (`detect_deal_type`)
 
@@ -77,6 +83,7 @@
 - ✅ Type + for sale/rent: `office/retail/plot/villa/apartment/townhouse/penthouse/studio/duplex/unit/property/home/land/building/tower/hotel + for sale|rent|lease|exchange`
 - ✅ Pure type alone: `villa/apartment/townhouse/penthouse/studio/duplex/plot/office/retail/property/unit/land/home/mansion/residence/tower/building/complex/hotel`
 - ✅ Marketing: `for sale/for rent/for salle/hot deal/hot offer/distress deal/best deal/best price/new launch/new price/special offer/urgent sale/exclusive deal/investment opportunity/cash buyer/cash deal/payment plan/freehold/covered/for serious/huge terrace/huge balcony/spacious layout/prime business/prime tower/new tower`
+- ✅ Audit-leak labels: `Last transaction/All available apartments/Available units/New listing/Op price/Sp price/Final price/Best layout/Plus maid/With maid` → blocked (это шаблонные фразы из объявлений, не имена зданий)
 - ✅ Phone/currency digits: `\+?\d{6,}|aed\s*\d|\$\s*\d|€\s*\d` → blocked
 - ✅ Too long: `len(words) > 7` → blocked
 - ✅ Questions / calls: `?/hello/hi/dear/dm/call/contact/please` → blocked
@@ -180,6 +187,19 @@
 - ✅ Buyer requests («Looking for / Urgent requirement / I'm a buyer»)
 - ✅ Instagram URL-only messages
 - ✅ Text < 60 chars without price/building/area
+
+## 10.5 Foreign-country geo filter
+
+Объявления НЕ из ОАЭ автоматически переводятся в `is_audit=TRUE`:
+- ✅ Россия: «Красная Поляна», «Сочи», «Москва», «Питер», «Эстонская» (Сочи), «Сан Пик», «Marine Garden» (Сочи), «казино»
+- ✅ Португалия: «Каравелла Португалии»
+- ✅ Грузия: «Батуми», «Tbilisi»
+- ✅ Турция: «Анталия», «Istanbul»
+- ✅ Кипр: «Лимассол», «Пафос»
+- ✅ Таиланд: «Пхукет»
+- ✅ Бали, Барселона и т.д.
+
+Логика: маркер чужой страны в первых 500 chars + ОТСУТСТВУЕТ UAE-маркер (Dubai/AED/JVC/Marina/etc) → audit.
 
 ## 11. Frozen records protection
 

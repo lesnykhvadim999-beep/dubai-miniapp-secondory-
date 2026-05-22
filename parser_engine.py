@@ -2163,6 +2163,16 @@ def extract_price(text: str) -> dict:
     text = re.sub(
         r'\bbelow\s+op(?:\s+price)?[\s:=]*[\-+]?\s*[\d.,]+\s*(?:k|m)\b', ' ',
         text, flags=re.I)
+    # «AED X BELOW ORIGINAL PRICE» / «X below market» — discount, не цена
+    text = re.sub(
+        r'\b(?:aed\s+)?[\d.,]+\s*[km]?\s+below\s+(?:original\s+price|market|op)\b',
+        ' ', text, flags=re.I)
+    # «Paid X» / «Down payment X» / «NET TO OWNER X» / «to owner X» — down payment, не цена
+    text = re.sub(
+        r'\b(?:paid|down\s+payment|net\s+to\s+(?:owner|seller))[\s:=]+(?:aed\s+)?[\d.,]+\s*[km]?',
+        ' ', text, flags=re.I)
+    text = re.sub(
+        r'▪️\s*paid\s*[\d,]+', ' ', text, flags=re.I)
     text = re.sub(
         r'\bsave(?:s)?[\s:=]+(?:aed\s+)?[\d.,]+\s*(?:k|m)\b', ' ',
         text, flags=re.I)
@@ -2233,8 +2243,11 @@ def extract_price(text: str) -> dict:
         text)
     # ── European thousand-separator with dots: "AED 3.000.000" / "230.000 AED"
     # If a number has 2+ dots with 3-digit groups, collapse them.
+    # NB: используем lookahead (?!\.\d) вместо `\b` потому что `\b` после "000"
+    # перед "AED" НЕ срабатывает (000 и AED оба word-chars).
+    # Без слитного варианта «13.290.000AED» не нормализуется.
     text = re.sub(
-        r'\b(\d{1,3}(?:\.\d{3}){2,})\b',
+        r'(?<![\d.])(\d{1,3}(?:\.\d{3}){2,})(?!\.\d)',
         lambda m: m.group(0).replace('.', ''),
         text)
     # Single-dot European thousand-sep ONLY when adjacent to AED/Dhs and YYY is 3 digits
@@ -2283,12 +2296,18 @@ def extract_price(text: str) -> dict:
             return result
 
     if not result["price"]:
-        # NB: после 'Price' может стоять период/двоеточие/тире/звёздочка/whitespace.
-        # Группа должна СТАРТОВАТЬ С ЦИФРЫ (не с точки!), иначе '. 650k' даёт 0.65k=650.
-        m = re.search(r'(?:price|asking\s*price)\s*[:.\-*]*\s*(\d[\d,\. ]*\s*(?:mln|m|k)?)', t, re.I)
-        if m:
-            v = _parse_amount(m.group(1))
-            if v: result["price"] = v
+        # ПРИОРИТЕТ: явные «final/sale/asking/selling price» перед plain "price"
+        # (которое может зацепить «Op is price 675k» как 675K вместо реального 600K).
+        for pat in [
+            r'(?:final\s+price|sale\s+price|selling\s+price|asking\s+price|net\s+price)\s*[:.\-*]*\s*(\d[\d,\. ]*\s*(?:mln|m|k)?)',
+            r'(?<!is\s)(?<!from\s)(?:price)\s*[:.\-*]+\s*(\d[\d,\. ]*\s*(?:mln|m|k)?)',
+        ]:
+            m = re.search(pat, t, re.I)
+            if m:
+                v = _parse_amount(m.group(1))
+                if v:
+                    result["price"] = v
+                    break
     # ── SP / Selling price / Asking / PP ─────────────────────────────────────
     m = re.search(
         r'(?:sp|pp|selling\s*price|asking\s*price|ask)\s*:?\s*(?:aed|usd)?\s*([\d,. ]+\s*[mbk]?)',
@@ -2811,12 +2830,16 @@ def convert_to_aed(amount: float, currency: str) -> Optional[int]:
 
 
 def detect_currency(text: str) -> str:
-    """Returns currency code from text, default AED."""
+    """Returns currency code from text, default AED.
+    Использует word-boundary матч — раньше `'RUB' in t` ловил 'Ruby'
+    (Binghatti Ruby) и переводил цену в AED по курсу RUB → 0.04× от
+    реальной цены (675K RUB → 27K AED).
+    """
     if not text: return "AED"
-    t = text.upper()
     for ccy in ("USD", "EUR", "GBP", "RUB"):
-        if ccy in t or f"${ccy[0]}" in t:
+        if re.search(r'\b' + ccy + r'\b', text, re.I):
             return ccy
+    # Symbol-based (тоже с word-boundary не нужно — символы не часть слова)
     if "$" in text:  return "USD"
     if "€" in text:  return "EUR"
     if "£" in text:  return "GBP"
@@ -3405,6 +3428,13 @@ def parse_message(
                    'two villas','three villas','multiple units','units for sale',
                    'one unit','total apartments','floors total apartments',
                    'distress deal','hot deal','investor deal','flip sale',
+                   'last transaction','all available apartments','all available',
+                   'available units','units available','available now',
+                   'urgent sale','best layout','best price','best deal','good deal',
+                   'new listing','fresh listing','op price','sp price',
+                   'asking price','selling price','sale price','final price',
+                   'offer price','starting price','with maid','plus maid',
+                   'maid room',"maid's room","maids room",
                    # Area-name leak (когда area попадает в building):
                    'damac lagoon','damac lagoons','damac hills','damac hills 2',
                    'creek harbour','creek beach','sobha hartland','palm jumeirah',
