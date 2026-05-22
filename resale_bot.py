@@ -117,36 +117,31 @@ def get_logo_file_id() -> str:
 def send_welcome_with_logo(cid: int, uid: int):
     """
     Send welcome message with logo on top + language selector in bottom bar.
-    Two messages:
-      1) Logo + welcome caption (no keyboard — photo doesn't pair well with reply kb)
-      2) Language prompt with bottom reply keyboard (persistent)
+    Photo+caption with reply keyboard attached directly — single message,
+    keyboard always shows. (Раньше was 2 messages с zero-width-space, и иногда
+    Telegram не показывал клавиатуру если 2-е сообщение «пустое».)
     """
     welcome_text = _t(uid, "welcome")
     fid = get_logo_file_id()
+    lang_kb = kb_lang_reply()
 
-    # 1. Photo + caption (no keyboard)
     if fid:
         try:
             resp = _api("sendPhoto",
                         chat_id=cid,
                         photo=fid,
                         caption=welcome_text[:1024],
-                        parse_mode="Markdown")
+                        parse_mode="Markdown",
+                        reply_markup=lang_kb)
             if resp.get("ok"):
                 print(f"[logo] Welcome sent with logo to {cid}")
-            else:
-                print(f"[logo] sendPhoto failed: {resp.get('description')} — fallback to text")
-                _send(cid, welcome_text)
+                return
+            print(f"[logo] sendPhoto failed: {resp.get('description')} — fallback to text")
         except Exception as e:
             print(f"[logo] sendPhoto error: {e} — fallback to text")
-            _send(cid, welcome_text)
-    else:
-        _send(cid, welcome_text)
 
-    # 2. Bottom keyboard с языками — без дублирующего prompt (текст уже в welcome).
-    # Используем zero-width space чтобы Telegram не показал текст-баббл.
-    _api("sendMessage", chat_id=cid, text="​",
-         reply_markup=kb_lang_reply())
+    # Fallback — text only with keyboard
+    _send(cid, welcome_text, kb=lang_kb)
 
 # ── Translations ──────────────────────────────────────────────────────────────
 T = {
@@ -210,6 +205,7 @@ T = {
     "pt_retail_btn":  "🛍 Retail",
     "pt_warehouse_btn":"📦 Warehouse",
     "pt_hotel_btn":   "🏨 Hotel",
+    "pt_building_btn":"🏗 Whole Building",
     "pt_any_btn":     "🔍 Any type",
     # Bedroom buttons
     "br_studio_btn":  "✨ Studio",
@@ -456,6 +452,7 @@ T = {
     "pt_retail_btn":  "🛍 Ритейл",
     "pt_warehouse_btn":"📦 Склад",
     "pt_hotel_btn":   "🏨 Отель",
+    "pt_building_btn":"🏗 Целое здание",
     "pt_any_btn":     "🔍 Любой тип",
     # Bedroom buttons
     "br_studio_btn":  "✨ Студия",
@@ -721,6 +718,7 @@ T = {
     "pt_retail_btn":  "🛍 ريتيل",
     "pt_warehouse_btn":"📦 مستودع",
     "pt_hotel_btn":   "🏨 فندق",
+    "pt_building_btn":"🏗 مبنى كامل",
     "pt_any_btn":     "🔍 أي نوع",
     # Bedroom buttons
     "br_studio_btn":  "✨ استوديو",
@@ -901,6 +899,56 @@ add_states  = {}
 # Admin panel state
 admin_states = {}   # uid → {queue, idx, edits, edit_field, edit_qid}
 
+import threading
+# Investment engine + PDF integration
+try:
+    from investment_engine import compute_investment_score, build_conclusion_text
+    INVEST_OK = True
+except ImportError:
+    INVEST_OK = False
+try:
+    from pdf_report import generate_pdf
+    PDF_OK = True
+except ImportError:
+    PDF_OK = False
+
+
+def _send_pdf(cid, uid, listing):
+    """Generate investment PDF for a listing + send as document."""
+    try:
+        from parser_engine import _lookup_benchmark, MARKET
+        dld_b = _lookup_benchmark(listing.get("building")) if listing.get("building") else None
+        mkt = MARKET.get(listing.get("area")) if listing.get("area") else None
+        score = compute_investment_score(listing, dld_b, mkt)
+        lang = _get_lang(uid)
+        pdf_path = generate_pdf(listing, score, lang=lang)
+        if not pdf_path or not os.path.exists(pdf_path):
+            _send(cid, {"en":"PDF failed","ru":"PDF не создан","ar":"فشل"}.get(lang,"PDF failed"))
+            return
+        bld = (listing.get("building") or listing.get("area") or "Property")
+        filename = f"investment-{listing.get('id', 'report')}.pdf"
+        caption = {
+            "en": f"📄 Investment Report — {bld}",
+            "ru": f"📄 Инвест-отчёт — {bld}",
+            "ar": f"📄 تقرير الاستثمار — {bld}",
+        }.get(lang, bld)
+        with open(pdf_path, "rb") as f:
+            requests.post(
+                f"{API}/sendDocument",
+                data={"chat_id": cid, "caption": caption[:1000]},
+                files={"document": (filename, f, "application/pdf")},
+                timeout=60,
+            )
+        try: os.remove(pdf_path)
+        except Exception: pass
+    except Exception as e:
+        print(f"[bot] _send_pdf: {e}")
+
+
+def _get_lang(uid):
+    return user_lang.get(uid, "en")
+
+
 def _t(uid, key, **kw):
     lang = user_lang.get(uid, "en")
     txt  = T.get(lang, T["en"]).get(key, T["en"].get(key, key))
@@ -1024,7 +1072,7 @@ def kb_main_reply(uid):
 
 # Property type groups used for category filters
 RESIDENTIAL_TYPES = ["apartment", "studio", "villa", "townhouse", "penthouse", "duplex"]
-COMMERCIAL_TYPES  = ["office", "retail", "warehouse", "hotel", "hotel_apartment", "serviced_apartment"]
+COMMERCIAL_TYPES  = ["office", "retail", "warehouse", "hotel", "hotel_apartment", "serviced_apartment", "whole_building"]
 LAND_TYPES        = ["plot"]
 
 
@@ -1052,6 +1100,7 @@ def kb_reply_proptype_commercial(uid):
     return _reply_kb([
         [_t(uid, "pt_office_btn"),    _t(uid, "pt_retail_btn")],
         [_t(uid, "pt_warehouse_btn"), _t(uid, "pt_hotel_btn")],
+        [_t(uid, "pt_building_btn")],
         [_t(uid, "pt_any_btn")],
         [_t(uid, "rbtn_home")],
     ])
@@ -1114,6 +1163,7 @@ def kb_reply_ai_commtype(uid):
     return _reply_kb([
         [_t(uid, "pt_office_btn"),    _t(uid, "pt_retail_btn")],
         [_t(uid, "pt_warehouse_btn"), _t(uid, "pt_hotel_btn")],
+        [_t(uid, "pt_building_btn")],
         [_t(uid, "pt_any_btn")],
         [_t(uid, "rbtn_home")],
     ])
@@ -1203,6 +1253,7 @@ PROPTYPE_KEYS = {
     "pt_retail_btn":   "retail",
     "pt_warehouse_btn":"warehouse",
     "pt_hotel_btn":    "hotel",
+    "pt_building_btn": "whole_building",
     "pt_any_btn":      None,
 }
 BEDROOM_KEYS = {
@@ -1434,6 +1485,7 @@ AI_COMMTYPE_KEYS = {
     "pt_retail_btn":    "retail",
     "pt_warehouse_btn": "warehouse",
     "pt_hotel_btn":     "hotel",
+    "pt_building_btn":  "whole_building",
     "pt_any_btn":       "any",
 }
 
@@ -1530,6 +1582,7 @@ def kb_commercial_type(uid):
     return _kb(
         [_btn("🏢 Office",     "pt|office"),     _btn("🛍 Retail",     "pt|retail")],
         [_btn("📦 Warehouse",  "pt|warehouse"),  _btn("🏨 Hotel",      "pt|hotel")],
+        [_btn(_t(uid, "pt_building_btn"), "pt|whole_building")],
         [_btn(_t(uid, "pt_any"), "pt|any")],
         [_btn(_t(uid, "rbtn_home"), "menu|main")],
     )
@@ -1856,6 +1909,19 @@ def format_card(listing, uid, rank=None):
     if analytics:
         lines.append(SEPARATOR)
         lines.extend(analytics)
+
+    # ── INVESTMENT ANALYSIS — verdict, KPIs, vs bank, risk ─────────────────
+    if INVEST_OK:
+        try:
+            from parser_engine import _lookup_benchmark, MARKET
+            dld_b = _lookup_benchmark(listing.get("building")) if listing.get("building") else None
+            mkt   = MARKET.get(listing.get("area")) if listing.get("area") else None
+            inv   = compute_investment_score(listing, dld_b, mkt)
+            lang  = _get_lang(uid)
+            lines.append("")
+            lines.append(build_conclusion_text(listing, inv, lang))
+        except Exception as _e:
+            print(f"[bot] invest section: {_e}")
 
     return "\n".join(lines)
     if roi and deal_type == "sale":
@@ -2471,6 +2537,10 @@ def send_results(cid, uid, mid=None):
         if has_building:
             kb_rows.append([_btn(_t(uid, "btn_all_in_bld"), f"allbld|{lid}")])
         kb_rows.append([_btn(_t(uid, "btn_similar"),  f"similar|{lid}"), _btn(_t(uid, "btn_send"),   f"send|{lid}")])
+        if PDF_OK:
+            pdf_lbl = {"en":"📄 Investment PDF","ru":"📄 Инвест-отчёт PDF",
+                       "ar":"📄 تقرير PDF"}.get(_get_lang(uid), "📄 Investment PDF")
+            kb_rows.append([_btn(pdf_lbl, f"pdf|{lid}")])
         kb = _kb(*kb_rows)
         # Send with photos (file_id stored directly from Bot API upload)
         images = get_listing_images(lid) if lid else []
@@ -2593,7 +2663,7 @@ def claude_parse(text, lang="en"):
         '  "area": "string|null  (e.g. Dubai Marina, JBR, Downtown, Palm)",\n'
         '  "building": "string|null",\n'
         '  "deal_type": "sale|rent|null",\n'
-        '  "property_type": "apartment|villa|townhouse|penthouse|studio|duplex|office|retail|warehouse|hotel|plot|null",\n'
+        '  "property_type": "apartment|villa|townhouse|penthouse|studio|duplex|office|retail|warehouse|hotel|whole_building|plot|null",\n'
         '  "bedrooms": "int (0=studio)|null",\n'
         '  "min_price": "int AED|null",\n'
         '  "max_price": "int AED|null",\n'
@@ -3243,16 +3313,20 @@ def dispatch_main_button(cid, uid, rkey):
         gs(uid)["wizard"] = "emirate"
         _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
     elif rkey == "rbtn_hot":
-        # Preserve any existing category filters (deal_type / property_type / etc)
-        # from previous wizard steps — if user pressed Buy then Hot, show hot SALES.
+        # Сохраняем существующие фильтры (если пользователь уже выбрал Аренда —
+        # покажем горячие аренды). Иначе — по умолчанию SALE.
         existing = dict(gs(uid).get("filters", {}))
         existing["hot_only"] = True
         existing["sort"] = "best_deals"
+        if "deal_type" not in existing:
+            existing["deal_type"] = "sale"
         gs(uid)["filters"] = existing
         _send(cid, _t(uid, "searching")); do_search(uid); send_results(cid, uid)
     elif rkey == "rbtn_new":
         existing = dict(gs(uid).get("filters", {}))
         existing["sort"] = "newest"
+        if "deal_type" not in existing:
+            existing["deal_type"] = "sale"
         gs(uid)["filters"] = existing
         _send(cid, _t(uid, "searching")); do_search(uid); send_results(cid, uid)
     elif rkey == "rbtn_ai":
@@ -4287,10 +4361,13 @@ def handle_cb(cb):
         elif sub == "lang":   _edit(cid, mid, "Select language:", kb_lang())
         elif sub == "filter": _reset(uid); _edit(cid, mid, _t(uid, "emirate_q"), kb_emirate(uid))
         elif sub == "hot":
-            _reset(uid); gs(uid)["filters"] = {"hot_only": True, "sort": "best_deals"}
+            # По умолчанию из главного меню — только продажа (rent должен быть
+            # выбран явно через wizard «Аренда»).
+            _reset(uid); gs(uid)["filters"] = {"hot_only": True, "sort": "best_deals",
+                                                 "deal_type": "sale"}
             _edit(cid, mid, _t(uid, "searching")); do_search(uid); send_results(cid, uid, mid)
         elif sub == "new":
-            _reset(uid); gs(uid)["filters"] = {"sort": "newest"}
+            _reset(uid); gs(uid)["filters"] = {"sort": "newest", "deal_type": "sale"}
             _edit(cid, mid, _t(uid, "searching")); do_search(uid); send_results(cid, uid, mid)
         elif sub == "budget":
             _reset(uid); _edit(cid, mid, _t(uid, "budget_q"), kb_budget(uid))
@@ -4421,6 +4498,18 @@ def handle_cb(cb):
         if listing:
             text = format_card(dict(listing), uid)
             _send(cid, text)
+
+    elif action == "pdf":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        listing = get_listing_by_id(lid)
+        if not listing:
+            _api("answerCallbackQuery", callback_query_id=cb.get("id"), text="Not found")
+            return
+        ack = {"en": "📄 Generating PDF…", "ru": "📄 Готовлю PDF…",
+                "ar": "📄 جاري التحضير…"}.get(_get_lang(uid), "📄 Generating PDF…")
+        _api("answerCallbackQuery", callback_query_id=cb.get("id"), text=ack)
+        threading.Thread(target=_send_pdf, args=(cid, uid, dict(listing)),
+                          daemon=True).start()
 
     elif action == "similar":
         lid = int(parts[1]) if len(parts) > 1 else 0
