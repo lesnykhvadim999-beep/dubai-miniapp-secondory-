@@ -2527,11 +2527,6 @@ def _llm_split_all_listings(text: str, timeout: int = 15) -> Optional[list]:
         cached = _MULTI_SPLIT_CACHE[h]
         return cached if isinstance(cached, list) else [cached]
 
-    GROQ = os.environ.get("GROQ_API_KEY", "")
-    ANTH = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not (GROQ or ANTH):
-        return None
-
     snippet = text[:4000]  # больше места — могут быть длинные multi-listing
     prompt = (
         "You are a UAE real estate text splitter. The following Telegram post "
@@ -2553,34 +2548,8 @@ def _llm_split_all_listings(text: str, timeout: int = 15) -> Optional[list]:
         "JSON array:"
     )
 
-    text_resp = None
-    try:
-        import requests as _req
-        if GROQ:
-            r = _req.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ}",
-                         "Content-Type": "application/json"},
-                json={"model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
-                      "max_tokens": 4000,
-                      "messages": [{"role": "user", "content": prompt}]},
-                timeout=timeout)
-            if r.status_code == 200:
-                text_resp = r.json()["choices"][0]["message"]["content"].strip()
-        if not text_resp and ANTH:
-            r = _req.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={"x-api-key": ANTH, "anthropic-version": "2023-06-01",
-                         "content-type": "application/json"},
-                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 4000,
-                      "messages": [{"role": "user", "content": prompt}]},
-                timeout=timeout)
-            if r.status_code == 200:
-                text_resp = r.json()["content"][0]["text"].strip()
-    except Exception as e:
-        print(f"[parser] LLM split-all err: {e}")
-        return None
-
+    # Use universal LLM chain — 7 providers fallback
+    text_resp = _llm(prompt, max_tokens=4000, timeout=timeout)
     if not text_resp:
         return None
 
@@ -2634,11 +2603,6 @@ def _llm_split_first_listing(text: str, timeout: int = 12) -> Optional[str]:
     if h in _MULTI_SPLIT_CACHE:
         return _MULTI_SPLIT_CACHE[h]
 
-    GROQ = os.environ.get("GROQ_API_KEY", "")
-    ANTH = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not (GROQ or ANTH):
-        return None
-
     snippet = text[:2500]
     prompt = (
         "You are a UAE real estate text splitter. The following text contains "
@@ -2656,34 +2620,8 @@ def _llm_split_first_listing(text: str, timeout: int = 12) -> Optional[str]:
         "First listing only:"
     )
 
-    text_resp = None
-    try:
-        import requests as _req
-        if GROQ:
-            r = _req.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ}",
-                         "Content-Type": "application/json"},
-                json={"model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
-                      "max_tokens": 500,
-                      "messages": [{"role": "user", "content": prompt}]},
-                timeout=timeout)
-            if r.status_code == 200:
-                text_resp = r.json()["choices"][0]["message"]["content"].strip()
-        if not text_resp and ANTH:
-            r = _req.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={"x-api-key": ANTH, "anthropic-version": "2023-06-01",
-                         "content-type": "application/json"},
-                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 500,
-                      "messages": [{"role": "user", "content": prompt}]},
-                timeout=timeout)
-            if r.status_code == 200:
-                text_resp = r.json()["content"][0]["text"].strip()
-    except Exception as e:
-        print(f"[parser] LLM split err: {e}")
-        return None
-
+    # Use universal LLM chain (7 providers fallback)
+    text_resp = _llm(prompt, max_tokens=500, timeout=timeout)
     if not text_resp or len(text_resp) < 30:
         return None
 
@@ -3048,6 +2986,40 @@ except Exception as _e:
     print(f"[parser] DLD canonical load failed: {_e}")
 
 
+# ── Universal LLM helper (uses 7-provider fallback chain) ────────────────
+try:
+    from llm_chain import llm_call as _chain_llm_call
+    _HAS_LLM_CHAIN = True
+except Exception as _e:
+    _HAS_LLM_CHAIN = False
+    print(f"[parser] llm_chain not available: {_e}")
+
+
+def _llm(prompt: str, max_tokens: int = 500, timeout: int = 15) -> Optional[str]:
+    """Wrapper — пробует все 7 провайдеров через llm_chain.
+    Возвращает None если все упали."""
+    if _HAS_LLM_CHAIN:
+        return _chain_llm_call(prompt, max_tokens=max_tokens, timeout=timeout)
+    # Fallback на старую логику Groq-only если llm_chain недоступен
+    import requests as _req
+    GROQ = os.environ.get("GROQ_API_KEY", "")
+    if GROQ:
+        try:
+            r = _req.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ}",
+                         "Content-Type": "application/json"},
+                json={"model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+                      "max_tokens": max_tokens,
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=timeout)
+            if r.status_code == 200:
+                return r.json()["choices"][0]["message"]["content"].strip()
+        except Exception:
+            pass
+    return None
+
+
 def _llm_extract_building_area(text: str, timeout: int = 12) -> dict:
     """LLM fallback (Claude → Groq) для извлечения building+area из текста
     объявления когда regex-парсер не справился.
@@ -3074,41 +3046,8 @@ def _llm_extract_building_area(text: str, timeout: int = 12) -> dict:
         'Output (JSON only, no markdown): {"building": "...", "area": "...", "confidence": 0.9}'
     )
 
-    # Try Claude first (env vars)
-    ANTH = os.environ.get("ANTHROPIC_API_KEY", "")
-    GROQ = os.environ.get("GROQ_API_KEY", "")
-    text_resp = None
-
-    if ANTH:
-        try:
-            r = _req.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={"x-api-key": ANTH, "anthropic-version": "2023-06-01",
-                         "content-type": "application/json"},
-                json={"model": "claude-haiku-4-5-20251001",
-                      "max_tokens": 200,
-                      "messages": [{"role": "user", "content": prompt}]},
-                timeout=timeout)
-            if r.status_code == 200:
-                text_resp = r.json()["content"][0]["text"].strip()
-        except Exception as e:
-            print(f"[parser_llm] Claude err: {e}")
-
-    if not text_resp and GROQ:
-        try:
-            r = _req.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ}",
-                         "Content-Type": "application/json"},
-                json={"model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
-                      "max_tokens": 200,
-                      "messages": [{"role": "user", "content": prompt}]},
-                timeout=timeout)
-            if r.status_code == 200:
-                text_resp = r.json()["choices"][0]["message"]["content"].strip()
-        except Exception as e:
-            print(f"[parser_llm] Groq err: {e}")
-
+    # Use universal LLM chain (Cerebras → Groq → SambaNova → Mistral → ...)
+    text_resp = _llm(prompt, max_tokens=200, timeout=timeout)
     if not text_resp:
         return {}
 
@@ -3208,56 +3147,30 @@ def infer_area_from_building(building: str, db_dsn: str = None) -> Optional[str]
         except Exception as _e:
             print(f"[parser] DB infer_area err: {_e}")
 
-    # Step 3: Groq LLM — one-off lookup
-    GROQ = os.environ.get("GROQ_API_KEY", "")
-    ANTH = os.environ.get("ANTHROPIC_API_KEY", "")
-    if GROQ or ANTH:
-        prompt = (
-            f"You are a UAE real estate database. In which Dubai (or other UAE emirate) "
-            f"district/community is the building '{building}' located? "
-            f"Return ONLY a JSON object with a single 'area' field. "
-            f'Examples: {{"area": "Jumeirah Village Circle"}} or {{"area": "Dubai Marina"}}. '
-            f"If you don't know with confidence, return: {{\"area\": null}}.\n\n"
-            f"Use the FAMILIAR user-known name (JVC, Marina, Downtown, etc.), "
-            f"NOT DLD official names like 'Al Barsha South Fourth'."
-        )
+    # Step 3: LLM chain (Cerebras → Groq → SambaNova → Mistral → Gemini → ...)
+    prompt = (
+        f"You are a UAE real estate database. In which Dubai (or other UAE emirate) "
+        f"district/community is the building '{building}' located? "
+        f"Return ONLY a JSON object with a single 'area' field. "
+        f'Examples: {{"area": "Jumeirah Village Circle"}} or {{"area": "Dubai Marina"}}. '
+        f"If you don't know with confidence, return: {{\"area\": null}}.\n\n"
+        f"Use the FAMILIAR user-known name (JVC, Marina, Downtown, etc.), "
+        f"NOT DLD official names like 'Al Barsha South Fourth'."
+    )
+    text = _llm(prompt, max_tokens=80, timeout=10)
+    if text:
         try:
-            import requests as _req
-            text = None
-            if ANTH:
-                r = _req.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={"x-api-key": ANTH, "anthropic-version": "2023-06-01",
-                             "content-type": "application/json"},
-                    json={"model": "claude-haiku-4-5-20251001", "max_tokens": 80,
-                          "messages": [{"role": "user", "content": prompt}]},
-                    timeout=10)
-                if r.status_code == 200:
-                    text = r.json()["content"][0]["text"].strip()
-            if not text and GROQ:
-                r = _req.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {GROQ}",
-                             "Content-Type": "application/json"},
-                    json={"model": "llama-3.3-70b-versatile",
-                          "max_tokens": 80,
-                          "messages": [{"role": "user", "content": prompt}]},
-                    timeout=10)
-                if r.status_code == 200:
-                    text = r.json()["choices"][0]["message"]["content"].strip()
-            if text:
-                cleaned = re.sub(r'```(?:json)?\s*', '', text).rstrip('` \n')
-                m = re.search(r'\{[^{}]*\}', cleaned, re.S)
-                if m:
-                    obj = _json.loads(m.group(0))
-                    area = obj.get("area")
-                    if area and isinstance(area, str) and len(area) >= 3:
-                        # Apply friendly mapping just in case
-                        friendly = _DLD_TO_FRIENDLY.get(area, area)
-                        _BUILDING_AREA_CACHE[key] = friendly
-                        return friendly
+            cleaned = re.sub(r'```(?:json)?\s*', '', text).rstrip('` \n')
+            m = re.search(r'\{[^{}]*\}', cleaned, re.S)
+            if m:
+                obj = _json.loads(m.group(0))
+                area = obj.get("area")
+                if area and isinstance(area, str) and len(area) >= 3:
+                    friendly = _DLD_TO_FRIENDLY.get(area, area)
+                    _BUILDING_AREA_CACHE[key] = friendly
+                    return friendly
         except Exception as _e:
-            print(f"[parser] LLM infer_area err: {_e}")
+            print(f"[parser] LLM infer_area parse err: {_e}")
 
     _BUILDING_AREA_CACHE[key] = None
     return None
