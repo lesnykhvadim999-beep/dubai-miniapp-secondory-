@@ -2076,6 +2076,17 @@ def extract_price(text: str) -> dict:
     result = {"price": None, "currency": "AED",
               "original_price": None, "selling_price": None}
 
+    # Strip reference/permit/RERA/DLD numbers — these 7-9 digit IDs were being
+    # picked up as price (e.g. "Reference No.: #34881961" → price=34,881,961).
+    # Drop the entire line containing these markers.
+    text = re.sub(
+        r'(?im)^.*\b(?:reference\s+no|ref\.?\s*no|ref\s*[:#]|permit\s+no|'
+        r'permit\s*[:#]|rera\s*[:#]|dld\s+permit|dld\s*[:#]|brn\s*[:#]|'
+        r'license\s+no|license\s*[:#]|listed\s+by)\b.*$',
+        ' ', text)
+    # Also strip standalone `#<7-9 digits>` hash-ref tokens that appear inline
+    text = re.sub(r'#\s*\d{6,10}\b', ' ', text)
+
     # Strip phone numbers (international + local) before any price pattern matching
     text = _strip_phones(text)
     # Strip bedroom abbreviations — "1 BHK", "2 BR", "3 Bed" — so price regex
