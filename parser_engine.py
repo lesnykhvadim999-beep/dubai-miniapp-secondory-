@@ -4381,22 +4381,22 @@ def _llm_quality_gate(data: dict, full_text: str, timeout: int = 15) -> dict:
     """
     if not full_text or len(full_text) < 100:
         return data
-    # v105.1: расширенный trigger — fire on ANY missing field.
-    # Цель: догнать completeness до 95%. Building/size/bedrooms часто NULL
-    # после regex, но в тексте присутствуют. LLM их вытянет.
+    # v106.1: CONSERVATIVE trigger — экономим free LLM quota.
+    # Fire только когда что-то важное missing OR high-stakes deal:
+    #   - building IS NULL (главная дыра — 33% записей)
+    #   - price IS NULL (parser failure)
+    #   - price >= 2M AED (high-stakes — стоит проверить)
+    #   - multi-listing risk (high leak chance)
+    # НЕ fire-ить для просто "long listing" — выжигает quota впустую.
     price = data.get("price") or 0
-    high_stakes = price >= 1_500_000
+    high_stakes = price >= 2_000_000
     missing_critical = (
-        not data.get("price") or not data.get("building") or
-        not data.get("area") or not data.get("bedrooms") or
-        not data.get("size_sqft")
+        not data.get("price") or not data.get("building")
     )
     multi_risk = _is_likely_multi_listing(full_text)
-    # Run for any decent-length listing — LLM cost ~$0.001 per call, daily quota OK.
-    long_listing = len(full_text) >= 200
 
-    if not (high_stakes or missing_critical or multi_risk or long_listing):
-        return data  # very short/trivial — skip
+    if not (high_stakes or missing_critical or multi_risk):
+        return data  # low-risk — trust regex, save quota
 
     # Cache check
     h = _hashlib.md5((full_text[:2000] + "::qgate").encode('utf-8', 'ignore')).hexdigest()

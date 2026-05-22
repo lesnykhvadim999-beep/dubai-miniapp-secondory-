@@ -89,6 +89,11 @@ PROVIDERS = [
 _PROVIDER_COOLDOWN: dict = {}
 _COOLDOWN_SEC = 300
 
+# v106.1: Anthropic out of credits — отключаем на 24h при импорте модуля,
+# чтобы не долбить мёртвый ключ. Снимем после top-up.
+import time as _time
+_PROVIDER_COOLDOWN["anthropic"] = _time.time() + 86400
+
 
 def _is_cooled_down(name: str) -> bool:
     """Returns True if provider hit rate limit recently and should be skipped."""
