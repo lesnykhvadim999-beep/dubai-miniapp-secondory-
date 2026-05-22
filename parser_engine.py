@@ -2823,6 +2823,88 @@ except Exception as _e:
     print(f"[parser] DLD canonical load failed: {_e}")
 
 
+def _llm_extract_building_area(text: str, timeout: int = 12) -> dict:
+    """LLM fallback (Claude → Groq) для извлечения building+area из текста
+    объявления когда regex-парсер не справился.
+    Возвращает {"building": str|None, "area": str|None, "confidence": 0-1}.
+    """
+    import requests as _req
+    if not text or len(text) < 30:
+        return {}
+    # Limit text to first 1500 chars (typical first listing block)
+    snippet = text[:1500].strip()
+
+    prompt = (
+        "You are a UAE real estate data extraction expert. Extract building name "
+        "and area/community/district from this listing text. Respond ONLY in valid JSON.\n\n"
+        "Rules:\n"
+        '- "building": the SPECIFIC building/project name (e.g. "Binghatti Nova", "Peace Lagoons", '
+        '"Marina Residences"). NOT amenities like "Private Pool" or descriptions like "Studio".\n'
+        '- "area": the district/community name (e.g. "JVC", "Dubai Marina", "Downtown", "DLRC", '
+        '"Dubai Land", "Business Bay"). NOT a view ("Burj Khalifa view" ≠ area).\n'
+        "- If MULTIPLE listings in text — extract only the FIRST one's building/area.\n"
+        "- If you cannot find a specific building name, set it to null.\n"
+        '- Set confidence 0-1 based on how clearly the info is stated.\n\n'
+        f"Text:\n```\n{snippet}\n```\n\n"
+        'Output (JSON only, no markdown): {"building": "...", "area": "...", "confidence": 0.9}'
+    )
+
+    # Try Claude first (env vars)
+    ANTH = os.environ.get("ANTHROPIC_API_KEY", "")
+    GROQ = os.environ.get("GROQ_API_KEY", "")
+    text_resp = None
+
+    if ANTH:
+        try:
+            r = _req.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": ANTH, "anthropic-version": "2023-06-01",
+                         "content-type": "application/json"},
+                json={"model": "claude-haiku-4-5-20251001",
+                      "max_tokens": 200,
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=timeout)
+            if r.status_code == 200:
+                text_resp = r.json()["content"][0]["text"].strip()
+        except Exception as e:
+            print(f"[parser_llm] Claude err: {e}")
+
+    if not text_resp and GROQ:
+        try:
+            r = _req.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ}",
+                         "Content-Type": "application/json"},
+                json={"model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+                      "max_tokens": 200,
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=timeout)
+            if r.status_code == 200:
+                text_resp = r.json()["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            print(f"[parser_llm] Groq err: {e}")
+
+    if not text_resp:
+        return {}
+
+    # Extract JSON from response
+    try:
+        # Strip markdown code-fences if present
+        cleaned = re.sub(r'```(?:json)?\s*', '', text_resp).rstrip('` \n')
+        m = re.search(r'\{.*?\}', cleaned, re.S)
+        if not m:
+            return {}
+        obj = _json.loads(m.group(0))
+        return {
+            "building": (obj.get("building") or "").strip() or None,
+            "area": (obj.get("area") or "").strip() or None,
+            "confidence": float(obj.get("confidence") or 0),
+        }
+    except Exception as e:
+        print(f"[parser_llm] JSON parse err: {e}")
+        return {}
+
+
 def normalize_via_dld(building: Optional[str], area: Optional[str]) -> tuple:
     """Возвращает (canonical_building, canonical_area). Если DLD-словарь
     содержит ключ — берём оттуда. Иначе возвращаем оригинал."""
@@ -3678,6 +3760,39 @@ def parse_message(
         data["building"] = canon_bld
     if canon_area and canon_area != data.get("area"):
         data["area"] = canon_area
+
+    # ── Stage 3: LLM fallback — если building всё ещё NULL, спросим Claude/Groq.
+    # Лимит: только для текста ≥80 chars (иначе шум). Если LLM нашёл — пробуем
+    # снова DLD-normalize. Если LLM не уверен (confidence < 0.5) — игнорим.
+    use_llm = (not data.get("building")
+               and text and len(text.strip()) >= 80
+               and os.environ.get("LLM_BUILDING_FALLBACK", "1") != "0")
+    if use_llm:
+        try:
+            llm = _llm_extract_building_area(text)
+            if llm.get("building") and llm.get("confidence", 0) >= 0.5:
+                llm_bld = llm["building"]
+                llm_area = llm.get("area")
+                # Validate via DLD
+                canon_bld2, canon_area2 = normalize_via_dld(llm_bld, llm_area)
+                data["building"] = canon_bld2 or llm_bld
+                if canon_area2 and not data.get("area"):
+                    data["area"] = canon_area2
+                elif llm_area and not data.get("area"):
+                    data["area"] = llm_area
+                data["building_confidence"] = llm["confidence"]
+                data["llm_used"] = True
+        except Exception as _e:
+            print(f"[parser] LLM fallback err: {_e}")
+
+    # ── Quality gate: NULL building → отправить в audit (не публикуем) ─────
+    # Пользователь договорился: лучше меньше но качественных объявлений.
+    # Если building всё ещё пустой даже после LLM — audit.
+    if not data.get("building") or not str(data.get("building")).strip():
+        data["needs_manual_review"] = True
+        data["auto_audit"] = True
+        existing_reason = data.get("review_reason") or ""
+        data["review_reason"] = (existing_reason + "; no_building").lstrip("; ")
 
     # ── Sanity-limit длины: building > 100 chars / area > 100 chars = мусор
     if data.get("building") and len(data["building"]) > 100:

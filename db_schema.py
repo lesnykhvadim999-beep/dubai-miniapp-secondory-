@@ -416,6 +416,22 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                 if row:
                     return row["id"], False
 
+            # Check by content signature — same first 250 chars of text = dup
+            # (брокер форвардит одно и то же объявление в разные каналы)
+            import re as _re
+            if data.get("original_text"):
+                sig = _re.sub(r'\s+', ' ', (data["original_text"] or "")[:250]).strip()
+                if len(sig) > 50:
+                    cur.execute("""SELECT id FROM listings
+                        WHERE regexp_replace(LEFT(original_text, 250), '\\s+', ' ', 'g') = %s
+                        AND (telegram_message_id IS DISTINCT FROM %s OR telegram_chat_id IS DISTINCT FROM %s)
+                        LIMIT 1""",
+                        (sig, data.get("telegram_message_id"), data.get("telegram_chat_id", "")))
+                    dup = cur.fetchone()
+                    if dup:
+                        # Already have this content from another channel/post — skip
+                        return dup["id"], False
+
             # Check by listing_key (property dedup)
             key = data.get("listing_key")
             if key:
@@ -446,13 +462,18 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                     conn.commit()
                     return existing_id, False
 
+            # Auto-audit для записей без building name (quality gate).
+            # Договорённость с владельцем: лучше меньше но качественных.
+            if data.get("auto_audit"):
+                data["is_audit"] = True
+
             # Insert new listing
             cols = [
                 "listing_key","source","telegram_chat_id","telegram_message_id","message_date",
                 "original_text","seller_username","deal_type","property_type",
                 "emirate","emirate_confidence","area","area_confidence",
                 "building","building_confidence","location_confidence",
-                "needs_manual_review","review_reason",
+                "needs_manual_review","review_reason","is_audit",
                 "bedrooms","bathrooms","size_sqft","bua_sqft","plot_sqft",
                 "floor","unit_number","view","furnishing","status",
                 "price","currency","original_price","selling_price","price_per_sqft",
@@ -845,7 +866,7 @@ def search_listings(filters: dict, limit: int = 10, offset: int = 0) -> tuple[li
             if filters.get("bedrooms") is not None:
                 br = filters["bedrooms"]
                 if br == 0:
-                    where.append("bedrooms = 0 OR property_type='studio'")
+                    where.append("(bedrooms = 0 OR property_type='studio')")
                 elif br == 99:  # 4BR+
                     where.append("bedrooms >= 4")
                 else:
