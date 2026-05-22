@@ -43,6 +43,16 @@
 | 1.34 | «Reduced from X to Y» / «From X to Y» strip левой части | Берём только Y (новую цену) |
 | 1.35 | NEW PRICE приоритет: при наличии «NEW PRICE Y» strip «Selling price X» | «~~SP 1.16M~~ NEW PRICE 1.09M» = 1.09M |
 | 1.36 | `\bnew\s+price\b` regex как первый кандидат selling-pat | приоритет над OLD selling price |
+| 1.37 | UAE phone с пробелами: `058 519 6704` strip | «5,851,96,704» = phone concat → корректно strip |
+| 1.38 | WhatsApp/Contact/Call + tail digits strip | `WhatsApp: 058 519 6704` → no number leak |
+| 1.39 | Sanity cap: price > 500M + text < 800 chars → NULL | parsing-error катастрофа |
+| 1.40 | «X mln» где X > 100 + apartment context → /1000 | «1070 mln» (typo for 1.07M) для 1BR |
+| 1.41 | Sanity cap: > 200M AED для apartment/studio → NULL | без building/hotel/plot/land |
+| 1.42 | Strip `\d+ m²/m^2/m2` area-как-meters | «74 m²» → не 74 миллиона через M-suffix |
+| 1.43 | Cyrillic `м²/м2/м^2` тоже strip | «74 м²» → не 74M (после homoglyph translate) |
+| 1.44 | «PHPP\nN» / «PHPP: N» strip | Post-handover installment не цена |
+| 1.45 | «SOA-N%» strip | "Status of Account" процент |
+| 1.46 | «X on handower» (typo of handover) тоже strip | seller spelling errors |
 
 ## 2. Определение deal_type (`detect_deal_type`)
 

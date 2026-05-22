@@ -2234,6 +2234,14 @@ def extract_price(text: str) -> dict:
         r'[\d,\.]+\s*(?:aed|usd|eur)?\s*[/\\]?\s*(?:per\s+)?'
         r'(?:sq\.?\s*ft|sqft|psf|sq\.?\s*m|sqm|psm|кв\.?\s*м|кв\.?\s*фут)',
         ' ', text, flags=re.I)
+    # Also strip area-as-meters: "74 m²" / "74 m^2" / "74 m2" — это размер не цена.
+    # КРИТИЧНО: homoglyph translate превращает Cyrillic «м^2» в «m^2», и без этого
+    # strip парсер брал «74 m» (через M-suffix pattern) как 74 миллиона.
+    text = re.sub(
+        r'(?<![\d.])\d+(?:[.,]\d+)?\s*m\s*(?:\^?2|²)',
+        ' ', text, flags=re.I)
+    # Также Cyrillic-equivalent m² уже convert в latin, но на всякий случай:
+    text = re.sub(r'(?<![\d.])\d+(?:[.,]\d+)?\s*м[²2^]', ' ', text, flags=re.I)
     # Также фразы "X aed/m²" с любыми вариациями
     text = re.sub(
         r'\b[\d,\.]+\s*(?:aed|\$|€)\s*/?\s*m[²2]\b',
