@@ -467,7 +467,24 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
             if data.get("auto_audit"):
                 data["is_audit"] = True
 
-            # Insert new listing
+            # v106: STAGING ROUTING — incomplete listings идут в listings_staging,
+            # не в основную listings. Worker (_staging_processor.py) дотягивает
+            # их через AI и promotes когда complete. Это гарантирует что в
+            # listings нет мусора.
+            is_complete = (
+                data.get("building") and
+                data.get("area") and
+                data.get("price") and
+                data.get("bedrooms") is not None and
+                data.get("deal_type") and
+                not data.get("needs_manual_review") and
+                not data.get("is_audit")
+            )
+            if not is_complete:
+                # Insert into staging instead
+                return _insert_to_staging(cur, conn, data), True
+
+            # Insert new listing (complete & valid)
             cols = [
                 "listing_key","source","telegram_chat_id","telegram_message_id","message_date",
                 "original_text","seller_username","deal_type","property_type",
@@ -518,6 +535,48 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
         raise
     finally:
         conn.close()
+
+
+def _insert_to_staging(cur, conn, data: dict) -> int:
+    """v106: записывает incomplete listing в listings_staging.
+    Background worker _staging_processor.py дотягивает поля через LLM
+    и promotes в listings когда complete.
+    """
+    # Same column set as listings, plus staging columns
+    cols = [
+        "listing_key","source","telegram_chat_id","telegram_message_id","message_date",
+        "original_text","seller_username","deal_type","property_type",
+        "emirate","emirate_confidence","area","area_confidence",
+        "building","building_confidence","location_confidence",
+        "needs_manual_review","review_reason","is_audit",
+        "bedrooms","bathrooms","size_sqft","bua_sqft","plot_sqft",
+        "floor","unit_number","view","furnishing","status",
+        "price","currency","original_price","selling_price","price_per_sqft",
+        "discount_amount","discount_percent",
+        "is_hot_deal","deal_quality","deal_reason","is_below_market","price_vs_market_percent",
+        "market_avg_sqft","market_rent_1br","market_growth_pct","roi_estimate",
+        "airbnb_estimate_low","airbnb_estimate_high","investment_score",
+        "agent_name","phone","whatsapp",
+        "has_images","cover_image_url","confidence_score",
+        "extra_info","is_off_plan","handover_date","photo_phash",
+        "broker_dedup_key","description",
+    ]
+    vals = []
+    for c in cols:
+        v = data.get(c)
+        if c == "extra_info" and v is not None:
+            import json as _json
+            v = _json.dumps(v, ensure_ascii=False)
+        vals.append(v)
+    placeholders = ",".join(["%s"] * len(cols))
+    col_str = ",".join(cols)
+    cur.execute(
+        f"INSERT INTO listings_staging ({col_str}) VALUES ({placeholders}) RETURNING id",
+        vals
+    )
+    new_id = cur.fetchone()["id"]
+    conn.commit()
+    return new_id
 
 
 def save_images(listing_id: int, urls: list[str]):
@@ -1015,6 +1074,24 @@ def is_favorited(uid: int, listing_id: int) -> bool:
             cur.execute("SELECT 1 FROM favorites WHERE uid=%s AND listing_id=%s",
                         (uid, listing_id))
             return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def is_favorited_batch(uid: int, listing_ids: list) -> set:
+    """v52: batch fetch for N listings — 1 SQL roundtrip instead of N."""
+    if not listing_ids:
+        return set()
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT listing_id FROM favorites WHERE uid=%s AND listing_id = ANY(%s)",
+                (uid, list(listing_ids)),
+            )
+            rows = cur.fetchall()
+            # rows[0] could be tuple or RealDictRow
+            return {r[0] if not hasattr(r, 'get') else r.get('listing_id') for r in rows}
     finally:
         conn.close()
 

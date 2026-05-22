@@ -194,6 +194,10 @@ def _call_anthropic(provider: dict, prompt: str, max_tokens: int,
         elif r.status_code in (401, 403):
             _mark_cooldown(provider["name"], 86400)
             print(f"[llm_chain] anthropic {r.status_code} (bad key) -> 24h skip")
+        elif r.status_code == 400 and "credit balance" in r.text.lower():
+            # Out of credits — disable for 24h, user needs to top up
+            _mark_cooldown(provider["name"], 86400)
+            print(f"[llm_chain] anthropic OUT OF CREDIT -> 24h skip (top up needed)")
         elif r.status_code >= 400:
             print(f"[llm_chain] anthropic {r.status_code}: {r.text[:120]}")
     except Exception as e:
