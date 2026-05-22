@@ -907,11 +907,17 @@ def detect_deal_type(text: str, price: Optional[int] = None,
         "listed at", "mortgage", "cash price", "payment plan", "handover",
         "off plan", "offplan", "off-plan", "resale", "transfer fee", "dld fee",
         "للبيع", "продажа", "продаётся", "продам", "на продажу",
-        "posthandover", "post handover", "ready to move in",
+        "posthandover", "post handover",
+        # NB: "ready to move in" удалено — это STATUS квартиры, не deal_type.
+        # Аренда тоже бывает ready to move in. Раньше «For Rent ... Ready to Move In»
+        # давало tie sale/rent → default sale.
     ]
 
     rent_score = sum(1 for s in rent_signals if s in tl)
     sale_score = sum(1 for s in sale_signals if s in tl)
+    # Extra rent pattern: "Rent N" / "Rent: N" с явным числом
+    if re.search(r'\brent\s*:?\s*\d', tl):
+        rent_score += 1
 
     # ── Price magnitude override ────────────────────────────────────────────
     # Любая сумма > 500к AED при отсутствии явного rent-сигнала = SALE.
@@ -2104,12 +2110,31 @@ def extract_price(text: str) -> dict:
     # Парсер раньше брал $387K как цену.
     text = re.sub(r'\(\s*[~≈]?\s*\$\s*[\d.,]+\s*[kmKM]?\s*\)', ' ', text)
 
-    # ── Strip "rented at/till/until X" / "rented N AED" — это арендный
-    # доход из текущего тенанта, не sale price. Раньше брал rent как sale.
+    # ── Strip "rented at/till/until X" / "rented N AED" / "rented: AED N / year"
+    # Это арендный доход из текущего тенанта, не sale price.
+    # Раньше брал rent (280K/year) как sale price в multi-listing с "Price: AED 6M".
+    # Поддерживаем все варианты: "Rented at 75k", "Rented: AED 280,000 / year",
+    # "Rented till X (240k/year)", "Rent 155K", "Rented out 58k yearly".
     text = re.sub(
-        r'\brent(?:ed)?\s*(?:at|@|till|until|for)?[\s:]*[\d.,]+\s*(?:k|m|aed)?'
-        r'(?:\s+till\s+\d|\s+per\s+year)?', ' ',
-        text, flags=re.I)
+        r'\brent(?:ed)?\s*(?:out\s+)?(?:at|@|till|until|for)?[\s:]*'
+        r'(?:aed\s+)?[\d.,]+\s*[km]?\s*(?:aed)?\s*'
+        r'(?:/\s*(?:year|yr|month|mo)|per\s+(?:year|month|annum)|yearly|monthly)?',
+        ' ', text, flags=re.I)
+    # Also strip parenthesised rental "(240k/year)" / "(58k yearly)"
+    text = re.sub(
+        r'\(\s*[\d.,]+\s*[km]?\s*(?:aed)?\s*'
+        r'/?\s*(?:year|yr|month|mo|yearly|monthly|annum)\s*\)',
+        ' ', text, flags=re.I)
+    # And '(OP X,XXX)' without comma-K-million suffix — likely truncated OP
+    # like 'OP 2,355' that should be 2,355,000 but ambiguous → strip safer.
+    text = re.sub(r'\(\s*op\s+[\d,]{1,7}\s*\)', ' ', text, flags=re.I)
+
+    # ── Broken European thousands "N.NNN.NN" (truncated last group)
+    # Real example: 'Price: 3.100.00 AED' — должно быть 3,100,000 (миллионы).
+    # Парсер раньше брал 3100. Нормализуем: N.NNN.NN → N,NNN,000.
+    text = re.sub(
+        r'(?<![\d.])(\d)\.(\d{3})\.(\d{2})(?!\d)',
+        r'\1,\2,000', text)
 
     # ── Strip payment-plan portions: "50k on handover", "X on transfer",
     # "X to the owner / X to developer". Это куски сплит-платежа, не цена.
@@ -2146,9 +2171,12 @@ def extract_price(text: str) -> dict:
     text = re.sub(
         r'\bservice\s+charge[\s:=]+(?:aed\s+)?[\d,]+(?:\.\d+)?', ' ',
         text, flags=re.I)
+    # DLD fee strip: ТОЛЬКО когда есть явный маркер 'fee' / '4%'.
+    # Раньше регекс был жадным и съедал «DLD = 3.05» внутри «OP+DLD = 3.05 M AED»
+    # (где DLD это часть условия "OP+DLD" — original price плюс DLD-комиссия).
     text = re.sub(
-        r'\bdld\s+(?:fee|4%)?[\s:=]*(?:aed\s+)?[\d,]+(?:\.\d+)?', ' ',
-        text, flags=re.I)
+        r'\bdld\s+(?:fee|4%)\s*[\s:=]*(?:aed\s+)?[\d,]+(?:\.\d+)?\s*(?:aed|k|m)?',
+        ' ', text, flags=re.I)
     # ── Rental income / yield mentions — это НЕ цена объекта, а доход.
     # «Rental income: AED 1.34M / Annual rental: 330,000 / Rented at 110k»
     text = re.sub(
@@ -2317,6 +2345,9 @@ def extract_price(text: str) -> dict:
 
     # ── Generic: number + K/M/ML ──────────────────────────────────────────────
     if not result["price"]:
+        import os as _os
+        if _os.environ.get("DEBUG_EXTRACT_PRICE"):
+            print(f"[DEBUG] text before generic: {t[:600]!r}", flush=True)
         # (pattern, min_amount) — explicit AED-suffixed prices allow rents from 20k
         patterns = [
             (r'([\d\.]+\s*[Mm][Ll])\b', 100_000),     # 3.2ML

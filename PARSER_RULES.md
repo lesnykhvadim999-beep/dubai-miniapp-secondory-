@@ -18,7 +18,18 @@
 | 1.9 | `market\s+price\|avg\s+price` strip | reference price ≠ actual price |
 | 1.10 | Discount-in-parens strip | «AED 3M (130k discount)» |
 | 1.11 | Cyrillic М/К → M/K conversion | «3,5М», «800К» |
-| 1.12 | Service charges / DLD fees strip | «DLD 4% AED 120,000» |
+| 1.12 | Service charges / DLD fees strip | «DLD 4% AED 120,000» (требует `fee` или `4%`) |
+| 1.13 | `Reference No.: #34881961` / `Permit No.` / `RERA #` strip | parser брал ID как цену |
+| 1.14 | `$XXX` dollar-conversion в скобках strip | «AED 1,420,000 (~$387K)» → 387K leak |
+| 1.15 | «X on handover/transfer/completion» strip | down-payment не цена |
+| 1.16 | «X to owner / X to developer» strip | сплит-платёж не цена |
+| 1.17 | «X left posthandover» / «X remaining» strip | остаток не цена |
+| 1.18 | «Pay X now» strip | первый взнос не цена |
+| 1.19 | «X each month/monthly during N years» strip | installment не цена |
+| 1.20 | «Rented at/till/until/for N AED/year» strip | rental income не sale price |
+| 1.21 | `(N k/year)` / `(N yearly)` parenthesised rent strip | rent leak в скобках |
+| 1.22 | `(OP N)` без K/M suffix strip | "OP 2,355" → ambiguous |
+| 1.23 | Broken European «N.NNN.NN» → N,NNN,000 | «3.100.00 AED» = 3,100,000 |
 
 ## 2. Определение deal_type (`detect_deal_type`)
 
@@ -27,6 +38,10 @@
 | 2.1 | `prop_type in (plot, whole_building) → deal_type='sale'` | Plot/Building всегда продажа |
 | 2.2 | Magnitude override: `price ≥ 500k + rent_score==0 → sale` | мульти-листинги где парсер угадывал rent |
 | 2.3 | `validate_deal_type_by_price` против рыночных floor | rent < 20k → service charge, не аренда |
+| 2.4 | `price ≥ 1.2M` → sale (если первый абзац НЕ «for rent») | multi-listing с rent income упоминанием |
+| 2.5 | `\bN cheques\b` / `\bN chq\b` pattern → rent | «AED 330k | 3 cheques» классифицировался как sale |
+| 2.6 | `\brent\s*:?\s*\d` extra rent signal | «Rent 155K» без других маркеров |
+| 2.7 | `ready to move in` УДАЛЁН из sale_signals | это status не deal_type — рента тоже может быть ready |
 
 ## 3. Извлечение building (`detect_building` + `_extract_building_heuristic`)
 
