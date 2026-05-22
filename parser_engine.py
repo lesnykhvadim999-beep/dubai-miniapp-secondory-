@@ -2491,6 +2491,110 @@ def extract_price(text: str) -> dict:
     return result
 
 
+# ── Multi-listing split cache (text hash → first-listing chunk) ─────────
+import hashlib as _hashlib
+_MULTI_SPLIT_CACHE: dict = {}
+_MULTI_SPLIT_MAX = 1000
+
+
+def _is_likely_multi_listing(text: str) -> bool:
+    """Quick heuristic: does this look like a multi-listing post?
+    Triggers when 3+ price mentions OR 3+ sqft mentions OR text > 800 chars
+    with 2+ blocks of price markers."""
+    if not text or len(text) < 400:
+        return False
+    tl = text.lower()
+    # Count distinct "price" markers
+    price_count = (
+        len(re.findall(r'\b(?:price|sp|asking|selling|aed|سعر)\s*[:=]?\s*[\d,.]+\s*[mk]?', tl, re.I))
+    )
+    sqft_count = len(re.findall(r'\d+\s*(?:sqft|sq\.?\s*ft|sq\.?\s*m|sqm)', tl, re.I))
+    return price_count >= 3 or sqft_count >= 3
+
+
+def _llm_split_first_listing(text: str, timeout: int = 12) -> Optional[str]:
+    """LLM-powered first-listing extraction для multi-listing постов.
+    Возвращает текст ТОЛЬКО первого объявления (где product, его цена и
+    размер). None если LLM не справился — fallback на regex split.
+    """
+    if not text or len(text) < 200:
+        return None
+
+    # Cache by text hash
+    h = _hashlib.md5(text[:2000].encode('utf-8', errors='ignore')).hexdigest()
+    if h in _MULTI_SPLIT_CACHE:
+        return _MULTI_SPLIT_CACHE[h]
+
+    GROQ = os.environ.get("GROQ_API_KEY", "")
+    ANTH = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not (GROQ or ANTH):
+        return None
+
+    snippet = text[:2500]
+    prompt = (
+        "You are a UAE real estate text splitter. The following text contains "
+        "MULTIPLE property listings concatenated in one Telegram post. Extract "
+        "ONLY the FIRST listing's text (building name + bedrooms + sqft + price). "
+        "Return the EXACT verbatim text of the first listing only, NO commentary, "
+        "NO markdown changes, just the chunk.\n\n"
+        "Rules:\n"
+        "- A new listing usually starts with a building name, location pin (📍), "
+        "or new property type (Studio/1BR/Villa/etc).\n"
+        "- Keep the FULL first listing including its price.\n"
+        "- Stop BEFORE the second listing's building name / location pin.\n"
+        "- If the text contains only ONE listing — return the whole text.\n\n"
+        f"Text:\n```\n{snippet}\n```\n\n"
+        "First listing only:"
+    )
+
+    text_resp = None
+    try:
+        import requests as _req
+        if GROQ:
+            r = _req.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ}",
+                         "Content-Type": "application/json"},
+                json={"model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+                      "max_tokens": 500,
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=timeout)
+            if r.status_code == 200:
+                text_resp = r.json()["choices"][0]["message"]["content"].strip()
+        if not text_resp and ANTH:
+            r = _req.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": ANTH, "anthropic-version": "2023-06-01",
+                         "content-type": "application/json"},
+                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 500,
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=timeout)
+            if r.status_code == 200:
+                text_resp = r.json()["content"][0]["text"].strip()
+    except Exception as e:
+        print(f"[parser] LLM split err: {e}")
+        return None
+
+    if not text_resp or len(text_resp) < 30:
+        return None
+
+    # Cleanup possible markdown fence
+    text_resp = re.sub(r'^```\w*\s*', '', text_resp)
+    text_resp = re.sub(r'\s*```\s*$', '', text_resp)
+    text_resp = text_resp.strip()
+
+    # Sanity: result must be ≤ 80% of original (it's only 1 of N listings).
+    # If result is 95%+ — probably LLM didn't split.
+    if len(text_resp) > len(text) * 0.85:
+        # Trust as single-listing
+        text_resp = text
+
+    if len(_MULTI_SPLIT_CACHE) >= _MULTI_SPLIT_MAX:
+        _MULTI_SPLIT_CACHE.pop(next(iter(_MULTI_SPLIT_CACHE)))
+    _MULTI_SPLIT_CACHE[h] = text_resp
+    return text_resp
+
+
 def _first_listing_block(text: str) -> str:
     """Return first listing's text — up to the first separator or 2+ blank lines.
     Recognises a wide variety of separators used in Telegram listings:
@@ -2503,7 +2607,19 @@ def _first_listing_block(text: str) -> str:
     SP / OP / Price:), то это НЕ настоящий listing-separator, а косметический
     разделитель внутри одного объявления (банер с ценой). В этом случае
     нужно «протянуть» first block до СЛЕДУЮЩЕГО separator после price-banner.
+
+    LLM ENHANCEMENT: для подозрительных multi-listing постов (3+ цен/sqft)
+    запускаем Groq для семантического разделения, ДО regex. Кешируем результат.
     """
+    # ── Стадия 0: LLM split (только для multi-listing) ───────────────
+    if os.environ.get("LLM_MULTI_SPLIT", "1") != "0" and _is_likely_multi_listing(text):
+        try:
+            llm_chunk = _llm_split_first_listing(text)
+            if llm_chunk and 50 <= len(llm_chunk) <= len(text):
+                # Trust LLM split — переходим к regex с чанком
+                text = llm_chunk
+        except Exception as e:
+            print(f"[parser] LLM split exception: {e}")
     sep_pat = (r'\n\s*(?:'
                 r'[-—–=━─═▬*·_]{3,}'
                 r'|[⸻⸺]+'
