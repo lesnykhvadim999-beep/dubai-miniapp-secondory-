@@ -1336,6 +1336,35 @@ def _is_building_stopword(s: str) -> bool:
                'new tower','prime tower','prime business bay',
                'for serious buyers','huge rooftop terrace'}:
         return True
+    # ── View / Feature description leaking into building ──────────────────
+    # Если в имени есть слова view/views/stunning/degree/partly/with full и
+    # это НЕ имя реального здания из DB — это феча-описание.
+    feature_indicators = (
+        'view', 'views', 'stunning', 'partly', 'closets', 'amenities',
+        'degree', 'with full', 'with light', 'with view', 'with park',
+        'kitchen', 'bathroom', 'bedroom', 'terrace', 'balcony', 'roof',
+        'fittings', 'stairs', 'cement', 'parking', 'swimming', 'gym',
+        'with brand new', 'walk-in', 'walk in', 'master bedroom',
+        'parquet', 'flooring', 'lighting', 'fireplace', 'wardrobe',
+        'home elevator', 'private pool', 'high ceiling', 'low ceiling',
+    )
+    sl_words = sl.split()
+    if any(ind in sl for ind in feature_indicators):
+        # Allowed exceptions — реальные ЗДАНИЯ которые содержат «view» в имени
+        # (Marina View, Lake View, Burj Views, Park View Tower etc.)
+        # Их можно идентифицировать по тому что они короткие (2-3 слова) и
+        # ЗАКАНЧИВАЮТСЯ на view/views — но не «X With Y Views».
+        if len(sl_words) > 3:
+            return True
+        # «Cement Fly Stairs» / «Partly Park» — multi-word feature
+        if any(sl.startswith(p) for p in
+                ('stunning ', 'partly ', 'cement ', 'with full ',
+                 'with light', 'closets', 'amenities',
+                 'walk-in', 'walk in')):
+            return True
+        # Endswith «degree views» / «with X views»
+        if 'degree' in sl or 'with full' in sl:
+            return True
     # Building name shouldn't contain phone digits or currency
     if re.search(r'\+?\d{6,}|aed\s*\d|\$\s*\d|€\s*\d', sl):
         return True

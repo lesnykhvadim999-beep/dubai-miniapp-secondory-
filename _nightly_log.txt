@@ -1,0 +1,3177 @@
+id=17268: updated
+  A-fill: NULL → fr='MBR- Al Merkad'
+id=17279: updated
+  B-leak: db='The Valley-NARA EMAAR' not in text
+  PR-update: 350000 → 35000
+id=17282: updated
+  B-leak: db='Sham JBR' not in text
+id=17295: updated
+  B-leak: db='Court Towers / Marasi' not in text
+id=17305: updated
+  B-leak: db='W Residences' not in text
+id=17315: updated
+  B-leak: db='Creek Gate' not in text
+id=17319: updated
+  B-leak: db='Six Senses Residences Unit' not in text
+id=17322: updated
+  B-fill: NULL → fr='W Residence'
+id=17325: updated
+  B-update: db='Creek Gate' → fr='EXECUTIVE RESIDENCES 2'
+  A-leak: db='Dubai Creek Harbour' not in text
+id=17328: updated
+  PR-update: 1350000 → 4000000
+  PT-update: 'apartment' → 'villa'
+id=17336: updated
+  B-fill: NULL → fr='Mudon Views 4'
+id=17345: updated
+  A-update: db='Business Bay' → fr='Emaar South'
+id=17368: updated
+  A-fill: NULL → fr='MBR City'
+id=17374: updated
+  A-fill: NULL → fr='MBR- Al Merkad'
+id=17378: updated
+  B-leak: db='The Crest (Towers A)' not in text
+  PR-update: 6570000 → 3065000
+id=17379: updated
+  A-fill: NULL → fr='Dubailand'
+id=17384: updated
+  B-update: db='Damac Tower' → fr='Damac Towers'
+  A-fill: NULL → fr='Jumeirah Lakes Towers'
+id=17394: updated
+  PR-update: 1567000 → 885000
+id=17396: updated
+  PT-update: 'penthouse' → 'villa'
+id=17401: updated
+  B-leak: db='Artesia (Towers C)' not in text
+id=17404: updated
+  A-leak: db='Dubai Sports City' not in text
+id=17405: updated
+  PR-update: 2500000 → 1735000
+id=17412: updated
+  SZ-fill: NULL → 52.0
+id=17414: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=17432: updated
+  A-fill: NULL → fr='Saadiyat Island'
+id=17435: updated
+  B-update: db='Unit type' → fr='Bluewaters Bay Tower 2'
+id=17436: updated
+  BR-fill: NULL → 5
+id=17449: updated
+  PR-update: 3300000 → 33879479
+id=17451: updated
+  B-update: db='Peninsula Four' → fr='One Of The Most Beautiful Towers'
+  PR-update: 1300000 → 32269549
+id=17452: updated
+  PR-update: 2400000 → 34881961
+id=17453: updated
+  PR-update: 1724500 → 35748245
+id=17462: updated
+  B-fill: NULL → fr='La Vie'
+id=17469: updated
+  B-update: db='Single Row & Corner Unit' → fr='Nakheel Opal Gardens'
+id=17471: updated
+  B-update: db='UAE with light' → fr='Cement Fly Stairs'
+  A-fill: NULL → fr='Meydan'
+id=17479: updated
+  B-leak: db='Bluewater Residences' not in text
+id=17482: updated
+  A-fill: NULL → fr='Marsa Dubai'
+id=17490: updated
+  SZ-fill: NULL → 2300.0
+id=17491: updated
+  B-update: db='District One West' → fr='Exclusive Community'
+  A-update: db='Meydan' → fr='District One'
+id=17492: updated
+  B-update: db='Closets' → fr='Alaya Gardens'
+id=17503: updated
+  B-update: db='VIDA Residences Dubai Marina' → fr='Vida Residences'
+id=17509: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=17510: updated
+  B-leak: db='Red Residences - Sport City' not in text
+id=17514: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=17518: updated
+  A-fill: NULL → fr='Peninsula'
+id=17525: updated
+  B-fill: NULL → fr='With Full Canal And Burj Views'
+id=17526: updated
+  B-leak: db='Capital Bay' not in text
+id=17527: updated
+  A-fill: NULL → fr='Al Reem Island'
+id=17533: updated
+  B-update: db='Dubai Hill' → fr='Lime Gardens'
+id=17539: updated
+  B-update: db='Dubai Hill' → fr='Lime Gardens'
+id=17546: updated
+  PR-update: 3700000 → 32408873
+id=17549: updated
+  PR-update: 4140000 → 32142859
+id=17556: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=17564: updated
+  PR-update: 580000 → 36333943
+id=17566: updated
+  B-leak: db='Meadow Villas' not in text
+  A-fill: NULL → fr='The Meadows'
+id=17567: parse_none
+  parse_message returned None
+id=17571: updated
+  B-leak: db='Studio One' not in text
+id=17575: updated
+  B-update: db='Regalia by Deyaar' → fr='Regalia'
+  A-fill: NULL → fr='Business Bay'
+  PR-update: 650000 → 50000
+id=17583: updated
+  B-leak: db='Permit:  Residential/Villa' not in text
+  PT-update: 'villa' → 'plot'
+id=17591: updated
+  B-update: db='Elie Saab by OCTA' → fr='Elie Saab'
+  A-update: db='Al Safa' → fr='Wadi Al Safa'
+id=17600: updated
+  B-fill: NULL → fr='Burj Khalifa'
+  A-update: db='DAMAC Lagoons' → fr='Burj Khalifa'
+id=17604: updated
+  B-leak: db='Sobha Hartland - Crest Grande' not in text
+id=17614: updated
+  A-fill: NULL → fr='Al Furjan'
+id=17637: updated
+  A-fill: NULL → fr='Emaar Beachfront'
+id=17639: updated
+  B-fill: NULL → fr='MYKA Residence'
+  A-fill: NULL → fr="Me'Aisem First"
+id=17643: updated
+  B-update: db='Townhouses and villas' → fr='Townhouses And Villas'
+id=17644: updated
+  A-update: db='DAMAC Lagoons' → fr='DAMAC Hills'
+id=17651: updated
+  B-update: db='Peninsula 4' → fr='Degree Views'
+id=17657: updated
+  BR-update: 3 → 1
+  PR-update: 200000 → 75000
+id=17658: updated
+  B-update: db='Keturah Reserve Meydan D7' → fr='Stunning Burj Khalifa And Skyline Views'
+id=17662: updated
+  B-leak: db='Nobles Towers' not in text
+id=17668: updated
+  B-update: db='Castleton' → fr='Central Park'
+id=17671: updated
+  B-leak: db='NOURAN LIVING Building 1' not in text
+id=17673: updated
+  A-fill: NULL → fr='MBR City'
+id=17685: updated
+  A-fill: NULL → fr='Dubai Hills Estate'
+id=17690: updated
+  B-update: db='Sobha Creek Vista Heights' → fr='Partly Park'
+id=17691: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=17692: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=17710: parse_none
+  parse_message returned None
+id=17718: updated
+  B-leak: db='Vida Residences Marina' not in text
+  BR-update: 3 → 4
+id=17720: updated
+  B-update: db='Bluewaters Bay T1' → fr='Bluewaters Bay'
+id=17728: parse_none
+  parse_message returned None
+id=17730: parse_none
+  parse_message returned None
+id=17747: updated
+  PR-update: 3820000 → 2430000
+id=17748: updated
+  B-update: db='Type' → fr='Burj Views'
+id=17751: parse_none
+  parse_message returned None
+id=17766: updated
+  B-leak: db='Act Two Townhouse' not in text
+id=17769: updated
+  B-leak: db='The Edge (Towers A)' not in text
+id=17776: updated
+  B-leak: db='Jaddaf Culture village My' not in text
+  A-fill: NULL → fr='Al Jaddaf'
+id=17777: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=17781: updated
+  B-leak: db='Boulevard Point' not in text
+id=17786: updated
+  A-fill: NULL → fr='Marsa Dubai'
+  BR-fill: NULL → 2
+id=17790: updated
+  PT-update: 'villa' → 'plot'
+id=17791: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=17794: updated
+  A-fill: NULL → fr='Meydan'
+id=17801: updated
+  B-leak: db='Urban Oasi by Misoni' not in text
+id=17806: updated
+  B-update: db='Skyline & Emirates Golf Views' → fr='Franck Muller Aeternitas Tower'
+id=17809: updated
+  B-update: db='Elie Saab by OCTA' → fr='Elie Saab'
+  A-fill: NULL → fr='MBR City'
+id=17820: updated
+  B-update: db='Grand Bleu by Elie Saab' → fr='Designer Residence'
+id=17822: updated
+  SZ-update: 1640.0 → 3550.0
+id=17823: updated
+  A-fill: NULL → fr='Meydan'
+id=17826: updated
+  B-update: db='Bayview Tower 1' → fr='BAYVIEW Tower 1'
+id=17829: updated
+  B-fill: NULL → fr='Burj Khalifa'
+  PR-update: 2800000 → 36017775
+id=17830: updated
+  A-update: db='Business Bay' → fr='Peninsula'
+  PR-update: 1500000 → 35847231
+id=17838: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=17839: updated
+  B-leak: db='Vida Creek Harbour' not in text
+  PT-update: 'apartment' → 'penthouse'
+id=17841: updated
+  A-update: db='DAMAC Lagoons' → fr='DAMAC Hills 2'
+id=17842: updated
+  A-fill: NULL → fr='Burj Khalifa'
+id=17862: updated
+  B-leak: db='KYOTO By ORO 24 OFF' not in text
+id=17868: updated
+  B-update: db='Address Tierra Villa' → fr='Community And Park'
+id=17870: updated
+  A-leak: db='Al Warsan' not in text
+id=17872: updated
+  A-fill: NULL → fr='Meydan'
+id=17882: updated
+  B-leak: db='REVA RESIDENCES' not in text
+id=17888: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=17898: updated
+  B-fill: NULL → fr='Burj Khalifa'
+  PT-update: 'apartment' → 'duplex'
+id=17901: updated
+  B-update: db='Address FV-1' → fr='Burj Khalifa'
+id=17905: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=17906: updated
+  B-update: db='One JBR by Meraas' → fr='One JBR'
+id=17916: updated
+  B-fill: NULL → fr='Burj Khalifa'
+  PR-update: 870000 → 1320000
+id=17919: updated
+  B-update: db='Opera Grand' → fr='Act Tower'
+  SZ-update: 1063.0 → 2768.0
+  PR-update: 3750000 → 7550000
+id=17924: updated
+  A-fill: NULL → fr='Meydan'
+id=17931: parse_none
+  parse_message returned None
+id=17933: updated
+  BR-update: 0 → 1
+id=17938: updated
+  B-leak: db='Jabel Alisvillage' not in text
+id=17940: updated
+  A-fill: NULL → fr='Dubai Hills Estate'
+id=17941: updated
+  BR-fill: NULL → 5
+id=17946: updated
+  A-fill: NULL → fr='Jumeirah Lake Towers'
+id=17947: parse_none
+  parse_message returned None
+id=17961: updated
+  PT-update: 'villa' → 'plot'
+id=17962: updated
+  B-leak: db='Wave Grande' not in text
+id=17974: updated
+  A-update: db='Burj Khalifa' → fr='Meydan'
+id=17979: updated
+  B-leak: db='Wave Grande' not in text
+  A-fill: NULL → fr='MBR City'
+id=17980: updated
+  A-fill: NULL → fr='Emaar Beachfront'
+id=17989: updated
+  PR-update: 701760 → 2575459
+id=18008: updated
+  SZ-fill: NULL → 62.0
+id=18010: updated
+  B-update: db='Roots' → fr='Beach Walk Residences 2'
+id=18011: updated
+  B-fill: NULL → fr='The Bluewaters Residences'
+id=18014: updated
+  B-update: db='Jouri Hills – Signature Mansion' → fr='Jouri Hills'
+id=18016: updated
+  B-leak: db='Verdana Residences 6' not in text
+id=18019: updated
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=18021: updated
+  B-update: db='Ghaf Woods' → fr='S First Forest-Living Community'
+id=18023: updated
+  B-fill: NULL → fr='W Residences'
+  A-update: db='Burj Khalifa' → fr='Downtown Dubai'
+id=18032: updated
+  A-fill: NULL → fr='Meydan'
+id=18035: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=18045: updated
+  A-leak: db='DAMAC Lagoons' not in text
+id=18062: updated
+  B-update: db='Marriott Residence' → fr='Burj Khalifa'
+id=18069: updated
+  B-fill: NULL → fr='Azizi Riviera'
+  A-fill: NULL → fr='Meydan'
+id=18075: updated
+  B-fill: NULL → fr='Palace Residences'
+  A-fill: NULL → fr='Al Khairan First'
+id=18086: updated
+  A-fill: NULL → fr='Dubai Islands'
+id=18087: updated
+  B-update: db='Opal Garden' → fr='Short drive to major destinations'
+id=18089: updated
+  B-leak: db='Arabian Ranche Villas' not in text
+id=18090: updated
+  B-leak: db='Urban Oasi by Misoni' not in text
+id=18094: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=18102: updated
+  B-leak: db='Vida Creek Harbour' not in text
+id=18115: updated
+  B-update: db='Sobha One' → fr='Damac Bay Tower'
+id=18118: updated
+  B-leak: db='Peace Lagoon by Peace Home' not in text
+id=18120: updated
+  B-update: db='Bedroom G+1' → fr='Nad Al Sheba Gardens'
+  A-fill: NULL → fr='Meydan'
+  PR-update: 5550000 → 19500000
+  PT-update: 'townhouse' → 'villa'
+id=18124: updated
+  B-leak: db='Sterling East (Ready)' not in text
+id=18125: updated
+  B-fill: NULL → fr='Seahaven Tower'
+id=18126: updated
+  A-fill: NULL → fr='MBR City'
+id=18128: updated
+  B-leak: db='The Walk JBR' not in text
+id=18141: updated
+  A-update: db='Business Bay' → fr='Meydan'
+id=18144: updated
+  A-fill: NULL → fr='Polo Residence'
+id=18149: updated
+  PR-update: 5550000 → 50000
+id=18166: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=18167: updated
+  B-update: db='Palace Beach Residence' → fr='Palace Beach Residences'
+id=18169: updated
+  B-update: db='The Opu' → fr='The Opus'
+id=18171: updated
+  A-leak: db='Town Square' not in text
+id=18185: updated
+  B-fill: NULL → fr='Multiple options are available'
+id=18186: updated
+  PR-update: 470000 → 36333959
+id=18187: updated
+  PR-update: 2100000 → 36595019
+id=18189: updated
+  B-update: db='Park Horizon: building 2' → fr='Park Horizon'
+id=18190: updated
+  B-update: db='Marina gate Jumeirah Living' → fr='Best new building'
+id=18193: updated
+  B-leak: db='Sham Abu Dhabi' not in text
+  A-fill: NULL → fr='Saadiyat Island'
+id=18200: updated
+  A-fill: NULL → fr='Dubai South'
+id=18202: updated
+  B-leak: db='Cedre Villas' not in text
+id=18210: updated
+  B-update: db='Claydon House' → fr='Burj Khalifa'
+  A-update: db='Al Barsha' → fr='Burj Khalifa'
+id=18211: updated
+  BR-update: 0 → 1
+id=18226: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=18236: updated
+  A-fill: NULL → fr='Al Wasl'
+id=18242: updated
+  B-leak: db='Marina Vista' not in text
+id=18248: updated
+  PR-update: 1950000 → 1350000
+id=18249: updated
+  B-fill: NULL → fr='Forat'
+  A-fill: NULL → fr='The Lakes'
+id=18252: updated
+  B-fill: NULL → fr='W Residence'
+id=18262: updated
+  B-leak: db='Elite 7, Sport City' not in text
+id=18263: updated
+  B-update: db='The Crestmark by Ellington' → fr='The Crestmark'
+id=18264: updated
+  B-fill: NULL → fr='EXECUTIVE RESIDENCES'
+id=18265: updated
+  PR-update: 2700000 → 5000000
+id=18266: updated
+  B-fill: NULL → fr='Regis Residences'
+id=18267: updated
+  A-leak: db='Dubai Creek Harbour' not in text
+id=18268: updated
+  B-update: db='The Fields' → fr='Direct Park'
+id=18272: updated
+  B-update: db='Westwood Grande by Imtiaz' → fr='Westwood Grande'
+id=18273: updated
+  B-update: db='Rigel Tower, JVC' → fr='Rigel Tower'
+id=18284: updated
+  A-fill: NULL → fr='Emaar Beachfront'
+id=18291: updated
+  B-update: db='Type: Serviced Apartment' → fr='Opus'
+id=18302: updated
+  B-update: db='Paradise Hill' → fr='Developed'
+id=18303: updated
+  B-fill: NULL → fr='DOWNTOWN VIEWS'
+  PR-update: 10000000 → 6000000
+id=18304: updated
+  B-update: db='BENTLEY VILLAS' → fr='Bentley Villas'
+id=18306: updated
+  B-update: db='Room Apartment In The Community' → fr='Oxford 10'
+id=18307: updated
+  B-fill: NULL → fr='DOWNTOWN VIEWS'
+id=18315: updated
+  B-update: db='Anantara Residence' → fr='Anantara Residences'
+id=18319: updated
+  A-fill: NULL → fr='Meydan'
+id=18324: updated
+  B-update: db='Views 2' → fr='DOWNTOWN VIEWS'
+id=18326: updated
+  B-update: db='Danah Bay' → fr='Dubai Investments Real Estate'
+id=18332: updated
+  B-fill: NULL → fr='Park Beach Residence'
+id=18333: updated
+  B-update: db='Paramount by damac' → fr='Paramount'
+  A-fill: NULL → fr='Al Murar'
+id=18335: updated
+  B-update: db='Binghatti Garden' → fr='Public Park'
+id=18339: parse_none
+  parse_message returned None
+id=18348: updated
+  B-update: db='Jomana MJL' → fr='Central Park Plaza'
+id=18349: parse_none
+  parse_message returned None
+id=18352: updated
+  PR-update: 640807 → 640807100
+id=18354: updated
+  B-leak: db='Marasi Busine Bay' not in text
+id=18356: updated
+  B-leak: db='FIVE Palm Jumeirah' not in text
+id=18361: updated
+  B-fill: NULL → fr='Rosso Bay Residence'
+id=18365: updated
+  B-update: db='THE COVE Building 3' → fr='Nature Reserve & Future Creek Tower'
+id=18367: updated
+  A-fill: NULL → fr='Meydan'
+id=18378: updated
+  B-update: db='Tranquility, Haven By Aldar' → fr='Haven'
+  A-fill: NULL → fr='Al Barsha South 4'
+id=18382: updated
+  B-update: db='V1TER RESIDENCES' → fr='V1ter Residences'
+id=18383: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=18386: updated
+  A-fill: NULL → fr='The Views'
+id=18398: updated
+  A-update: db='Dubai South' → fr='Sharjah'
+id=18401: parse_none
+  parse_message returned None
+id=18407: updated
+  B-update: db='Erin' → fr='Central Park'
+id=18409: parse_none
+  parse_message returned None
+id=18411: updated
+  B-leak: db='PRINCESS TOWER' not in text
+id=18423: updated
+  B-update: db='UNITS FOR SELL' → fr='Palace Beach Residence'
+id=18425: updated
+  B-leak: db='SUPER TOWNHOUSE WITH SUPER VIEW💣⚡' not in text
+id=18433: updated
+  A-fill: NULL → fr='Jumeirah Golf Estates'
+id=18437: updated
+  B-update: db='Damac BAY 2' → fr='Of The 3 Off Plan Apartments'
+id=18452: updated
+  B-fill: NULL → fr='The Crest Tower'
+  A-fill: NULL → fr='Sobha Hartland'
+id=18461: updated
+  B-update: db='Orchid' → fr='Built'
+id=18463: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=18465: updated
+  A-fill: NULL → fr='Business Bay'
+id=18480: updated
+  B-leak: db='Bluewaters Bay Residences' not in text
+id=18481: updated
+  A-leak: db='Town Square' not in text
+id=18484: updated
+  B-fill: NULL → fr='Ag Tower Business Bay'
+id=18492: updated
+  B-leak: db='B2B Towers' not in text
+id=18495: updated
+  B-fill: NULL → fr='Address Residences'
+  A-update: db='Burj Khalifa' → fr='Dubai'
+id=18500: updated
+  B-update: db='Cheapest in Market' → fr='Cheapest'
+  A-fill: NULL → fr='Sobha Hartland'
+id=18502: updated
+  B-update: db='Island Park I' → fr='Island Park'
+id=18512: updated
+  B-update: db='Roots' → fr='Marina Vista Tower 2'
+  SZ-fill: NULL → 78.0
+id=18520: updated
+  A-fill: NULL → fr='Dubai Marina'
+  PR-update: 425000 → 1800000
+id=18521: updated
+  B-update: db='Island Park II' → fr='Island Park'
+id=18523: updated
+  B-leak: db='The Acre By Meraa' not in text
+  BR-fill: NULL → 5
+id=18529: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=18532: updated
+  B-fill: NULL → fr='Citywalk Northline 1'
+id=18533: updated
+  B-update: db='Emaar Ex Terra Heights Bldg 3' → fr='Emaar Ex Terra Heights'
+id=18534: updated
+  B-update: db='Samana Ivy Gardens' → fr='SAMANA IVY GARDENS'
+  A-fill: NULL → fr='Wadi Al Safa 5'
+id=18535: updated
+  A-fill: NULL → fr='Al Furjan'
+id=18537: updated
+  B-update: db='Damac Hill' → fr='Damac Hills 1'
+id=18539: parse_none
+  parse_message returned None
+id=18544: updated
+  A-fill: NULL → fr='Emaar Beachfront'
+id=18559: updated
+  B-update: db='Off-plan Resale' → fr='Riverside Crescent'
+id=18560: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=18566: updated
+  BR-fill: NULL → 1
+id=18568: updated
+  A-fill: NULL → fr='Meydan'
+id=18570: updated
+  B-update: db='Ajmal Makan' → fr='Maryam Island'
+  SZ-fill: NULL → 1382.0
+id=18573: updated
+  B-leak: db='Sobha One' not in text
+  A-update: db='Emaar Beachfront' → fr='Al Wasl'
+id=18578: updated
+  B-leak: db='Santorini Lagoon' not in text
+id=18581: updated
+  B-update: db='DAMAC TOWER D BY PARAMOUNT' → fr='In Damac Tower'
+id=18588: updated
+  B-update: db='Marriott Residences JVC' → fr='Kappa Acca Real Estate'
+id=18594: updated
+  B-update: db='Wardrobes' → fr='Full Park'
+id=18599: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=18600: updated
+  PR-update: 27100000 → 271000002
+id=18602: updated
+  A-leak: db='Dubai Creek Harbour' not in text
+  BR-update: 1 → 2
+id=18604: updated
+  B-update: db='The Valley by EMAAR' → fr='Venera Phase 2'
+id=18610: updated
+  B-update: db='Elvira Building 2' → fr='Full Park'
+id=18620: updated
+  B-update: db='CHIC Tower de GRISOGONO' → fr='CHIC TOWER'
+id=18632: updated
+  B-leak: db='Sobha One' not in text
+id=18639: updated
+  A-fill: NULL → fr='Al Khairan First'
+id=18642: updated
+  PR-update: 35000000 → 350000002
+id=18647: updated
+  B-leak: db='Marina Residences' not in text
+id=18651: updated
+  A-fill: NULL → fr='Business Bay'
+id=18658: updated
+  SZ-fill: NULL → 4620.0
+id=18660: updated
+  B-fill: NULL → fr='Lillia'
+  A-fill: NULL → fr='The Valley'
+id=18676: updated
+  B-update: db='Roof Lounge And Terrace' → fr='Jebel Ali Frond A Beach Villas'
+id=18677: updated
+  B-update: db='The Grand Townhouse' → fr='Landscaped Gardens'
+id=18681: updated
+  B-leak: db='Dubai Design District 2 BHK' not in text
+id=18682: updated
+  B-update: db='THE OASIS PALACE VILLAS OSTRA' → fr='The Oasis Palace Villas'
+id=18697: updated
+  B-leak: db='The Opu' not in text
+id=18698: updated
+  B-update: db='Address Residences Zabeel' → fr='Address Residences'
+  A-fill: NULL → fr='Burj Khalifa'
+id=18699: updated
+  B-update: db='Dusk by Binghatti' → fr='Dusk'
+id=18700: updated
+  B-leak: db='The Crest (Towers B)' not in text
+id=18703: updated
+  B-fill: NULL → fr='Canal Heights 2'
+id=18707: updated
+  B-update: db='Локация' → fr='Maryam Island'
+id=18711: updated
+  B-leak: db='Marriott Residence' not in text
+id=18712: updated
+  B-leak: db='Artesia (Towers D)' not in text
+id=18727: updated
+  B-leak: db='Damac Lagoon Costa Brava 2' not in text
+id=18729: updated
+  B-update: db='The PORTMAN by ELLINGTON' → fr='THE PORTMAN'
+id=18745: updated
+  PR-update: 12000000 → 6300000
+id=18751: updated
+  B-leak: db='St.Regi -T1' not in text
+id=18764: updated
+  B-leak: db='Elan Tilal Al Ghaf' not in text
+id=18768: updated
+  B-update: db='Bedroom | G+2' → fr='Nad Al Sheba Gardens'
+  A-fill: NULL → fr='Meydan'
+id=18780: updated
+  B-fill: NULL → fr='Address Residence'
+  A-update: db='Burj Khalifa' → fr='Dubai'
+id=18789: updated
+  B-fill: NULL → fr='Opal Gardens'
+id=18792: updated
+  B-update: db='Creek' → fr='Creek Tower'
+id=18796: updated
+  B-fill: NULL → fr='Luxury Branded Residence'
+id=18802: updated
+  B-leak: db='Projectsname: Bianca' not in text
+id=18805: updated
+  A-fill: NULL → fr='Creek Beach'
+id=18813: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=18820: updated
+  A-leak: db='Jebel Ali' not in text
+id=18826: updated
+  B-leak: db='N hama Townsquare' not in text
+id=18832: updated
+  A-leak: db='Dubai Maritime City' not in text
+id=18835: updated
+  B-fill: NULL → fr='Wardrobes'
+id=18852: updated
+  B-update: db='HYDE WALK RESIDENCE' → fr='In Hyde Walk Residence'
+id=18859: updated
+  PR-update: 10000000 → 130000000
+id=18865: updated
+  B-leak: db='Palm Beach Towers' not in text
+  A-fill: NULL → fr='Palm Jumeirah'
+id=18866: updated
+  A-fill: NULL → fr='Meydan'
+id=18870: updated
+  PT-update: 'villa' → 'townhouse'
+id=18873: updated
+  B-update: db='The East Crest by Meteora' → fr='The East Crest'
+id=18876: updated
+  A-leak: db='Dubai Maritime City' not in text
+id=18884: updated
+  B-fill: NULL → fr='TOWER A (Damac)'
+id=18894: updated
+  PR-update: 5500000 → 50000
+id=18906: updated
+  B-leak: db='Jumeirah Residences Emirates Towerss' not in text
+id=18915: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=18916: updated
+  B-update: db='Roots' → fr='Marina Vista Tower 2'
+  SZ-fill: NULL → 78.0
+id=18925: updated
+  B-leak: db='The Acre By Meraa' not in text
+id=18930: updated
+  B-leak: db='Pearl House II' not in text
+id=18935: updated
+  B-update: db='Elite Downtown Residence' → fr='Burj Khalifa'
+id=18942: updated
+  A-fill: NULL → fr='Meydan'
+id=18944: updated
+  PT-update: 'apartment' → 'villa'
+id=18951: updated
+  B-leak: db='Elara Dubai Hill' not in text
+id=18957: updated
+  A-fill: NULL → fr='Al Thanyah Fifth'
+id=18960: updated
+  B-update: db='Cedar at Creek Beach' → fr='Cedar'
+id=18965: updated
+  PT-update: 'villa' → 'plot'
+id=18967: updated
+  B-leak: db='Marasi Busine Bay' not in text
+  A-update: db='Downtown Dubai' → fr='Jumeirah Village Circle'
+id=18974: updated
+  B-leak: db='Al Maha Towers' not in text
+id=18975: updated
+  B-fill: NULL → fr='Bed Apartments'
+id=18979: updated
+  B-leak: db='The Acre By Meraa' not in text
+  BR-fill: NULL → 5
+id=18984: updated
+  A-fill: NULL → fr='Dubailand'
+id=18994: updated
+  A-fill: NULL → fr='Meydan'
+id=18995: updated
+  B-update: db='Cove' → fr='Central Park'
+id=19018: updated
+  A-fill: NULL → fr='Dubailand'
+id=19019: updated
+  B-leak: db='Beach Mansion Towers 1' not in text
+id=19021: updated
+  B-leak: db='Neva By Tiger - JVC' not in text
+id=19022: updated
+  B-update: db='Central Park At City Walk' → fr='Central Park'
+id=19024: updated
+  B-leak: db='Grand Bleu Towers 2' not in text
+id=19030: updated
+  B-leak: db='Br. Ready Apartment' not in text
+id=19035: updated
+  B-update: db='Source Terraces' → fr='user option'
+id=19036: updated
+  B-update: db='Source Terraces' → fr='user option'
+id=19038: updated
+  A-fill: NULL → fr='Creek Beach'
+  PT-update: 'apartment' → 'townhouse'
+id=19043: updated
+  B-leak: db='Beach I le' not in text
+  A-fill: NULL → fr='Palm Jumeirah'
+id=19048: updated
+  A-fill: NULL → fr='Meydan'
+id=19049: updated
+  B-leak: db='One Palm' not in text
+id=19053: updated
+  B-leak: db='Elitz By Danube' not in text
+  PR-update: 1050000 → 105000040
+id=19067: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=19069: updated
+  A-leak: db='Al Warsan' not in text
+id=19074: updated
+  B-update: db='Burj Vista downtown' → fr='Burj views'
+id=19078: updated
+  B-update: db='Sunset Bay 3, Dubai Island' → fr='Sea & Park'
+id=19079: updated
+  B-leak: db='Business bay 3 Bedroom Apartment' not in text
+id=19080: updated
+  B-leak: db='Studio With a Terrace' not in text
+  A-fill: NULL → fr='Dubai'
+id=19085: updated
+  A-fill: NULL → fr='The Views'
+id=19113: updated
+  B-leak: db='Artesia (Towers C)' not in text
+id=19120: updated
+  B-update: db='Westwood grande 2' → fr='850,000 AED'
+id=19124: updated
+  B-update: db='Westwood grande 2' → fr='1,500,000 AED'
+id=19132: updated
+  B-update: db='Elite Residence' → fr='ELITE RESIDENCES 2'
+id=19133: updated
+  BR-update: 6 → 4
+id=19142: updated
+  B-update: db='Storage Apartment' → fr='Burj Khalifa'
+id=19145: updated
+  A-fill: NULL → fr='The Views'
+id=19149: updated
+  B-fill: NULL → fr='With Meydan Hotel'
+id=19165: updated
+  PT-update: 'villa' → 'plot'
+id=19170: updated
+  A-fill: NULL → fr='Dubailand'
+id=19184: parse_none
+  parse_message returned None
+id=19185: updated
+  B-fill: NULL → fr='In The Heart Of Business Bay'
+id=19194: updated
+  PR-update: 27000000 → 12500000
+id=19199: updated
+  B-update: db='Peninsula 4' → fr='Canal And Iconic Burj Khalifa Views'
+  A-fill: NULL → fr='The Views'
+id=19204: updated
+  A-fill: NULL → fr='Business Bay'
+id=19205: updated
+  B-leak: db='Safi Apartment' not in text
+id=19206: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=19218: updated
+  B-update: db='Canal Front Residence' → fr='Canal Front Residences'
+id=19221: parse_none
+  parse_message returned None
+id=19238: updated
+  A-fill: NULL → fr='Meydan'
+id=19245: updated
+  B-update: db='Bahwan Tower - Downtown' → fr='BAHWAN TOWER'
+id=19251: updated
+  B-update: db='Jumeirah Villa' → fr='Opus'
+id=19259: updated
+  SZ-fill: NULL → 70.0
+id=19265: updated
+  B-update: db='Elegance Tower' → fr='ELEGANCE TOWER'
+id=19273: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=19276: updated
+  PT-update: 'studio' → 'townhouse'
+id=19278: updated
+  B-update: db='Bay villas' → fr='Bay Villas'
+  A-fill: NULL → fr='Dubai Islands'
+id=19279: parse_none
+  parse_message returned None
+id=19281: updated
+  B-leak: db='Santorini Lagoon' not in text
+id=19290: updated
+  A-leak: db='Al Warsan' not in text
+id=19312: updated
+  B-leak: db='Jewelz Residences' not in text
+id=19320: updated
+  B-update: db='Binghatti House' → fr='1,650,000'
+id=19325: updated
+  B-update: db='District One Residence' → fr='District One Residences 5'
+id=19326: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=19329: updated
+  A-fill: NULL → fr='Dubai Harbour'
+id=19342: updated
+  B-fill: NULL → fr='One Omniyat Business Bay'
+id=19345: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=19367: updated
+  BR-fill: NULL → 5
+id=19372: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=19379: updated
+  B-update: db='Safa One by Damac' → fr='Sz Road And Park'
+id=19389: updated
+  SZ-fill: NULL → 1106.0
+id=19390: updated
+  SZ-fill: NULL → 1206.0
+id=19405: updated
+  B-update: db='Central Park' → fr='Burj Khalifa'
+id=19409: updated
+  PT-update: 'villa' → 'plot'
+id=19418: updated
+  B-update: db='Sobha Seahaven Tower A Ser03' → fr='Direct Sea Views'
+id=19419: updated
+  B-leak: db='Marina Residences' not in text
+  A-fill: NULL → fr='Palm Jumeirah'
+id=19421: updated
+  A-fill: NULL → fr='Downtown Dubai'
+id=19423: updated
+  B-update: db='Parkwood Residence' → fr='PARKWOOD RESIDENCES'
+id=19427: updated
+  B-leak: db='Townhouse ((Singlesrow)' not in text
+id=19428: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=19436: updated
+  B-fill: NULL → fr='Property management'
+id=19439: updated
+  B-leak: db='Hartland Green' not in text
+  A-fill: NULL → fr='Sobha Hartland'
+id=19454: updated
+  B-update: db='THE ACRES' → fr='The Acres'
+id=19455: updated
+  A-fill: NULL → fr='Ras Al Khaimah'
+id=19468: updated
+  A-fill: NULL → fr='Marsa Dubai'
+id=19470: updated
+  B-update: db='Al Multaqa Avenue – 1BR' → fr='Mirdiff Hills'
+id=19474: parse_none
+  parse_message returned None
+id=19489: updated
+  BR-fill: NULL → 5
+id=19491: updated
+  A-update: db='Business Bay' → fr='Studio City'
+id=19495: updated
+  B-leak: db='Unit Type & Size' not in text
+id=19506: updated
+  B-leak: db='Torino ORO24 (ARJAN)' not in text
+id=19515: updated
+  B-leak: db='Unitsofsthe Day' not in text
+id=19536: updated
+  B-fill: NULL → fr='Rimal 2'
+  A-fill: NULL → fr='Marsa Dubai'
+id=19539: parse_none
+  parse_message returned None
+id=19546: updated
+  B-update: db='Unit Mix' → fr='Avana Residences'
+id=19550: parse_none
+  parse_message returned None
+id=19553: updated
+  B-fill: NULL → fr='Surrounded'
+id=19555: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=19561: updated
+  B-update: db='Luxor by IMTIAZ' → fr='Luxor'
+id=19565: updated
+  B-update: db='TRIA BY DEYAAR' → fr='Tria'
+  A-update: db='Dubai Silicon Oasis' → fr='Silicon Oasis'
+id=19567: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=19581: updated
+  B-update: db='Elitz 3 by Danube' → fr='Elitz 3'
+id=19587: parse_none
+  parse_message returned None
+id=19594: updated
+  B-leak: db='Cedre Villas' not in text
+id=19601: updated
+  B-leak: db='Damac Hill 2 - Sanctnary' not in text
+id=19605: updated
+  B-update: db='Reportage Hills Community' → fr='Reportage Developer'
+id=19621: updated
+  B-fill: NULL → fr='Address Villas'
+id=19625: updated
+  B-leak: db='ST REGIS RESIDENCES Tower 2' not in text
+id=19635: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=19643: updated
+  B-leak: db='Palace O tra, The Oasi' not in text
+id=19646: updated
+  B-update: db='Maimoon Gardens Fakhruddin' → fr='Maimoon Gardens'
+id=19647: updated
+  B-fill: NULL → fr='Exclusive Sky Residence'
+id=19655: updated
+  B-update: db='City Walk, Northline By Meraas' → fr='Northline'
+id=19665: updated
+  B-leak: db='DAMAC Hill (Queen Meadow)' not in text
+id=19674: updated
+  B-leak: db='Balqis Residences' not in text
+id=19678: updated
+  B-update: db='Beachgate' → fr='Open Views'
+id=19682: updated
+  B-update: db='Keys in Hand' → fr='Keys'
+id=19687: updated
+  B-leak: db='Santorini Lagoons' not in text
+id=19692: updated
+  B-update: db='Regis Residence' → fr='Regis Residences'
+  A-fill: NULL → fr='Burj Khalifa'
+id=19695: updated
+  B-leak: db='Zahra Apartment' not in text
+id=19696: updated
+  A-fill: NULL → fr='The Views'
+id=19706: updated
+  B-update: db='Hotel room Paramount DAMAC Towers' → fr='Living In The Luxury Amazing Hotel'
+id=19707: updated
+  A-fill: NULL → fr='Studio City'
+id=19708: updated
+  A-fill: NULL → fr='Meydan'
+id=19726: updated
+  B-update: db='Hyde Walk by IMTIAZ' → fr='Jumeirah Gardens'
+id=19732: updated
+  B-update: db='Yasmin' → fr='Semidetached Villas'
+  A-fill: NULL → fr='Dubai South'
+id=19741: updated
+  B-update: db='Super Motivated Seller' → fr='Crest Tower'
+id=19753: updated
+  PT-update: 'villa' → 'plot'
+id=19754: updated
+  A-fill: NULL → fr='The Greens'
+id=19755: updated
+  B-update: db='Middle' → fr='details'
+id=19762: updated
+  B-update: db='Bonnington Tower JLT' → fr='Bonnington Tower'
+id=19764: updated
+  SZ-fill: NULL → 3186.1
+  PT-update: 'apartment' → 'villa'
+id=19766: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=19770: updated
+  B-update: db='Bedroom Beachfront Villa' → fr='In Al Jurf Gardens'
+id=19775: updated
+  B-update: db='Saadiyat Cultural District' → fr='Grove Uptown Views'
+  A-fill: NULL → fr='Saadiyat Island'
+id=19779: parse_none
+  parse_message returned None
+id=19780: updated
+  B-update: db='EXIT SALE | CASH BUYERS' → fr='Guaranteed ROI'
+  A-fill: NULL → fr='Ras Al Khaimah'
+id=19783: updated
+  B-leak: db='Palace Villas O tra' not in text
+id=19789: updated
+  B-update: db='Largest 5bd Villa' → fr='Nad Al Sheba Gardens'
+  A-fill: NULL → fr='Meydan'
+id=19794: updated
+  B-update: db='Roots' → fr='Porto Playa'
+id=19796: updated
+  B-update: db='Fairmont Residences Solara Tower' → fr='Burj Khalifa'
+id=19797: updated
+  B-update: db='Kempinski Residences The Creek T2' → fr='KEMPINSKI RESIDENCES'
+id=19802: updated
+  A-update: db='Jebel Ali' → fr='Jebel Ali Hills'
+  PT-update: 'villa' → 'plot'
+id=19809: updated
+  A-fill: NULL → fr='Business Bay'
+id=19818: updated
+  B-update: db='Residential Tower' → fr='Burj Khalifa'
+id=19834: updated
+  B-leak: db='Wave Grande' not in text
+  PR-update: 2430000 → 5500000
+id=19836: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=19842: updated
+  B-fill: NULL → fr='Opal Gardens'
+id=19843: updated
+  B-update: db='GARDENIA BAY' → fr='Gardenia Bay'
+  SZ-fill: NULL → 464.0
+id=19852: updated
+  A-fill: NULL → fr='The Valley'
+id=19855: updated
+  B-update: db='Bedroom for Sale' → fr='Terrazzo Residences'
+id=19867: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=19871: updated
+  B-leak: db='Binghatti Crest' not in text
+id=19874: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=19875: updated
+  B-update: db='READY, BCC received!' → fr='Ra1N'
+id=19880: updated
+  B-leak: db='Stella Mari tower Marina' not in text
+  A-fill: NULL → fr='Dubai Marina'
+  BR-fill: NULL → 3
+id=19883: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=19886: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=19897: updated
+  B-update: db='RA1N Residences' → fr='Ra1n Residences'
+id=19899: updated
+  B-update: db='Olivia Residence' → fr='Olivia Residences'
+id=19901: updated
+  B-update: db='Olivia Residence' → fr='Olivia Residences'
+id=19903: updated
+  B-update: db='Grade A' → fr='The Prime Tower'
+id=19905: updated
+  B-update: db='Marbella Hotel' → fr='Dubai World Island'
+id=19911: updated
+  A-fill: NULL → fr='Jumeirah Lake Towers'
+id=19917: updated
+  B-update: db='Bay villas' → fr='Bay Villas'
+  A-fill: NULL → fr='Dubai Islands'
+id=19927: updated
+  A-fill: NULL → fr='Al Khairan First'
+id=19930: updated
+  A-fill: NULL → fr='Saadiyat Island'
+id=19935: updated
+  B-update: db='The Opu' → fr='The Opus'
+id=19944: updated
+  A-fill: NULL → fr='Dubai Harbour'
+id=19945: updated
+  B-leak: db='Portofino Lagoon' not in text
+id=19947: updated
+  B-update: db='The Edge by Select Group' → fr='THE EDGE'
+id=19949: updated
+  B-leak: db='NAYA Tower 3' not in text
+id=19957: updated
+  A-fill: NULL → fr='The Views'
+id=19958: parse_none
+  parse_message returned None
+id=19968: updated
+  B-leak: db='Wave tower' not in text
+id=19971: updated
+  B-update: db='Nasayem Avenue 2 – 2BR' → fr='Mirdiff Hills'
+  PR-update: 1800000 → 100000
+id=19984: updated
+  B-update: db='View : Linear Park' → fr='Linear Park'
+id=19991: updated
+  B-leak: db='Sobha Solis, Motor City 🏙' not in text
+  A-leak: db='Dubai Motor City' not in text
+id=19993: updated
+  B-update: db='Middle Corner' → fr='serious interest only'
+id=19995: updated
+  A-fill: NULL → fr='Meydan'
+id=19997: updated
+  SZ-update: 1604.0 → 1879.0
+id=19998: updated
+  A-fill: NULL → fr='Town Square'
+id=20006: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=20010: updated
+  PR-update: 1116720 → 4098362
+id=20039: updated
+  B-update: db='Forsale' → fr='Luxury Residential Tower'
+id=20045: updated
+  B-update: db='The Acres – Meraas, Dubai' → fr='The Acres Villas'
+  A-fill: NULL → fr='Dubai'
+id=20055: updated
+  B-update: db='Damac Hill' → fr='Bel Air The Trump Estate'
+id=20064: updated
+  B-update: db='Creek' → fr='Skyline Views'
+id=20065: updated
+  B-update: db='Dubai' → fr='Burj Khalifa'
+id=20066: updated
+  A-fill: NULL → fr='Dubai'
+  PR-update: 463131 → 880000
+id=20067: updated
+  B-leak: db='Marasi Busine Bay' not in text
+id=20071: updated
+  B-leak: db='Venice Lagoon' not in text
+id=20078: updated
+  B-leak: db='Vida Creek Harbour' not in text
+id=20080: updated
+  B-leak: db='Elara Dubai Hill' not in text
+id=20086: updated
+  B-leak: db='Sobhasheartland, MBR' not in text
+  A-fill: NULL → fr='Sobha Hartland'
+id=20089: updated
+  A-fill: NULL → fr='Marsa Dubai'
+id=20090: updated
+  BR-fill: NULL → 5
+id=20097: updated
+  B-update: db='Address Residences - Creek Harbour' → fr='Full Creek Tower'
+id=20098: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=20102: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=20108: updated
+  B-update: db='Regis Residence' → fr='Regis Residences'
+id=20112: updated
+  A-fill: NULL → fr='Dubai Hills Estate'
+id=20113: updated
+  B-update: db='Dubai Hill' → fr='Executive Residence 1'
+id=20117: updated
+  B-fill: NULL → fr='X2 Tower'
+id=20120: updated
+  B-fill: NULL → fr='Hayat'
+  A-fill: NULL → fr='Ras Al Khaimah'
+id=20123: updated
+  B-leak: db='VOLTA Towers by DAMAC' not in text
+id=20129: updated
+  A-fill: NULL → fr='Al Hebiah 4'
+id=20136: updated
+  PR-update: 750000 → 14750000
+  PT-update: 'apartment' → 'duplex'
+id=20137: updated
+  B-update: db='NAS GARDENS' → fr='Nas Gardens'
+id=20138: updated
+  B-fill: NULL → fr='Car Park 3'
+  BR-fill: NULL → 6
+id=20139: updated
+  B-update: db='Emirates Hill' → fr='Car Park 12'
+id=20142: updated
+  PR-update: 5800000 → 232000
+id=20143: updated
+  A-fill: NULL → fr='Maritime City'
+id=20145: updated
+  B-update: db='JUMEIRAH ISLAND' → fr='Jumeirah Island'
+id=20158: updated
+  B-update: db='Sobha S Tower' → fr='In Sobha S Tower'
+id=20167: updated
+  B-update: db='Atria Residence' → fr='Burj Khalifa'
+id=20168: updated
+  PR-update: 6000000 → 14900000
+id=20181: updated
+  B-update: db='Type: C(M)' → fr='The Acres'
+id=20183: updated
+  B-update: db='V1TER' → fr='Partial Park'
+id=20195: updated
+  B-update: db='OCEAN HOUSE' → fr='Dual Views'
+id=20196: updated
+  B-fill: NULL → fr='Sidra'
+id=20199: updated
+  PR-update: 741888 → 1741888
+id=20202: updated
+  B-update: db='Bayview Tower 1' → fr='BAYVIEW Tower 1'
+id=20208: updated
+  B-leak: db='Safi Apartment' not in text
+id=20222: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=20226: updated
+  SZ-fill: NULL → 71.0
+id=20231: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=20240: updated
+  B-update: db='Naya - District One Residences' → fr='Burj Khalifa'
+id=20242: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=20257: updated
+  B-fill: NULL → fr='Ozone 1 Residence'
+id=20262: updated
+  PR-update: 735200 → 2698184
+id=20266: updated
+  B-update: db='Central Park Plaza– Tower A' → fr='Central Park Plaza'
+id=20271: updated
+  B-update: db='D1 Tower' → fr='Burj Khalifa'
+id=20275: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=20296: updated
+  B-fill: NULL → fr='Sidra'
+  A-update: db='Palm Jumeirah' → fr='Dubai Hills Estate'
+id=20304: updated
+  A-fill: NULL → fr='Dubailand'
+id=20310: updated
+  B-fill: NULL → fr='Burj Khalifa'
+  PR-update: 65000000 → 95000000
+id=20322: updated
+  A-leak: db='Al Warsan' not in text
+id=20328: updated
+  SZ-fill: NULL → 17100.0
+id=20331: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=20342: updated
+  A-leak: db='Dubai Motor City' not in text
+id=20346: updated
+  A-fill: NULL → fr='Meydan'
+  SZ-fill: NULL → 4475.0
+id=20350: updated
+  B-fill: NULL → fr='Ozone 1 Residence'
+id=20354: updated
+  A-update: db='Dubai Marina' → fr='Dubai'
+id=20355: updated
+  B-fill: NULL → fr='Central Park'
+id=20370: updated
+  PR-update: 700000 → 28000
+id=20372: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=20386: updated
+  B-update: db='Claren Tower 1' → fr='CLAREN TOWER 1'
+id=20393: updated
+  B-leak: db='Mada Residences' not in text
+id=20402: updated
+  A-fill: NULL → fr='Dubai Islands'
+id=20403: updated
+  B-update: db='SKYZ BY DANUBE' → fr='Skyz'
+id=20408: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=20409: updated
+  B-leak: db='St. Regi Financial Center' not in text
+  A-fill: NULL → fr='Dubai Marina'
+id=20414: updated
+  B-leak: db='Wave tower' not in text
+id=20420: updated
+  B-update: db='BR Villas | G+2' → fr='The Acres'
+id=20422: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=20428: updated
+  A-fill: NULL → fr='Dubai Harbour'
+id=20429: updated
+  B-fill: NULL → fr='Central Park'
+id=20431: updated
+  SZ-update: 2068.0 → 1430.0
+id=20432: updated
+  B-update: db='Crestmark by Ellington' → fr='Crestmark'
+id=20442: updated
+  B-leak: db='Majan, Dubai' not in text
+id=20443: parse_none
+  parse_message returned None
+id=20456: updated
+  B-leak: db='OXFORD RESIDENCE' not in text
+id=20458: updated
+  B-leak: db='KG Tower @ Dubai Marina' not in text
+id=20463: updated
+  PT-update: 'apartment' → 'villa'
+id=20465: updated
+  A-leak: db='DAMAC Lagoons' not in text
+id=20470: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=20475: updated
+  B-fill: NULL → fr='Sea Views'
+id=20486: updated
+  B-update: db='Reportage Hill' → fr='Reportage Hills'
+id=20490: updated
+  PR-update: 78000000 → 78000
+id=20494: updated
+  A-fill: NULL → fr='Meydan'
+id=20499: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=20503: updated
+  B-fill: NULL → fr='Interiors'
+id=20504: updated
+  A-update: db='Business Bay' → fr='Peninsula'
+id=20505: updated
+  B-update: db='With Burj Khalifa And Fountains Views' → fr='Burj Khalifa'
+id=20508: parse_none
+  parse_message returned None
+id=20513: updated
+  B-update: db='Jumeirah Residences – Emirates Towers' → fr='Burj Khalifa'
+id=20518: updated
+  B-update: db='Nautica Two by Select Group' → fr='NAUTICA TWO'
+id=20519: updated
+  B-update: db='Pelagos by IGO' → fr='Pelagos'
+id=20523: updated
+  B-update: db='Al Jurf' → fr='Minutes'
+  A-fill: NULL → fr='Al Safa 2'
+id=20524: updated
+  A-update: db='Dubai Hills Estate' → fr='Dubai Islands'
+id=20529: updated
+  A-fill: NULL → fr='Marsa Dubai'
+id=20531: parse_none
+  parse_message returned None
+id=20532: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=20533: updated
+  B-leak: db='Sham Abu Dhabi' not in text
+id=20535: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=20539: updated
+  B-update: db='DubaiProperty' → fr='Dubai Investments Park'
+id=20541: updated
+  A-leak: db='Sobha Hartland' not in text
+id=20553: updated
+  B-leak: db='FIVE Palm Jumeirah' not in text
+id=20561: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=20569: updated
+  SZ-fill: NULL → 2000.0
+id=20581: updated
+  A-leak: db='DAMAC Lagoons' not in text
+id=20589: updated
+  B-fill: NULL → fr='Full Downtown Unobstructed Views'
+id=20595: updated
+  B-leak: db='Arabian Ranche Villas' not in text
+id=20600: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=20602: updated
+  B-leak: db='The Opu' not in text
+id=20608: updated
+  B-update: db='The Bluewaters Residence' → fr='The Bluewaters Residences'
+id=20610: updated
+  PR-update: 550000 → 1550000
+id=20611: updated
+  B-update: db='Skyline & Emirates Golf Views' → fr='Franck Muller Aeternitas Tower'
+id=20614: updated
+  B-update: db='Samana Ocean Pearl' → fr='Private Pool'
+id=20621: updated
+  B-update: db='Crestmark by Ellington' → fr='Crestmark'
+id=20631: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=20634: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=20635: updated
+  B-leak: db='Riwa Building 1' not in text
+  A-fill: NULL → fr='Al Muteena'
+id=20636: updated
+  B-leak: db='Riwa Building 1' not in text
+id=20637: updated
+  B-leak: db='ST REGIS RESIDENCES Tower 1' not in text
+id=20638: updated
+  B-leak: db='ST REGIS RESIDENCES Tower 1' not in text
+id=20653: updated
+  B-leak: db='Built Villas' not in text
+id=20666: updated
+  B-leak: db='Act One Act Two' not in text
+id=20668: updated
+  B-fill: NULL → fr='Al Jurf Gardens'
+id=20671: updated
+  B-update: db='Samana Hills South Tower A' → fr='Samana Hills South Tower'
+id=20672: updated
+  PR-update: 1686400 → 6189088
+  PT-update: 'apartment' → 'villa'
+id=20674: updated
+  B-update: db='Binghatti Pinnacle' → fr='Way2Home'
+id=20675: updated
+  B-update: db='Boulevard Tower 2' → fr='29 Boulevard'
+id=20678: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=20685: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=20688: updated
+  A-update: db='Sobha Hartland' → fr='Business Bay'
+id=20690: updated
+  B-fill: NULL → fr='Athlon'
+id=20701: updated
+  B-update: db='The Oasis Lavita⚜' → fr='Full Lagoon & Park'
+id=20709: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=20712: updated
+  B-leak: db='Roso Bay Residences' not in text
+id=20713: updated
+  B-update: db='Resale – Address Residence' → fr='Address Residence'
+id=20717: updated
+  A-fill: NULL → fr='Emaar Beachfront'
+id=20718: updated
+  B-fill: NULL → fr='The Acres'
+  A-fill: NULL → fr='Dubai Marina'
+id=20724: updated
+  A-update: db='Dubai Marina' → fr='Jumeirah Lake Towers'
+id=20736: updated
+  B-fill: NULL → fr='CANAL HEIGHTS'
+  A-fill: NULL → fr='Business Bay'
+id=20740: updated
+  PR-update: 36050000 → 9900000
+id=20741: updated
+  B-fill: NULL → fr='LUMA PARK VIEWS'
+id=20744: updated
+  A-fill: NULL → fr='Business Bay'
+id=20745: parse_none
+  parse_message returned None
+id=20762: updated
+  A-fill: NULL → fr='Al Reem Island'
+id=20767: updated
+  A-fill: NULL → fr='DIFC'
+id=20771: updated
+  B-leak: db='ELO 3 (Damac Hill 2)' not in text
+id=20773: updated
+  A-update: db='Jebel Ali' → fr='Jebel Ali Hills'
+  SZ-fill: NULL → 75.0
+id=20796: updated
+  A-fill: NULL → fr='Meshairef'
+id=20798: updated
+  B-leak: db='Venice Lagoon' not in text
+id=20804: updated
+  B-update: db='Vida Residence' → fr='Burj Khalifa'
+id=20809: updated
+  A-update: db='Burj Khalifa' → fr='Meydan'
+id=20812: updated
+  A-fill: NULL → fr='Dubai Islands'
+id=20815: updated
+  B-leak: db='Arabian Ranche Villas' not in text
+id=20816: updated
+  A-leak: db='DAMAC Lagoons' not in text
+id=20818: updated
+  A-fill: NULL → fr='Ras Al Khaimah'
+id=20823: updated
+  A-fill: NULL → fr='Jumeirah Park'
+id=20827: updated
+  B-update: db='Damac Bay Tower B' → fr='13%)'
+  A-fill: NULL → fr='Dubai International Airport'
+id=20829: updated
+  A-fill: NULL → fr='Creek Beach'
+  PT-update: 'apartment' → 'townhouse'
+id=20838: updated
+  B-fill: NULL → fr='approval).'
+id=20839: updated
+  B-update: db='Bloom Heights Tower B' → fr='Bloom Heights Tower'
+id=20842: updated
+  SZ-fill: NULL → 10300.0
+id=20850: updated
+  B-update: db='Single Row & Corner Unit' → fr='Nakheel Opal Gardens'
+id=20853: updated
+  B-leak: db='Grand Bleu Towers 1' not in text
+id=20862: updated
+  B-update: db='Allocated Park' → fr='Burj Khalifa'
+id=20863: updated
+  B-update: db='Car Park' → fr='Away From The Pool & Park'
+  A-fill: NULL → fr='Dubailand'
+id=20867: updated
+  B-leak: db='Arabian Ranche Villas' not in text
+  SZ-fill: NULL → 3900.0
+id=20871: updated
+  B-leak: db='Altai Towers, JVT' not in text
+id=20875: updated
+  B-leak: db='The Pulse Boulevard Apartment C1' not in text
+id=20878: updated
+  B-update: db='Damac Bay' → fr='Unit 20xx Damac Bay 2'
+id=20880: parse_none
+  parse_message returned None
+id=20884: updated
+  B-update: db='Bay' → fr='14% BELOW OP'
+id=20887: updated
+  PR-update: 832000 → 46832000
+id=20897: updated
+  B-update: db='Ritz Carlton Residence' → fr='Ritz Carlton Residences'
+id=20909: updated
+  B-leak: db='April- confirmed Furnished Very' not in text
+id=20913: updated
+  B-update: db='PRINCESS TOWER' → fr='Azizi Riviera'
+id=20917: updated
+  B-update: db='110' → fr='Residence 110'
+id=20918: updated
+  B-update: db='District One Residence' → fr='District One Residences'
+id=20921: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=20922: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=20927: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=20928: updated
+  PT-update: 'apartment' → 'retail'
+id=20942: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=20947: updated
+  B-update: db='Al Jazi 4' → fr='Regis Residences'
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=20952: updated
+  B-update: db='One&Only One' → fr='year fully furnished Sea view'
+id=20953: updated
+  A-leak: db='DAMAC Lagoons' not in text
+id=20960: updated
+  A-fill: NULL → fr='Dubailand'
+id=20962: updated
+  A-update: db='Dubai Sports City' → fr='Sports City'
+id=20963: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=20964: updated
+  B-update: db='The Opu' → fr='The Opus'
+id=20967: updated
+  A-fill: NULL → fr='Dubai'
+id=20969: updated
+  B-leak: db='The Crest' not in text
+  A-fill: NULL → fr='Sobha Hartland'
+id=20975: updated
+  B-leak: db='Elvira Towers 2' not in text
+id=20976: updated
+  B-update: db='Gated Community' → fr='Creek Vistas Heights'
+id=20979: updated
+  B-update: db='Ritz Carlton Residence' → fr='Ritz Carlton Residences'
+id=20990: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=21003: updated
+  A-fill: NULL → fr='Dubai'
+id=21016: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=21020: updated
+  B-leak: db='Golden mile Large' not in text
+id=21027: updated
+  A-fill: NULL → fr='Emaar Beachfront'
+id=21028: updated
+  PT-update: 'apartment' → 'duplex'
+id=21035: updated
+  B-leak: db='Grand Bleu Towers 2' not in text
+  A-fill: NULL → fr='Dubai Harbour'
+id=21036: updated
+  B-update: db='Exquisite Living Residences Downtown (ST.REGIS)' → fr='EXQUISITE LIVING RESIDENCES'
+id=21038: updated
+  B-update: db='Rixos Residences Downtown' → fr='Rixos Residences'
+id=21039: updated
+  A-fill: NULL → fr='Al Khairan First'
+id=21044: updated
+  A-fill: NULL → fr='Saadiyat Island'
+  SZ-fill: NULL → 9228.0
+id=21052: updated
+  B-fill: NULL → fr='Independent Villas'
+  A-fill: NULL → fr='Palm Jumeirah'
+id=21054: updated
+  B-fill: NULL → fr='Damac Towers'
+id=21069: updated
+  B-leak: db='Luminar Towers 2' not in text
+id=21080: updated
+  B-leak: db='Kensington Water B,by Ellington Sobha' not in text
+id=21081: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=21084: updated
+  B-leak: db='Dubai Design District 2 BHK' not in text
+id=21086: updated
+  PR-update: 2900000 → 7990000
+id=21093: updated
+  A-fill: NULL → fr='The Views'
+id=21094: updated
+  B-update: db='Castleton by Meraas' → fr='Central Park'
+id=21095: updated
+  B-update: db='Castleton' → fr='Central Park'
+id=21104: updated
+  B-leak: db='Safa Two Towers' not in text
+  PR-update: 2485000 → 300000
+id=21106: updated
+  B-leak: db='Silverene Towers A' not in text
+  A-fill: NULL → fr='Dubai Marina'
+id=21108: updated
+  A-leak: db='DAMAC Lagoons' not in text
+  PR-update: 3350000 → 7000000
+id=21112: updated
+  PR-update: 1750000 → 35363147
+id=21113: updated
+  PR-update: 2150000 → 32001273
+id=21118: updated
+  B-leak: db='BEACH VISTA Towers 1' not in text
+id=21119: updated
+  A-fill: NULL → fr='MBR City'
+id=21122: updated
+  BR-update: 0 → 1
+  PR-update: 630000 → 2250000
+id=21126: updated
+  B-leak: db='Bluewater Residences' not in text
+id=21127: updated
+  A-fill: NULL → fr='Meydan'
+id=21139: parse_none
+  parse_message returned None
+id=21144: updated
+  A-update: db='Burj Khalifa' → fr='Downtown Dubai'
+id=21151: updated
+  A-update: db='Al Hebiah Fourth' → fr='Dubai'
+id=21157: updated
+  B-leak: db='Bluewaters Bay Tower 1' not in text
+id=21158: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+  PR-update: 2650000 → 5500000
+id=21161: updated
+  B-leak: db='Azure Towers' not in text
+id=21164: updated
+  B-leak: db='PENINSULA FOUR Tower A' not in text
+  A-update: db='Business Bay' → fr='Peninsula'
+id=21165: updated
+  B-leak: db='Sham Abu Dhabi' not in text
+id=21168: updated
+  B-fill: NULL → fr='Cluster M | 1600 Sq.ft'
+id=21171: updated
+  A-leak: db='DAMAC Lagoons' not in text
+id=21176: updated
+  B-update: db='Regis Residence' → fr='Regis Residences'
+id=21182: updated
+  B-update: db='Elitz2 by Danube' → fr='Elitz2'
+id=21193: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=21195: updated
+  A-fill: NULL → fr='Saadiyat Island'
+id=21198: updated
+  B-update: db='Address Fountain Views 1' → fr='Downtown Address Fountain Views 1'
+id=21204: updated
+  B-update: db='FERN' → fr='Central Park'
+id=21205: updated
+  B-update: db='Thyme' → fr='Central Park'
+id=21206: updated
+  B-update: db='Saadiyat Lagoons Villa' → fr='Handover expected'
+  A-fill: NULL → fr='Saadiyat Island'
+id=21213: updated
+  B-fill: NULL → fr='DOWNTOWN VIEWS'
+id=21214: updated
+  B-update: db='Damac Hill' → fr='Topanga Direct Park'
+id=21218: updated
+  A-fill: NULL → fr='Al Barsha'
+id=21219: updated
+  B-leak: db='Marina Vista' not in text
+  A-fill: NULL → fr='Emaar Beachfront'
+id=21220: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=21223: updated
+  BR-update: 2 → 1
+  SZ-fill: NULL → 111.0
+id=21248: updated
+  B-update: db='Ellington quality' → fr='Belmont Residences'
+id=21256: updated
+  B-update: db='Binghatti Phantom' → fr='1.4m'
+id=21261: updated
+  SZ-fill: NULL → 7268.0
+id=21263: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=21265: updated
+  B-leak: db='villa Cavalli Estates' not in text
+id=21266: updated
+  B-leak: db='Beach Mansion Towers 1' not in text
+id=21271: updated
+  SZ-fill: NULL → 7100.0
+id=21280: updated
+  SZ-fill: NULL → 10784.0
+id=21283: updated
+  PT-update: 'apartment' → 'duplex'
+id=21287: updated
+  A-fill: NULL → fr='Business Bay'
+id=21288: updated
+  A-fill: NULL → fr='Emaar Beachfront'
+id=21294: updated
+  B-leak: db='Silicon Oasis Freehold' not in text
+id=21295: updated
+  B-fill: NULL → fr='Thyme, Central Park'
+id=21299: updated
+  B-update: db='Damac' → fr='Dubai Investment Park 2'
+id=21300: updated
+  B-update: db='Bay Villas In Dubai Island' → fr='Bay Villas'
+id=21301: updated
+  A-update: db='Burj Khalifa' → fr='Dubai Creek Harbour'
+id=21303: updated
+  B-fill: NULL → fr='DOWNTOWN VIEWS'
+id=21304: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=21305: updated
+  B-leak: db='Elz By Danube' not in text
+id=21306: updated
+  B-fill: NULL → fr='DOWNTOWN VIEWS'
+id=21307: updated
+  B-leak: db='BEACH VISTA Towers 1' not in text
+id=21308: updated
+  B-leak: db='Grand Bleu Towers 1' not in text
+id=21309: updated
+  B-leak: db='Beach Mansion Towers 1' not in text
+id=21315: updated
+  SZ-fill: NULL → 3500.0
+id=21321: parse_none
+  parse_message returned None
+id=21323: updated
+  B-update: db='Address Residences Zabeel' → fr='Address Residences'
+  A-fill: NULL → fr='Burj Khalifa'
+id=21325: updated
+  SZ-fill: NULL → 10371.0
+id=21327: updated
+  SZ-fill: NULL → 44918.2
+id=21331: updated
+  A-leak: db='Al Warsan' not in text
+id=21332: updated
+  PT-update: 'villa' → 'plot'
+id=21337: updated
+  B-leak: db='Burj Royaelsdowntown' not in text
+id=21342: updated
+  B-leak: db='Marasi Busine Bay' not in text
+id=21345: updated
+  PR-update: 820000 → 2027820000
+id=21346: updated
+  B-leak: db='Jumeirah Gate Towers 1' not in text
+id=21353: updated
+  A-fill: NULL → fr='Dubailand'
+id=21356: updated
+  B-update: db='Peninsula Four' → fr='Burj Khalifa'
+id=21357: updated
+  PR-update: 1607000 → 438000
+id=21360: updated
+  B-update: db='Palace Residence Dubai Hill' → fr='Palace Residence Dubai Hills'
+id=21362: updated
+  A-fill: NULL → fr='Emaar Beachfront'
+id=21365: updated
+  B-leak: db='Address Hillcrest' not in text
+  A-leak: db='Dubai Hills Estate' not in text
+id=21366: updated
+  B-leak: db='La Voile Building 1' not in text
+id=21368: updated
+  A-fill: NULL → fr='Jumeirah'
+id=21375: updated
+  PR-update: 650000 → 2650000
+id=21379: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=21383: updated
+  B-update: db='Ellington quality' → fr='Belmont Residences'
+id=21387: updated
+  B-update: db='Nad Al Sheba Gardens Phase 3' → fr='Nad Al Sheba Gardens'
+  A-fill: NULL → fr='Meydan'
+id=21391: updated
+  B-leak: db='Wave Opulence' not in text
+id=21395: updated
+  B-update: db='Safa One' → fr='Handover'
+id=21396: updated
+  B-update: db='Damac Hill' → fr='Malibu Bay'
+id=21398: updated
+  B-update: db='Samana Hill' → fr='Samana Hills'
+id=21402: updated
+  B-leak: db='Malta Lagoon' not in text
+id=21403: updated
+  B-update: db='Binghatti Phantom' → fr='1,450,000 AED'
+id=21404: updated
+  B-update: db='Castleton' → fr='Central Park'
+id=21406: updated
+  B-update: db='Regis Residence' → fr='Regis Residences'
+id=21417: updated
+  B-update: db='17 Icon Bay' → fr='Icon Bay'
+id=21418: updated
+  B-leak: db='Arabian Ranche Villas' not in text
+id=21424: updated
+  A-leak: db='DAMAC Lagoons' not in text
+id=21425: updated
+  B-fill: NULL → fr='Elan'
+id=21426: updated
+  B-leak: db='Venice Lagoon' not in text
+  SZ-fill: NULL → 804.0
+id=21428: updated
+  A-update: db='Palm Jumeirah' → fr='Dubai Marina'
+id=21429: updated
+  B-fill: NULL → fr='ideal for end user or investor'
+id=21432: updated
+  B-fill: NULL → fr='Six Senses Residences'
+id=21433: updated
+  B-update: db='Al Marjan Island, RAK' → fr='Oceano Tower'
+id=21434: updated
+  B-fill: NULL → fr='Erin Central Park'
+id=21436: updated
+  B-leak: db='Arabian Ranche Villas' not in text
+id=21437: updated
+  B-leak: db='Forte Towers 1' not in text
+id=21439: updated
+  B-leak: db='Reef Residences' not in text
+id=21440: updated
+  PR-update: 900000 → 1700000
+id=21442: updated
+  B-fill: NULL → fr='Catch Residences'
+id=21445: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=21446: updated
+  B-leak: db='Mykono Lagoon' not in text
+id=21447: updated
+  B-update: db='Park Ridge Tower C' → fr='PARK RIDGE TOWER C'
+id=21456: updated
+  B-leak: db='Urban Oasi by Misoni' not in text
+id=21457: updated
+  B-leak: db='THE EDGE Tower A' not in text
+id=21463: parse_none
+  parse_message returned None
+id=21464: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=21469: updated
+  B-leak: db='Amwaj 1' not in text
+id=21472: updated
+  B-leak: db='Jebel Ali Villasge' not in text
+id=21473: updated
+  B-update: db='Type' → fr='Bay Villas'
+id=21474: updated
+  A-leak: db='Dubai Creek Harbour' not in text
+id=21478: updated
+  B-update: db='The Opu' → fr='Damac Towers'
+id=21479: updated
+  B-leak: db='Binghatti Hill (Iconic Architecture)' not in text
+  A-fill: NULL → fr='The Views'
+id=21483: updated
+  B-update: db='Forsale' → fr='Rimal Residences'
+id=21488: updated
+  A-fill: NULL → fr='International City'
+id=21492: updated
+  B-fill: NULL → fr='Burj Khalifa'
+  PR-update: 6000000 → 32107939
+id=21494: updated
+  B-leak: db='Safi Apartment' not in text
+id=21495: updated
+  B-update: db='Azizi Riviera' → fr='URBAN OASIS'
+  A-update: db='Meydan' → fr='Business Bay'
+id=21500: updated
+  B-leak: db='FIVE Palm Jumeirah' not in text
+id=21501: updated
+  PR-update: 600000 → 2600000
+id=21504: updated
+  B-leak: db='Jabel Ali Village 3 bedroom' not in text
+id=21508: updated
+  B-update: db='Northside by Select Group' → fr='Northside'
+id=21509: updated
+  B-update: db='Regis Residence' → fr='Regis Residences'
+id=21512: updated
+  B-leak: db='CREEK EDGE Towers 1' not in text
+id=21513: updated
+  B-update: db='Hills Estate' → fr='Lime Gardens'
+  A-leak: db='Dubai Hills Estate' not in text
+id=21516: updated
+  A-leak: db='DAMAC Hills 2' not in text
+id=21518: updated
+  A-fill: NULL → fr='Business Bay'
+id=21519: updated
+  B-update: db='Crest Grande' → fr='Burj Khalifa'
+id=21522: updated
+  A-fill: NULL → fr='Dubai Marina'
+  BR-update: 2 → 3
+id=21533: updated
+  A-fill: NULL → fr='Meydan'
+id=21535: updated
+  B-leak: db='PRICE DROP  CLOSE TO OP' not in text
+id=21537: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=21538: updated
+  B-update: db='Project: Lavita' → fr='Lavita'
+id=21540: updated
+  B-update: db='Sobha Hartland Waves' → fr='1,9 mln AED'
+id=21552: updated
+  B-fill: NULL → fr='Aykon City'
+id=21553: updated
+  B-update: db='Eleganz by Danube, JVC' → fr='Eleganz'
+id=21560: updated
+  B-fill: NULL → fr='Creek Beach Grove'
+id=21569: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=21572: updated
+  A-leak: db='Dubai Motor City' not in text
+id=21579: updated
+  B-update: db='The S Tower by SOBHA' → fr='The S Tower'
+  A-fill: NULL → fr='Al Safouh Second'
+id=21581: updated
+  B-update: db='SOBHA RESERVE' → fr='On The Park'
+  A-fill: NULL → fr='Sobha Hartland'
+id=21582: updated
+  A-update: db='Downtown Dubai' → fr='Al Jaddaf'
+id=21583: updated
+  B-update: db='Parkside Hill' → fr='Mins Walk To Dubai Hills'
+id=21589: updated
+  B-update: db='Studio Apartment In Bay' → fr='18% BELOW OP'
+id=21590: updated
+  A-fill: NULL → fr='Jumeirah'
+id=21591: updated
+  B-leak: db='Arabian Ranche Villas' not in text
+id=21593: updated
+  B-fill: NULL → fr='Address Residence'
+id=21595: updated
+  B-leak: db='Elvira Towers 2' not in text
+id=21596: updated
+  B-leak: db='Cavalli Towers' not in text
+  A-fill: NULL → fr='Dubai Marina'
+id=21601: updated
+  B-update: db='CENTURY TOWER' → fr='Century Tower'
+id=21606: updated
+  B-update: db='Br Corner Apartment' → fr='In The Beach Residences'
+id=21612: updated
+  B-leak: db='Saba Towers 3' not in text
+id=21616: updated
+  B-fill: NULL → fr='Marina Gate 1'
+  A-update: db='Dubai Hills Estate' → fr='Dubai Marina'
+id=21618: updated
+  A-leak: db='Al Warsan' not in text
+id=21623: updated
+  B-leak: db='Damacslagoon Nice1' not in text
+id=21625: updated
+  B-leak: db='Spring Villas' not in text
+id=21640: updated
+  B-update: db='320 Riverside Crescent' → fr='Riverside Crescent'
+  A-leak: db='Sobha Hartland' not in text
+id=21647: updated
+  B-update: db='Sobha Seahaven Tower C' → fr='Sobha Seahaven Tower'
+  A-fill: NULL → fr='Sobha Hartland'
+id=21650: updated
+  A-update: db='Burj Khalifa' → fr='Downtown Dubai'
+id=21660: updated
+  BR-update: 1 → 4
+  PT-update: 'apartment' → 'townhouse'
+id=21665: updated
+  B-fill: NULL → fr='Oceano Tower'
+id=21668: parse_none
+  parse_message returned None
+id=21670: updated
+  B-fill: NULL → fr='Bluewaters Bay'
+id=21678: updated
+  B-update: db='Nad Al Sheba 1' → fr='Azizi Gardens'
+  A-fill: NULL → fr='Nad Al Shiba First'
+id=21683: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=21684: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=21687: updated
+  B-leak: db='The Opu' not in text
+  PR-update: 1420000 → 548000
+id=21690: updated
+  B-leak: db='Emaar Beachfront Towers 2' not in text
+id=21696: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=21701: updated
+  SZ-fill: NULL → 11452.0
+id=21704: parse_none
+  parse_message returned None
+id=21712: updated
+  B-fill: NULL → fr='Best Payment Plan In Business Bay'
+id=21723: updated
+  PR-update: 120000 → 1120000
+id=21728: updated
+  B-fill: NULL → fr='Peninsula Three'
+id=21729: updated
+  B-leak: db='Damacslagoon Portofino' not in text
+id=21738: updated
+  B-update: db='Pearl House III by Imtiaz' → fr='Pearl House III'
+id=21741: updated
+  B-fill: NULL → fr='Beach Mansion'
+id=21745: updated
+  B-leak: db='Sobha Heartland Sobha Waves' not in text
+  A-fill: NULL → fr='Sobha Hartland'
+id=21748: updated
+  B-leak: db='Malta Lagoon' not in text
+id=21751: updated
+  B-fill: NULL → fr='Full Canal Views'
+id=21753: updated
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=21756: parse_none
+  parse_message returned None
+id=21766: updated
+  B-update: db='Wardrobes' → fr='Built'
+  A-fill: NULL → fr='Emaar Beachfront'
+id=21775: updated
+  B-update: db='Damac Bay' → fr='Damac Bay 2'
+  A-fill: NULL → fr='Al Hebiah 3'
+id=21786: updated
+  B-leak: db='FIVE Palm Jumeirah' not in text
+id=21788: updated
+  B-leak: db='FIVE Palm Jumeirah' not in text
+id=21790: updated
+  B-update: db='Damac Islands – Maldives Collection' → fr='Demand Island'
+id=21792: updated
+  A-update: db='Palm Jumeirah' → fr='Dubai Hills Estate'
+id=21793: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=21794: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=21802: updated
+  B-update: db='Plazzo Heights , JVC' → fr='PLAZZO HEIGHTS'
+id=21816: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=21817: updated
+  A-leak: db='Dubai Creek Harbour' not in text
+id=21824: updated
+  A-fill: NULL → fr='Meydan'
+id=21828: parse_none
+  parse_message returned None
+id=21829: updated
+  B-leak: db='Bluewater Residences' not in text
+id=21860: updated
+  B-update: db='Boulevard Tower 2' → fr='29 Boulevard'
+id=21863: updated
+  B-update: db='DSO (Dubai Silicon Oasis)' → fr='Tria'
+  A-update: db='Madinat Jumeirah' → fr='Silicon Oasis'
+id=21864: updated
+  B-update: db='RIXOS RESIDENCES FINANCIAL ROAD' → fr='Rixos Residences'
+  A-fill: NULL → fr='Burj Khalifa'
+id=21898: updated
+  A-leak: db='Al Warsan' not in text
+id=21900: updated
+  B-update: db='Reehan 6' → fr='REEHAN 6'
+id=21907: updated
+  A-fill: NULL → fr='District One'
+id=21924: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=21925: updated
+  B-update: db='Central Park' → fr='Burj Khalifa'
+id=21943: updated
+  B-update: db='Rixos Residences Financial Centre Road' → fr='Rixos Residences'
+  PR-update: 4800000 → 2500000
+id=21947: parse_none
+  parse_message returned None
+id=21951: updated
+  BR-fill: NULL → 5
+id=21954: updated
+  PR-update: 335000 → 1335000
+id=21955: updated
+  B-update: db='RIXOS Residences' → fr='Rixos Residences'
+id=21968: updated
+  B-fill: NULL → fr='Burj Khalifa'
+  PR-update: 3000000 → 36017775
+id=21992: updated
+  A-leak: db='DAMAC Lagoons' not in text
+id=21993: updated
+  B-fill: NULL → fr='wa.link/8gmxh2'
+id=21994: updated
+  B-update: db='Beach Walk Grand By Imtiaz' → fr='Beach Walk Grand'
+id=22001: updated
+  A-fill: NULL → fr='Dubai Islands'
+id=22003: updated
+  B-update: db='KYOTO BY ORO24' → fr='2026'
+id=22010: updated
+  B-leak: db='The Edge  Best Layout' not in text
+id=22011: updated
+  B-update: db='Greenside Building' → fr='SEAPOINT Tower 1'
+id=22018: updated
+  B-update: db='JOYA Verde Residence' → fr='Joya Verde Residence'
+id=22019: updated
+  B-update: db='Neva Residences by Tiger' → fr='NEVA RESIDENCES'
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=22026: updated
+  B-update: db='Centrium Tower 1, IMPZ' → fr='CENTRIUM TOWER 1'
+  A-fill: NULL → fr="Me'Aisem First"
+id=22027: updated
+  B-update: db='Golflane by Emaar' → fr='Golflane'
+id=22029: updated
+  A-leak: db='Al Warsan' not in text
+id=22034: updated
+  B-leak: db='The Collection' not in text
+id=22037: updated
+  B-update: db='Bedroom BeachGate' → fr='Built'
+  A-fill: NULL → fr='Emaar Beachfront'
+id=22045: updated
+  B-fill: NULL → fr='Sliver Tower'
+  PR-update: 135000 → 1350003
+id=22047: parse_none
+  parse_message returned None
+id=22054: updated
+  B-leak: db='Grande Signature Residences' not in text
+  A-fill: NULL → fr='Downtown Dubai'
+id=22056: updated
+  BR-update: 0 → 1
+id=22058: updated
+  B-update: db='Dubai Hill' → fr='Park Heights 2'
+id=22065: updated
+  B-leak: db='Cavalli Towers' not in text
+  A-fill: NULL → fr='Dubai Marina'
+id=22066: updated
+  B-update: db='Habtoor Grand Residence' → fr='Plan (Q4 2027)'
+id=22068: updated
+  SZ-fill: NULL → 10371.0
+id=22070: updated
+  B-update: db='bayz by danube' → fr='Bayz'
+id=22075: updated
+  A-fill: NULL → fr='Ras Al Khor'
+id=22077: parse_none
+  parse_message returned None
+id=22086: updated
+  B-leak: db='Villasin Meadow 1' not in text
+  A-fill: NULL → fr='The Meadows'
+id=22088: updated
+  A-fill: NULL → fr='Meydan'
+id=22090: updated
+  PR-update: 900000 → 3900000
+id=22103: updated
+  B-update: db='The Fields' → fr='Elie Saab VIE'
+id=22116: updated
+  B-update: db='DAMAC CAVALI BAY 2' → fr='Damac Cavali Bay 2'
+id=22118: updated
+  A-fill: NULL → fr='Madinat Al Mataar'
+id=22119: updated
+  B-update: db='Район' → fr='Central Park'
+id=22122: updated
+  B-update: db='VASTO' → fr='Takaya Tower'
+id=22128: updated
+  PT-update: 'apartment' → 'studio'
+id=22131: updated
+  A-update: db='Business Bay' → fr='Dubai Marina'
+id=22134: updated
+  A-fill: NULL → fr='Jumeirah'
+id=22150: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=22151: updated
+  B-update: db='Central Park - Castleton' → fr='Central Park'
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=22152: updated
+  B-update: db='Central Park - Castleton' → fr='Central Park'
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=22157: updated
+  A-leak: db='Al Warsan' not in text
+id=22159: updated
+  B-update: db='Jouri Hills' → fr='Jumeirah Golf Estate'
+  A-fill: NULL → fr='Jumeirah Golf Estates'
+id=22168: updated
+  B-leak: db='Bedroom In Address Opera Tower' not in text
+id=22169: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=22195: updated
+  A-leak: db='DAMAC Lagoons' not in text
+id=22207: updated
+  B-update: db='Beach Walk Grand By Imtiaz' → fr='Beach Walk Grand'
+id=22237: updated
+  B-leak: db='Merano Towers' not in text
+  BR-fill: NULL → 1
+id=22241: parse_none
+  parse_message returned None
+id=22243: updated
+  PT-update: 'apartment' → 'studio'
+id=22248: updated
+  B-fill: NULL → fr='Lagoon Views'
+id=22249: updated
+  B-update: db='Elysian Mansion' → fr='Elysian Mansions'
+  BR-fill: NULL → 5
+id=22251: updated
+  BR-fill: NULL → 6
+id=22252: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=22254: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=22257: updated
+  A-fill: NULL → fr='Saadiyat Island'
+id=22260: updated
+  B-fill: NULL → fr='Canal Heights 2'
+  PT-update: 'apartment' → 'studio'
+id=22268: updated
+  B-leak: db='City Walk 4BR apartment' not in text
+id=22269: updated
+  A-update: db='DAMAC Lagoons' → fr='Business Bay'
+id=22270: updated
+  PR-update: 1730000 → 74000000
+id=22276: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=22279: updated
+  B-update: db='Our Luxury Townhouse On Bluewaters Residence' → fr='The Bluewaters Residences'
+id=22289: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=22291: updated
+  PT-update: 'apartment' → 'plot'
+id=22293: updated
+  B-update: db='Central Park - Castleton' → fr='Central Park'
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=22295: updated
+  B-update: db='ACT TOWER 1' → fr='Act Tower 1'
+  A-fill: NULL → fr='Burj Khalifa'
+id=22296: updated
+  B-leak: db='Bays Edge Rooms' not in text
+id=22297: updated
+  B-fill: NULL → fr='Lime Gardens'
+id=22308: updated
+  A-fill: NULL → fr='Business Bay'
+id=22309: updated
+  B-update: db="Dubai's Al Sufouh" → fr='Damac Cavalli Casa Tower'
+id=22310: updated
+  B-update: db='Sobha Crescent 350' → fr='Sobha Crescent'
+id=22312: updated
+  A-fill: NULL → fr='Dubai South'
+id=22315: updated
+  B-fill: NULL → fr='Residence 14'
+  PR-update: 550000 → 1550000
+id=22317: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=22326: updated
+  PR-update: 850000 → 2850000
+id=22331: updated
+  B-leak: db='Elvira Towers 2' not in text
+id=22335: updated
+  B-fill: NULL → fr='4 cheques'
+  A-fill: NULL → fr='Dubai Harbour'
+id=22342: updated
+  B-leak: db='Viridi C - Damacshill 2' not in text
+id=22347: updated
+  A-update: db='Business Bay' → fr='Al Furjan'
+  PR-update: 160000 → 60000
+  PT-update: 'apartment' → 'studio'
+id=22348: parse_none
+  parse_message returned None
+id=22350: updated
+  A-fill: NULL → fr='Meydan'
+id=22356: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=22360: updated
+  PR-update: 70000 → 100999
+id=22371: updated
+  B-leak: db='The Polo Residences' not in text
+id=22372: updated
+  B-fill: NULL → fr='ARAS HEIGHTS'
+  A-update: db='Wadi Al Safa' → fr='Wadi Al Safa 3'
+id=22373: updated
+  B-update: db='LAZORD' → fr='Majan'
+id=22379: updated
+  B-update: db='Elite Downtown 1' → fr='Bz Bay'
+id=22380: updated
+  PR-update: 1360970 → 2100000
+id=22383: updated
+  B-update: db='ACT TOWER 1' → fr='Act Tower 1'
+  A-fill: NULL → fr='Burj Khalifa'
+id=22404: updated
+  B-update: db='Port De La Mer' → fr='3 CHQ'
+id=22459: updated
+  B-update: db='The One at JVT' → fr='THE ONE'
+id=22463: updated
+  B-leak: db='V130 NARA 4bed Townhouse' not in text
+id=22467: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=22476: updated
+  B-update: db='Off Plan resale' → fr='Sportz'
+id=22478: updated
+  B-update: db='Off Plan Resale' → fr='ELYSEE HEIGHTS'
+id=22503: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=22509: updated
+  B-leak: db='Capital Bay Towers A' not in text
+id=22510: updated
+  A-fill: NULL → fr='Silicon Oasis'
+id=22525: updated
+  B-update: db='Damac Hill' → fr='Damac Hills 1'
+id=22526: updated
+  B-update: db='Lime Gardens Dubai Hill' → fr='Lime Gardens'
+id=22527: updated
+  B-fill: NULL → fr='Central Park'
+id=22540: updated
+  PR-update: 537800 → 4500000
+id=22550: updated
+  B-leak: db='Al Ranim' not in text
+id=22570: updated
+  B-update: db='Crescent' → fr='Palm Jumeirah Crescent'
+id=22571: updated
+  B-update: db='Crescent' → fr='Palm Jumeirah Crescent'
+id=22590: updated
+  B-update: db='Dubai Hill' → fr='Lime Gardens'
+id=22598: updated
+  A-fill: NULL → fr='Al Thanyah First'
+id=22601: updated
+  A-fill: NULL → fr='Meydan'
+id=22607: updated
+  B-update: db='Emaar Beach front' → fr='SEAPOINT Tower 1'
+  A-fill: NULL → fr='Marsa Dubai'
+  PR-update: 418268 → 4200000
+id=22625: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=22646: updated
+  PR-update: 2100000 → 36595019
+id=22648: updated
+  B-fill: NULL → fr='Sliver Tower'
+id=22658: updated
+  PR-update: 12375000 → 1340000
+id=22663: updated
+  B-update: db='SKYZ BY DANUBE' → fr='Skyz'
+id=22672: updated
+  B-leak: db='Villa - Pearl Jumeirah ⚡⚡' not in text
+id=22687: updated
+  B-update: db='Grande' → fr='Burj Khalifa'
+id=22711: updated
+  B-update: db='Business Bay, Westbury Tower' → fr='Westbury Tower'
+id=22719: updated
+  A-update: db='Palm Jumeirah' → fr='Dubai Hills Estate'
+id=22728: updated
+  B-update: db='ADDRESS OPERA T1🟢' → fr='Burj Khalifa'
+id=22738: updated
+  B-leak: db='Sadaf 1' not in text
+id=22739: updated
+  B-leak: db='Rimal 1' not in text
+id=22740: updated
+  B-leak: db='Murjan 1' not in text
+id=22750: updated
+  B-update: db='The Edge' → fr='THE EDGE'
+id=22757: updated
+  B-fill: NULL → fr='ideal for end user or investor'
+id=22760: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=22761: updated
+  B-leak: db='DREAM TOWER' not in text
+id=22763: updated
+  PR-update: 288000 → 1050000
+id=22765: updated
+  B-fill: NULL → fr='Ra1N'
+id=22771: updated
+  B-update: db='Pearl House II by Imtiaz' → fr='House II'
+id=22777: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=22779: updated
+  B-update: db='Branded Apartment' → fr='Burj Khalifa'
+  A-update: db='Dubai Hills Estate' → fr='Burj Khalifa'
+id=22781: updated
+  B-leak: db='Marasi Business Bay' not in text
+id=22788: updated
+  B-fill: NULL → fr='Central Park'
+id=22792: updated
+  BR-update: 6 → 4
+id=22797: updated
+  B-update: db='OCEANZ 2' → fr='Oceanz 2'
+id=22832: updated
+  B-fill: NULL → fr='THE COVE Building 1'
+id=22887: updated
+  B-update: db='Luxor by Imtiaz' → fr='Luxor'
+id=22892: updated
+  B-leak: db='Address Dubai Marina' not in text
+id=22905: updated
+  B-leak: db='Santorini Lagoons' not in text
+id=22917: updated
+  B-leak: db='Churchill Residency' not in text
+id=22921: updated
+  B-update: db='Palace tower 2' → fr='Palace Tower 2'
+id=22951: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=22974: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=22977: updated
+  A-fill: NULL → fr='Meydan'
+id=22986: updated
+  B-update: db='Sobha Solis Tower D' → fr='Sobha Solis Tower'
+  A-leak: db='Dubai Motor City' not in text
+  PR-update: 10100000 → 1425000
+id=23009: updated
+  B-update: db='Dunya Tower' → fr='The Address Residence'
+id=23013: updated
+  B-update: db='The Royal Atlantis Tower B' → fr='The Royal Atlantis Tower'
+id=23014: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=23016: updated
+  B-fill: NULL → fr='The Crest Tower'
+id=23019: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=23036: updated
+  A-fill: NULL → fr='Saadiyat Island'
+id=23074: updated
+  B-update: db='Wardrobes' → fr='Built'
+  A-fill: NULL → fr='Emaar Beachfront'
+id=23076: updated
+  B-update: db='Erin' → fr='With Park'
+id=23083: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=23084: updated
+  B-update: db='Jumeirah Beach Residences (JBR)' → fr='Jumeirah Beach Residences'
+id=23091: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=23093: updated
+  B-leak: db='Sobha One' not in text
+  A-fill: NULL → fr='Sobha Hartland'
+id=23096: updated
+  PT-update: 'apartment' → 'retail'
+id=23097: updated
+  B-update: db='Covered Park' → fr='Luxury Lv1000 Mansion'
+id=23099: updated
+  B-update: db='Reportage Hills Community' → fr='Reportage Hills'
+id=23104: updated
+  PR-update: 730000 → 32616733
+id=23105: updated
+  PR-update: 1800000 → 32153518
+id=23110: updated
+  B-leak: db='Sobha One' not in text
+id=23113: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=23114: updated
+  A-fill: NULL → fr='Dubai Islands'
+id=23121: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=23123: updated
+  B-leak: db='Beach Mansion' not in text
+id=23129: updated
+  B-fill: NULL → fr='Elysee Iii'
+id=23130: updated
+  B-leak: db='Villa - Pearl Jumeirah ⚡⚡' not in text
+id=23148: updated
+  B-update: db='Binghatti Onyx' → fr='Binghatti Onyx Tower'
+id=23160: updated
+  B-fill: NULL → fr='Address The Bay'
+id=23164: updated
+  A-fill: NULL → fr='Dubai Islands'
+id=23166: updated
+  A-leak: db='Dubai Creek Harbour' not in text
+id=23185: updated
+  B-update: db='Naya - District One Residences' → fr='Burj Khalifa'
+id=23189: updated
+  A-leak: db='Dubai Creek Harbour' not in text
+id=23191: updated
+  B-leak: db='FIVE Palm Jumeirah' not in text
+id=23201: updated
+  B-fill: NULL → fr='Elitz 2'
+id=23204: updated
+  B-fill: NULL → fr='Jumeirah Heights'
+id=23209: updated
+  B-update: db='Opalz By Danube' → fr='SYANN PARK 1'
+id=23212: updated
+  B-fill: NULL → fr='O2 Residences'
+id=23246: updated
+  B-fill: NULL → fr='Sobha Seahaven Tower'
+id=23261: updated
+  B-leak: db='Azizi Venice 14G Property' not in text
+id=23268: updated
+  A-fill: NULL → fr='Meydan'
+id=23278: updated
+  B-fill: NULL → fr='Silverene Tower B'
+id=23280: updated
+  B-leak: db='Marasi Business Bay' not in text
+id=23284: updated
+  B-fill: NULL → fr='In Vida Dubai Mall Tower 1'
+id=23285: updated
+  B-leak: db='Wardrobes - Allotted Parking' not in text
+id=23288: updated
+  B-leak: db='Vincitore Boulevard' not in text
+id=23289: updated
+  B-update: db='SLS' → fr='Dubai Hotel & Residences'
+id=23290: updated
+  B-leak: db='Vera Residences' not in text
+id=23291: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=23308: updated
+  A-fill: NULL → fr='Saadiyat Island'
+id=23314: updated
+  B-leak: db='Malta Lagoons' not in text
+id=23315: updated
+  B-fill: NULL → fr='Burj Khalifa'
+  PT-update: 'apartment' → 'office'
+id=23319: updated
+  B-update: db='Creek View + Large Balcony' → fr='Burj Khalifa'
+id=23322: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=23325: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=23327: updated
+  BR-update: 2 → 1
+id=23334: updated
+  B-leak: db='Rosso Bay Residences' not in text
+id=23337: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=23340: updated
+  B-update: db='Semi-Detached Villa' → fr='Opal Gardens'
+id=23342: updated
+  B-update: db='Central Park - Castleton' → fr='Central Park'
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=23343: updated
+  B-update: db='Central Park - Castleton' → fr='Central Park'
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=23345: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=23349: updated
+  B-fill: NULL → fr='Burj Khalifa'
+  PR-update: 9400000 → 3129000
+id=23363: updated
+  B-update: db='Address JBR Tower 2' → fr='Tower 2 Offers 5 Star Hotel'
+id=23369: updated
+  B-update: db='Market' → fr='Hills Park'
+id=23370: updated
+  B-fill: NULL → fr='Clover Bay Tower'
+id=23395: updated
+  PR-update: 420000000 → 125000000
+id=23406: updated
+  A-fill: NULL → fr='Dubai South'
+id=23414: updated
+  B-leak: db='Jumeirah Golf Estate Sundials' not in text
+id=23426: updated
+  B-fill: NULL → fr='Trillionaire Residence'
+id=23428: updated
+  B-leak: db='Creek Vistas Tower A Location' not in text
+id=23429: updated
+  B-leak: db='Address Residences The Bay Location' not in text
+id=23430: updated
+  B-leak: db='Address Residences The Bay Location' not in text
+id=23443: updated
+  B-update: db='Kempinski Residences The Creek' → fr='KEMPINSKI RESIDENCES'
+  A-fill: NULL → fr='Palm Jumeirah'
+id=23445: updated
+  B-update: db='Canal Front - Building 9' → fr='Burj Khalifa'
+id=23447: updated
+  B-update: db='Marquise Square Tower' → fr='Burj Khalifa'
+id=23448: updated
+  B-update: db='Bayview Tower 1' → fr='BAYVIEW Tower 1'
+id=23454: updated
+  B-fill: NULL → fr='Bluewaters Bay'
+  PR-update: 200000 → 4386000
+id=23457: updated
+  B-fill: NULL → fr='DOWNTOWN VIEWS'
+id=23462: updated
+  B-update: db='TODAY or start earning TOMORROW' → fr='Collective Tower 2'
+id=23465: updated
+  B-leak: db='Arabian Ranches Villas' not in text
+id=23472: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=23473: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=23474: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=23475: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=23476: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=23482: updated
+  A-fill: NULL → fr='Marsa Dubai'
+id=23484: updated
+  B-leak: db='Bay Central @ Dubai Marina' not in text
+id=23505: updated
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=23517: updated
+  B-update: db='Al waha villas' → fr='Al Waha Villas'
+id=23541: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=23545: updated
+  B-update: db='Kanyon By Beyond' → fr='Kanyon'
+id=23546: updated
+  B-update: db='Hartland 2' → fr='Riverside Crescent'
+  A-fill: NULL → fr='Sobha Hartland'
+id=23547: updated
+  B-update: db='Luxor by Imtiaz' → fr='Luxor'
+id=23552: updated
+  B-fill: NULL → fr='Eagle Hills'
+id=23555: updated
+  B-fill: NULL → fr='call'
+id=23558: updated
+  B-fill: NULL → fr='Luxury Family Residence'
+id=23561: updated
+  B-leak: db='Address Residences The Bay Location' not in text
+id=23564: updated
+  B-leak: db='Marbella Lagoons' not in text
+id=23570: updated
+  B-update: db='The Royal Atlantis Tower C' → fr='The Royal Atlantis Tower'
+id=23574: updated
+  PR-update: 1750000 → 2650000
+id=23575: updated
+  A-fill: NULL → fr='Business Bay'
+id=23579: updated
+  B-leak: db='Shams Abu Dhabi' not in text
+id=23580: updated
+  PR-update: 7800000 → 11500000
+id=23589: updated
+  B-fill: NULL → fr='Community Park'
+  A-fill: NULL → fr='Al Muteena'
+id=23598: updated
+  B-update: db='Address Residence Dubai Opera T2' → fr='Address Residence'
+id=23603: updated
+  B-fill: NULL → fr='Luxury Mansion'
+id=23604: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=23606: updated
+  A-update: db='Emaar Beachfront' → fr='Ras Al Khaimah'
+id=23608: updated
+  B-update: db='Hills Park' → fr='Burj Khalifa'
+id=23613: updated
+  A-fill: NULL → fr='Barsha Heights'
+id=23617: updated
+  B-update: db='SPORTZ' → fr='Burj Khalifa'
+  A-fill: NULL → fr='Burj Khalifa'
+id=23618: updated
+  A-leak: db='Al Warsan' not in text
+id=23624: updated
+  B-update: db='The Royal Atlantis Tower B' → fr='The Royal Atlantis Tower'
+id=23625: updated
+  B-update: db='JVC, East Crest by Meteora' → fr='East Crest'
+id=23630: updated
+  B-update: db='Category: Executive Studio' → fr='Cove Living Residence'
+id=23643: updated
+  PR-update: 1200000 → 6950000
+id=23645: updated
+  A-fill: NULL → fr='Al Quoz 4'
+id=23651: updated
+  A-fill: NULL → fr='Meydan'
+  PR-update: 1000000 → 58000
+id=23657: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=23663: updated
+  B-update: db='High Demand Emaar Community' → fr='Grove'
+id=23666: updated
+  B-update: db='Eagle Heights Sports city' → fr='EAGLE HEIGHTS'
+id=23667: updated
+  B-update: db='BR+Store Room' → fr='800'
+id=23669: updated
+  B-leak: db='Malta Lagoons' not in text
+id=23674: updated
+  A-update: db='The Oasis By Emaar\n\n4 Bed' → fr='The Oasis'
+id=23675: updated
+  A-fill: NULL → fr='Meydan'
+id=23676: updated
+  B-leak: db='Atlantis The Royal Residences' not in text
+id=23680: updated
+  A-leak: db='Dubai Sports City' not in text
+id=23682: updated
+  A-leak: db='Jebel Ali' not in text
+id=23684: updated
+  B-update: db='Super Amazing Villa' → fr='Car Park'
+id=23693: updated
+  B-update: db='Marina Gate 2' → fr='Sky Hills Residence'
+id=23695: updated
+  B-leak: db='Waves Opulence Property' not in text
+  A-fill: NULL → fr='Sobha Hartland'
+id=23706: updated
+  B-update: db='Laurel' → fr='Central Park'
+id=23720: updated
+  B-leak: db='Al Furjan Unit' not in text
+id=23722: updated
+  B-update: db='Creek Views' → fr='CREEK VIEWS'
+  A-fill: NULL → fr='Al Jadaf'
+id=23723: updated
+  B-update: db='RIVERSIDE' → fr='Riverside'
+  A-fill: NULL → fr='Sobha Hartland'
+id=23724: updated
+  B-leak: db='Palm Beach Towers' not in text
+id=23725: updated
+  B-fill: NULL → fr='plan'
+  A-fill: NULL → fr='Creek Beach'
+id=23748: updated
+  A-leak: db='Dubai Sports City' not in text
+id=23760: updated
+  A-update: db='Dubai Creek Harbour' → fr='Dubai Marina'
+id=23762: updated
+  A-update: db='Burj Khalifa' → fr='Business Bay'
+id=23766: updated
+  B-update: db='ME DO RE' → fr='Jumeirah Lakes Towers'
+id=23767: updated
+  B-update: db='Marina Sky Line & Community' → fr='1,270,000'
+id=23768: updated
+  B-fill: NULL → fr='Socio Tower 2'
+id=23776: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=23783: updated
+  A-leak: db='Al Wasl' not in text
+id=23785: updated
+  B-update: db='Madinat Jumeirah Living' → fr='MJL Al Jazi'
+id=23793: updated
+  B-fill: NULL → fr='Verdes'
+id=23794: updated
+  B-update: db='Creek Rise T2' → fr='Jumeirah Golf Estate'
+  A-fill: NULL → fr='Jumeirah Golf Estates'
+id=23795: updated
+  B-leak: db='Grande Location' not in text
+id=23796: updated
+  B-leak: db='Attreen Oldtown Location' not in text
+id=23797: updated
+  B-leak: db='Nara Location' not in text
+id=23798: updated
+  B-leak: db='Botanica Tower Location' not in text
+  A-fill: NULL → fr='Dubai Marina'
+id=23800: updated
+  B-leak: db='Orra Marina Location' not in text
+id=23801: updated
+  B-update: db='Island Park 1' → fr='Island Park'
+  A-fill: NULL → fr='Dubai Creek Harbour'
+id=23809: updated
+  B-leak: db='Al Furjan Property' not in text
+id=23818: updated
+  B-update: db='The Address Residence' → fr='The Address Residences'
+id=23819: updated
+  B-update: db='Production City' → fr='Viera Residences'
+  A-fill: NULL → fr="Me'Aisem First"
+id=23824: updated
+  A-fill: NULL → fr='District One'
+id=23841: updated
+  B-update: db='Al Jurf' → fr='Ohana'
+id=23848: updated
+  B-update: db='Danube Bay' → fr='Burj Khalifa'
+id=23853: updated
+  B-leak: db='Bedroom Address Opera Tower' not in text
+id=23858: updated
+  B-update: db='Burj Khalifa And Community' → fr='Burj Khalifa'
+id=23866: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=23874: updated
+  B-update: db='THE ACRES by MERAAS' → fr='The Acres'
+id=23881: updated
+  B-leak: db='Springs Villas' not in text
+  A-fill: NULL → fr='The Springs'
+id=23885: updated
+  B-update: db='GRAND BLEU by ELIE SAAB' → fr='Grand Bleu'
+id=23902: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=23913: updated
+  A-fill: NULL → fr='Hadaeq Sheikh Mohammed Bin Rashid'
+id=23921: updated
+  B-leak: db='The Gate Tower' not in text
+id=23924: updated
+  B-fill: NULL → fr='Kanyon'
+id=23925: updated
+  B-update: db='DIAMONDZ' → fr='Diamondz'
+id=23928: updated
+  B-update: db='KANYON' → fr='Kanyon'
+id=23930: updated
+  B-leak: db='Elara Dubai Hills' not in text
+id=23933: updated
+  B-update: db='Boutique 23' → fr='Built'
+id=23940: updated
+  B-update: db='Vista by Prestige One' → fr='Vista'
+id=23947: updated
+  B-update: db='Vida Dubai Mall Tower 2' → fr='Burj Khalifa'
+id=23953: updated
+  B-update: db='Bay Central' → fr='Al Fattan Marine Tower'
+id=23958: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=23960: updated
+  A-fill: NULL → fr='The Views'
+id=23976: updated
+  A-fill: NULL → fr='Emaar Beachfront'
+id=23978: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=23981: updated
+  B-update: db='Central Park' → fr='Burj Khalifa'
+id=23982: updated
+  A-fill: NULL → fr='Marsa Dubai'
+id=23983: updated
+  B-leak: db='SABA Towers' not in text
+  A-fill: NULL → fr='Palm Jumeirah'
+id=23985: updated
+  A-fill: NULL → fr='The Springs'
+id=23990: updated
+  B-fill: NULL → fr='Middle'
+id=23992: updated
+  B-update: db='Oqood Registered' → fr='SAMANA IVY GARDENS'
+  A-fill: NULL → fr='Wadi Al Safa 5'
+id=24004: updated
+  B-fill: NULL → fr='Grand Bleu Tower'
+  A-fill: NULL → fr='Palm Jumeirah'
+id=24018: updated
+  B-update: db='Vida Residence' → fr='year (negotiable)'
+id=24019: updated
+  B-update: db='With Burj Khalifa And Park' → fr='Burj Khalifa'
+id=24020: updated
+  B-update: db='Erin' → fr='Central Park'
+id=24021: updated
+  A-update: db='Business Bay' → fr='Peninsula'
+id=24042: updated
+  B-leak: db='Creek Gate' not in text
+id=24046: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=24053: updated
+  A-leak: db='Dubai Sports City' not in text
+id=24060: updated
+  B-update: db='Athlon' → fr='Marsa Plaza'
+  A-update: db='Emaar Beachfront' → fr='Jumeirah Village Triangle'
+id=24063: updated
+  B-fill: NULL → fr='In Luxury Villas And Apartments'
+id=24067: updated
+  B-leak: db='LaurelCentral Park' not in text
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=24069: updated
+  B-fill: NULL → fr='V Tower'
+id=24071: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=24073: updated
+  B-update: db='Madinat Jumeirah Living' → fr='high floor, yard view 5,9 mln'
+id=24074: updated
+  B-leak: db='Beach Mansion \u2060 \u2060Type' not in text
+id=24081: updated
+  B-update: db='The Crescent tower B' → fr='The Crescent Tower'
+id=24082: updated
+  B-update: db='Ocean Heights' → fr='OCEAN HEIGHTS'
+id=24083: updated
+  B-fill: NULL → fr='Marjan 1'
+id=24084: updated
+  B-update: db='Urbana' → fr='Urbana ll'
+id=24086: updated
+  B-update: db='Al Haseen Residences' → fr='AL HASEEN RESIDENCES'
+  A-fill: NULL → fr='Saih Shuaib 2'
+id=24091: updated
+  B-fill: NULL → fr='Boulevard Plaza Tower 1'
+id=24102: updated
+  B-update: db='Local Style Villa' → fr='Burj Khalifa'
+id=24104: updated
+  A-leak: db='Al Warsan' not in text
+id=24121: updated
+  BR-update: 0 → 1
+id=24128: skip_short
+  too short
+id=24129: updated
+  B-update: db='Direct' → fr='All details'
+id=24134: updated
+  B-update: db='Vista by Prestige One' → fr='Vista'
+id=24138: updated
+  B-fill: NULL → fr='Marsa Plaza'
+id=24144: updated
+  B-update: db='Regis' → fr='Burj Khalifa'
+id=24146: updated
+  B-update: db='Mirdif Hill' → fr='Mirdif Hills'
+id=24150: updated
+  B-leak: db='Elara Dubai Hills' not in text
+id=24157: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=24161: updated
+  B-fill: NULL → fr='VItality Residences'
+id=24166: updated
+  B-update: db='DAMAC Cavali Bay 2' → fr='Cavali Bay 2'
+id=24169: updated
+  B-fill: NULL → fr='In Chic Tower'
+id=24174: updated
+  B-fill: NULL → fr='Central Park'
+id=24200: updated
+  A-fill: NULL → fr='Industrial Area'
+id=24203: updated
+  BR-update: 3 → 1
+id=24207: updated
+  A-fill: NULL → fr='Meydan'
+id=24208: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=24219: updated
+  B-update: db='Castleton | Central Park' → fr='Central Park'
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=24233: updated
+  A-update: db='Palm Jumeirah' → fr='Sobha Hartland'
+id=24234: updated
+  B-fill: NULL → fr='Wardrobes'
+id=24237: updated
+  B-update: db='V Tower' → fr='Building V Tower'
+id=24246: updated
+  B-fill: NULL → fr='CHIC TOWER'
+id=24250: updated
+  B-update: db='Address Fountain Views' → fr='Burj Khalifa'
+id=24254: updated
+  B-leak: db='Opal Tower' not in text
+id=24258: updated
+  B-update: db='RIXOS RESIDENCES FINANCIAL ROAD' → fr='Rixos Residences'
+  A-fill: NULL → fr='Burj Khalifa'
+id=24263: updated
+  B-fill: NULL → fr='Volta Downtown l Selling'
+id=24287: updated
+  B-update: db='KANYON by BEYOND' → fr='Kanyon'
+id=24293: updated
+  B-update: db='Burj Khalifa – Corporate Suites' → fr='Burj Khalifa'
+id=24294: updated
+  B-fill: NULL → fr='Vision Tower'
+id=24309: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=24313: updated
+  B-leak: db='Elara Dubai Hills' not in text
+id=24317: updated
+  A-fill: NULL → fr='Dubai Islands'
+id=24336: updated
+  B-update: db='Burj Views' → fr='Burj Khalifa'
+  A-update: db='Downtown Dubai' → fr='Burj Khalifa'
+id=24339: updated
+  A-fill: NULL → fr='Meydan'
+id=24346: updated
+  BR-update: 2 → 1
+id=24352: audited
+  AUDIT: no price/bld/area in record AND text
+id=24358: updated
+  B-leak: db='50% During Construction – 50% on Completion' not in text
+id=24361: updated
+  B-leak: db='Venice Lagoons' not in text
+id=24365: updated
+  A-fill: NULL → fr='Al Barsha South 4'
+id=24374: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=24380: updated
+  B-update: db='Hotel Apartments' → fr='Market Investment Opportunity In Barsha Heights'
+id=24382: updated
+  B-leak: db='Marina Pinnacle' not in text
+id=24383: updated
+  A-leak: db='Al Warsan' not in text
+id=24388: updated
+  B-fill: NULL → fr='Park Lane'
+id=24392: updated
+  A-leak: db='DAMAC Lagoons' not in text
+id=24393: updated
+  B-update: db='Kanyon by Beyond' → fr='Kanyon'
+id=24405: updated
+  B-leak: db='Binghatti Gateway' not in text
+id=24409: updated
+  A-fill: NULL → fr='Meydan'
+id=24412: updated
+  B-update: db='Park' → fr='Community Park'
+  A-fill: NULL → fr='Al Muteena'
+id=24416: updated
+  B-fill: NULL → fr='DOWNTOWN VIEWS'
+id=24417: updated
+  B-update: db='Tajer Residence' → fr='Burj Khalifa'
+id=24418: updated
+  B-leak: db='DREAM TOWER' not in text
+  PT-update: 'apartment' → 'office'
+id=24420: updated
+  B-leak: db='Golf Views' not in text
+id=24423: updated
+  B-update: db='CREEK PALACE' → fr='Creek Palace'
+id=24424: updated
+  B-fill: NULL → fr='Luxury Living'
+id=24425: updated
+  A-fill: NULL → fr='Jumeirah Village Circle'
+id=24429: updated
+  B-leak: db='C5 Tower' not in text
+id=24432: updated
+  B-fill: NULL → fr='The Bluewaters Residences'
+id=24435: updated
+  B-fill: NULL → fr='DOWNTOWN VIEWS'
+  A-fill: NULL → fr='Zaabeel Second'
+id=24440: updated
+  A-fill: NULL → fr='Marsa Dubai'
+id=24441: updated
+  B-leak: db='Lcd Rixos Dubai Islands & Residences' not in text
+id=24442: updated
+  B-leak: db='Residential 42 Apartments' not in text
+id=24450: updated
+  B-fill: NULL → fr='Stunning Water Views'
+  A-fill: NULL → fr='The Views'
+id=24456: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=24462: updated
+  B-leak: db='Dubai Hills 2' not in text
+id=24464: updated
+  B-fill: NULL → fr='Sama Yas'
+id=24465: updated
+  B-leak: db='Courtyard handover' not in text
+id=24467: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=24468: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=24473: updated
+  BR-update: 6 → 7
+id=24474: updated
+  B-update: db='Directly On The Park' → fr='Hot Dubai Resale Opportunities'
+  A-update: db='NARA' → fr='Dubai'
+id=24477: parse_none
+  parse_message returned None
+id=24479: updated
+  A-leak: db='Sobha Hartland' not in text
+id=24481: updated
+  B-leak: db='Emerald Vision Tower 1' not in text
+id=24485: updated
+  B-leak: db='Business Bay Skyrise' not in text
+id=24486: updated
+  B-leak: db='Dubai Hills Address Villas' not in text
+id=24487: updated
+  B-leak: db='Beach Front Beachgate' not in text
+  A-fill: NULL → fr='Emaar Beachfront'
+id=24491: updated
+  B-leak: db='Continental Tower 1' not in text
+id=24492: updated
+  A-fill: NULL → fr='Palm Jumeirah'
+id=24493: updated
+  B-leak: db='Business Bay 1' not in text
+id=24494: updated
+  B-leak: db='Creek Vista Heights 2' not in text
+  A-leak: db='Sobha Hartland' not in text
+id=24503: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=24506: updated
+  B-leak: db='The Gate Tower' not in text
+id=24507: updated
+  A-fill: NULL → fr='Meydan'
+id=24508: updated
+  B-leak: db='Creek Rise Tower' not in text
+id=24510: updated
+  A-fill: NULL → fr='Dubai Hills Estate'
+id=24515: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=24523: updated
+  B-fill: NULL → fr='Front With Iconic Views'
+  A-fill: NULL → fr='The Views'
+id=24525: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=24526: updated
+  B-fill: NULL → fr='Luxury Baccarat Hotel & Residences'
+  A-fill: NULL → fr='Dubai Marina'
+id=24528: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=24537: updated
+  B-fill: NULL → fr='Best Payment Plan In Business Bay'
+id=24538: updated
+  B-update: db='related expenses' → fr='I have a building located'
+  A-fill: NULL → fr='Dubailand'
+id=24546: updated
+  B-fill: NULL → fr='Best Series With Direct Bugatti Residence'
+id=24560: updated
+  B-leak: db='Handover April 2026 Biggest unit' not in text
+id=24566: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=24589: updated
+  PT-update: 'villa' → 'townhouse'
+id=24602: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=24609: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=24611: updated
+  A-fill: NULL → fr='The Views'
+id=24619: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=24623: updated
+  B-leak: db='EMAAR\xa0Creek\xa0Beach' not in text
+  A-leak: db='Creek Beach' not in text
+id=24624: updated
+  B-leak: db='Address Dubai Marina' not in text
+id=24627: updated
+  B-leak: db='Sulafa Tower 1' not in text
+id=24632: updated
+  B-leak: db='08 Vacant Can close deal asap' not in text
+id=24638: updated
+  B-leak: db='Handover Completed Silver Park' not in text
+id=24643: updated
+  A-fill: NULL → fr='The Valley'
+id=24646: updated
+  B-leak: db='Opal Tower' not in text
+id=24649: updated
+  B-leak: db='Plan Sobha Creek Vista Heights 2' not in text
+id=24650: updated
+  B-leak: db='Q4 2026 Ivy Gardens 2' not in text
+id=24651: updated
+  A-fill: NULL → fr='Marsa Dubai'
+id=24654: updated
+  B-leak: db='Sobha Hartland Creek Vistas Heights 1' not in text
+id=24659: updated
+  B-leak: db='Crystal Residences 2' not in text
+id=24663: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=24682: updated
+  A-fill: NULL → fr='Madinat Jumeirah'
+id=24684: updated
+  A-fill: NULL → fr='Dubai Islands'
+  PR-update: 620000 → 4499000
+id=24686: updated
+  B-leak: db='Limited Opportunity Vestoria Bay' not in text
+id=24699: updated
+  B-leak: db='Maritime City Anwa Aria' not in text
+id=24700: updated
+  A-fill: NULL → fr='Sobha Hartland'
+id=24707: updated
+  B-fill: NULL → fr='Address Residence'
+id=24712: updated
+  A-fill: NULL → fr='Meshairef'
+id=24724: updated
+  B-leak: db='Below Market Riverside Crescent' not in text
+id=24735: updated
+  B-leak: db='The Address Residences' not in text
+id=24736: updated
+  B-leak: db='The Address Residences' not in text
+id=24742: updated
+  B-update: db='Vida Residences Downtown' → fr='Vida Residences'
+id=24743: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=24746: updated
+  B-leak: db='Address Dubai Marina' not in text
+id=24751: updated
+  B-leak: db='District 11 Opal Gardens' not in text
+id=24752: updated
+  BR-update: 1 → 2
+id=24754: updated
+  B-leak: db='Beach Mansion' not in text
+  A-fill: NULL → fr='Meydan'
+id=24761: updated
+  B-leak: db='Lowest in market The Sterling' not in text
+id=24763: updated
+  B-leak: db='Downtown Exquisite Living Residences' not in text
+id=24774: updated
+  B-leak: db='Sobha Hartland Ii 310 Riverside Crescent' not in text
+id=24778: updated
+  B-leak: db='Riverside Crescent 1' not in text
+id=24779: updated
+  B-leak: db='Below Market Elo Residence' not in text
+id=24780: updated
+  BR-update: 1 → 2
+id=24783: updated
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=24784: updated
+  B-leak: db='Al Jaddaff Kempinski Residences' not in text
+id=24785: updated
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=24786: updated
+  PR-update: 5100000 → 7650000
+id=24787: updated
+  B-leak: db='Below Market Bay Grove' not in text
+id=24788: updated
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=24790: updated
+  B-leak: db='Dmcc Silver Tower 11' not in text
+id=24791: updated
+  A-fill: NULL → fr='Al Reem Island'
+id=24794: updated
+  B-fill: NULL → fr='Una Town Square'
+id=24800: updated
+  A-fill: NULL → fr='Dubai Hills Estate'
+id=24802: updated
+  B-update: db='The Oasis' → fr='The Oasis (Mirage)'
+id=24807: updated
+  B-leak: db='1.2M** Sale price: 880k AED' not in text
+id=24817: updated
+  A-fill: NULL → fr='Dubai Marina'
+id=24818: updated
+  B-leak: db='Sobha Hartland Creek Vistas Tower' not in text
+id=24820: updated
+  B-fill: NULL → fr='New Boutique style residential building'
+id=24836: updated
+  B-leak: db='Binghatti Hillviews Dubai Science Park 1' not in text
+id=24840: updated
+  A-leak: db='Dubai Maritime City' not in text
+id=24841: updated
+  A-fill: NULL → fr='Madinat Dubai Almelaheyah'
+id=24844: updated
+  B-fill: NULL → fr='Sicemco Real Estate'
+id=24854: updated
+  A-fill: NULL → fr='Jumeirah Golf Estates'
+id=24861: updated
+  B-leak: db='Masa Residence 1' not in text
+  A-fill: NULL → fr='Ras Al Khaimah'
+id=24868: updated
+  B-fill: NULL → fr='Serene Gardens 2'
+id=24882: updated
+  A-fill: NULL → fr='Emaar Beachfront'
+id=24884: updated
+  B-leak: db='9 Business Bay' not in text
+id=24886: updated
+  B-leak: db='Dubai Islands Bay Villas 4' not in text
+id=24888: updated
+  A-leak: db='Al Warsan' not in text
+id=24889: updated
+  A-leak: db='Al Warsan' not in text
+id=24894: updated
+  B-fill: NULL → fr='Luxury Family Residence'
+id=24895: updated
+  B-leak: db='Mbl Residence 3' not in text
+id=24896: updated
+  PR-update: 3000000 → 5250000
+id=24900: updated
+  PR-update: 11254110 → 5895017
+id=24901: updated
+  B-update: db='Maid Semi Detached Villa Aura Gardens' → fr='Upgraded'
+id=24925: updated
+  B-leak: db='The Unexpected Hotel & Residences' not in text
+id=24943: updated
+  B-update: db='Amaranta' → fr='Amaranta 2'
+  A-fill: NULL → fr='Dubailand'
+id=24944: updated
+  B-leak: db='Majestique Residences' not in text
+id=24947: updated
+  A-fill: NULL → fr='The Springs'
+id=24949: updated
+  A-fill: NULL → fr='The Lakes'
+id=24953: updated
+  B-fill: NULL → fr='Burj Khalifa'
+id=24958: updated
+  B-leak: db='Zada Tower Business Bay 1' not in text
+id=24959: updated
+  B-update: db='Aykon City' → fr='Al Habtoor City'
+id=24965: updated
+  B-leak: db='Vida Creek Harbour' not in text
+id=24969: updated
+  B-fill: NULL → fr='Burj Khalifa'
+  A-update: db='Business Bay' → fr='Burj Khalifa'
+id=24970: updated
+  B-leak: db='Dubai Marina Panoramic Tower' not in text
+id=24972: skip_short
+  too short
+id=24975: updated
+  A-fill: NULL → fr='Meydan'
+id=24976: updated
+  A-fill: NULL → fr='Burj Khalifa'
+id=24990: updated
+  B-leak: db='One Sky Park by Iman Community' not in text
+id=24998: updated
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=25000: updated
+  B-leak: db='Oxana Your Homes Real Estate' not in text
+id=25004: updated
+  B-leak: db='Business Bay Bay' not in text
+id=25005: updated
+  B-leak: db='Vincitore Boulevard' not in text
+  A-fill: NULL → fr='Al Barsha South Fourth'
+id=25006: updated
+  B-leak: db='Vida Creek Harbour' not in text
+id=25009: updated
+  B-leak: db='Golf Views' not in text
+id=25017: updated
+  B-leak: db='Dubai Hills Executive Residence 2' not in text
+id=25021: updated
+  B-leak: db='Ft Celestia Tower' not in text
+id=25025: updated
+  A-leak: db='Jebel Ali' not in text
+id=25034: updated
+  B-leak: db='Regis Residences 3' not in text
+  A-fill: NULL → fr='Al Saadiyat Island'
+id=25035: updated
+  B-leak: db='Marina Square' not in text

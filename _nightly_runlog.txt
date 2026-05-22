@@ -1,0 +1,236 @@
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=0
+[nominatim] One Park → MBR- Al Merkad, Dubai
+[nominatim] Damac Towers → Jumeirah Lakes Towers, Dubai
+[nominatim] Regalia → Burj Khalifa, Dubai
+[nominatim] Central Park → Al Wasl, Dubai
+[nightly] batch done: updated=80 audited=0 noop=70 last_id=17750 elapsed=1115.5s
+
+=== BATCH 1 (after id=0) at 2026-05-22T02:11:26.423771 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=17750
+[nominatim] Art Bay → Burj Khalifa, Dubai
+[nominatim] The Oasis → The Oasis, Dubai
+[nightly] batch done: updated=68 audited=0 noop=82 last_id=18118 elapsed=1108.7s
+
+=== BATCH 2 (after id=17750) at 2026-05-22T02:30:04.419179 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=18118
+[nominatim] Polo Residence 2 → Polo Residence, Dubai
+[nominatim] VACANT → Al Hamra Industrial Area, Dubai
+[nominatim] Opus → , Abu Dhabi
+[nominatim] Paramount → Al Murar, Dubai
+[nominatim] Haven → Al Barsha South 4, Dubai
+[nominatim] Central Park → Al Wasl, Dubai
+[nightly] batch done: updated=70 audited=0 noop=80 last_id=18456 elapsed=1095.8s
+
+=== BATCH 3 (after id=18118) at 2026-05-22T02:48:35.754014 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=18456
+[parser] DROP rent price=3100 (likely service charge)
+[parser] DROP rent price=3900 (likely service charge)
+[nominatim] Address Residences → Burj Khalifa, Dubai
+[nightly] batch done: updated=60 audited=0 noop=90 last_id=18761 elapsed=1096.7s
+
+=== BATCH 4 (after id=18456) at 2026-05-22T03:06:54.182981 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=18761
+[nominatim] The Oasis → The Oasis, Dubai
+[nominatim] Silver Tower → Al Nahda 1, Dubai
+[nightly] batch done: updated=67 audited=0 noop=83 last_id=19142 elapsed=1117.5s
+
+=== BATCH 5 (after id=18761) at 2026-05-22T03:25:13.399792 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=19142
+[nominatim] Kempinski Residences → Burj Khalifa, Dubai
+[nominatim] Burj Binghatti Jacob & Co Residences → Downtown Dubai, Dubai
+[nightly] batch done: updated=50 audited=0 noop=100 last_id=19496 elapsed=1186.4s
+
+=== BATCH 6 (after id=19142) at 2026-05-22T03:43:53.482499 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=19496
+[nominatim] Address Villas → Al Zawarah, Ajman
+[nominatim] Regis Residences → Burj Khalifa, Dubai
+[nominatim] Jebel Ali Hills → Jebel Ali Hills, Dubai
+[nightly] batch done: updated=54 audited=0 noop=96 last_id=19842 elapsed=1133.0s
+
+=== BATCH 7 (after id=19496) at 2026-05-22T04:03:42.529890 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=19842
+[nominatim] Linear Park → , Abu Dhabi
+[nominatim] Royal Residence 2 → Al Hebiah 4, Dubai
+[nightly] batch done: updated=66 audited=0 noop=84 last_id=20159 elapsed=1214.6s
+
+=== BATCH 8 (after id=19842) at 2026-05-22T04:22:38.027829 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=20159
+[parser] DROP rent price=4530 (likely service charge)
+[nominatim] Central Park → Al Wasl, Dubai
+[nightly] batch done: updated=56 audited=0 noop=94 last_id=20499 elapsed=1220.1s
+
+=== BATCH 9 (after id=20159) at 2026-05-22T04:42:55.177642 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=20499
+[nominatim] Minutes → Al Safa 2, Dubai
+[nominatim] Community Park → Al Muteena, Dubai
+[nominatim] Jebel Ali Hills → Jebel Ali Hills, Dubai
+[nominatim] Pearl House 1 → Meshairef, Ajman
+[nightly] batch done: updated=66 audited=0 noop=84 last_id=20816 elapsed=1145.7s
+
+=== BATCH 10 (after id=20499) at 2026-05-22T05:03:17.747892 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=20816
+[nominatim] 13%)* → Dubai International Airport, Dubai
+[parser] DROP rent price=2355 (likely service charge)
+[nightly] batch done: updated=64 audited=0 noop=86 last_id=21112 elapsed=1151.8s
+
+=== BATCH 11 (after id=20816) at 2026-05-22T05:22:25.926753 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=21112
+[nominatim] Central Park → Al Wasl, Dubai
+[nominatim] Address Residences → Burj Khalifa, Dubai
+[nightly] batch done: updated=73 audited=0 noop=77 last_id=21383 elapsed=1034.0s
+
+=== BATCH 12 (after id=21112) at 2026-05-22T05:41:40.274978 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=21383
+[nightly] batch done: updated=77 audited=0 noop=73 last_id=21622 elapsed=1053.9s
+
+=== BATCH 13 (after id=21383) at 2026-05-22T05:58:56.845755 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=21622
+[parser] DROP rent price=1830 (likely service charge)
+[nominatim] Damac Bay 2 → Al Hebiah 3, Dubai
+[nominatim] Rixos Residences → Burj Khalifa, Dubai
+[nominatim] Kempinski Residences → Burj Khalifa, Dubai
+[nightly] batch done: updated=47 audited=0 noop=103 last_id=21943 elapsed=1121.5s
+
+=== BATCH 14 (after id=21622) at 2026-05-22T06:16:33.262438 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=21943
+[nominatim] 19.4% ) → , Dubai
+[nominatim] Icon Bay 2 → Ras Al Khor, Dubai
+[nominatim] Pulse Residence → Madinat Al Mataar, Dubai
+[nominatim] Central Park → Al Wasl, Dubai
+[nightly] batch done: updated=61 audited=0 noop=89 last_id=22285 elapsed=1174.9s
+
+=== BATCH 15 (after id=21943) at 2026-05-22T06:35:17.308280 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=22285
+[nominatim] Central Park → Al Wasl, Dubai
+[nominatim] Act Tower 1 → Burj Khalifa, Dubai
+[nightly] batch done: updated=73 audited=0 noop=77 last_id=22865 elapsed=1139.2s
+
+=== BATCH 16 (after id=22285) at 2026-05-22T06:54:54.717634 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=22865
+[nightly] batch done: updated=55 audited=0 noop=95 last_id=23300 elapsed=1096.2s
+
+=== BATCH 17 (after id=22865) at 2026-05-22T07:13:56.440901 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=23300
+[nominatim] Central Park → Al Wasl, Dubai
+[nominatim] Kempinski Residences → Burj Khalifa, Dubai
+[nominatim] Community Park → Al Muteena, Dubai
+[nightly] batch done: updated=67 audited=0 noop=83 last_id=23630 elapsed=1235.2s
+
+=== BATCH 18 (after id=23300) at 2026-05-22T07:32:15.295618 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=23630
+[nominatim] Al Khail Heights → Al Quoz 4, Dubai
+[nominatim] The Oasis → The Oasis, Dubai
+[nominatim] Central Park → Al Wasl, Dubai
+[nominatim] Ohana → Al Danah, Abu Dhabi
+[nominatim] 4M → Industrial Area, Sharjah
+[nightly] batch done: updated=52 audited=0 noop=98 last_id=23908 elapsed=1180.1s
+
+=== BATCH 19 (after id=23630) at 2026-05-22T07:52:53.099089 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=23908
+[nominatim] Central Park → Al Wasl, Dubai
+[nominatim] Kempinski Residences → Burj Khalifa, Dubai
+[nominatim] Al Haseen Residences → Saih Shuaib 2, Dubai
+[parser] DROP rent price=5200 (likely service charge)
+[nightly] batch done: updated=55 audited=0 noop=95 last_id=24198 elapsed=1182.7s
+
+=== BATCH 20 (after id=23908) at 2026-05-22T08:12:35.915644 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=24198
+[nominatim] 1.1m → Industrial Area, Sharjah
+[nominatim] Central Park → Al Wasl, Dubai
+[nominatim] Rixos Residences → Burj Khalifa, Dubai
+[nominatim] Golf Residence → Al Hebiah 4, Dubai
+[nominatim] Haven → Al Barsha South 4, Dubai
+[nominatim] Community Park → Al Muteena, Dubai
+[nightly] batch done: updated=50 audited=1 noop=99 last_id=24459 elapsed=1175.6s
+
+=== BATCH 21 (after id=24198) at 2026-05-22T08:32:21.278820 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=24459
+[nominatim] Rixos Residences → Burj Khalifa, Dubai
+[nominatim] Trident Grand Residence → Dubai Marina, Dubai
+[nightly] batch done: updated=47 audited=0 noop=103 last_id=24655 elapsed=1095.0s
+
+=== BATCH 22 (after id=24459) at 2026-05-22T08:51:59.480176 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=24655
+[nominatim] Marriott Residence → Al Jaddaf, Dubai
+[nominatim] Address Villas → Al Zawarah, Ajman
+[nominatim] Pearl House 1 → Meshairef, Ajman
+[parser] DROP rent price=3650 (likely service charge)
+[nominatim] Central Park → Al Wasl, Dubai
+[nominatim] Damac Island → Al Reem Island, Abu Dhabi
+[nightly] batch done: updated=39 audited=0 noop=111 last_id=24828 elapsed=1016.3s
+
+=== BATCH 23 (after id=24655) at 2026-05-22T09:10:17.158650 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 150 records starting after id=24828
+[nominatim] Viewz → Al Reem Island, Abu Dhabi
+[nominatim] Regis Residences → Burj Khalifa, Dubai
+[nominatim] Central Park → Al Wasl, Dubai
+[nightly] batch done: updated=39 audited=0 noop=111 last_id=25024 elapsed=1152.8s
+
+=== BATCH 24 (after id=24828) at 2026-05-22T09:27:16.180648 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 9 records starting after id=25024
+[nominatim] Regis Residences 3 → Al Saadiyat Island, Abu Dhabi
+[nightly] batch done: updated=3 audited=0 noop=6 last_id=25035 elapsed=72.3s
+
+=== BATCH 25 (after id=25024) at 2026-05-22T09:46:31.654402 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 0 records starting after id=25035
+[nightly] batch done: updated=0 audited=0 noop=0 last_id=25035 elapsed=0.2s
+
+=== BATCH 26 (after id=25035) at 2026-05-22T09:47:46.189814 ===
+[parser] DLD canonical: 4773 bld, 215 areas
+[parser] Price benchmarks loaded: 5818 buildings
+[nightly] Got 0 records starting after id=25035
+[nightly] batch done: updated=0 audited=0 noop=0 last_id=25035 elapsed=0.2s
+
+=== BATCH 27 (after id=25035) at 2026-05-22T09:47:48.517144 ===
