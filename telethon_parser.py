@@ -268,14 +268,64 @@ async def parse_channel(client, channel: str, backfill: bool = False,
                 if not text.strip() and not image_urls:
                     continue
 
-                parsed = parse_message(
-                    text=text,
-                    message_id=message.id,
-                    message_date=msg_date.isoformat() if msg_date else None,
-                    chat_id=str(entity.id),
-                    seller_username=seller_username,
-                    image_urls=image_urls,
-                )
+                # ── Phase 2: LLM-powered multi-listing split ─────────────────
+                # Если пост содержит несколько объявлений — разбиваем через
+                # Groq и парсим каждое отдельно. Каждый chunk → отдельная запись.
+                from parser_engine import _is_likely_multi_listing, _llm_split_all_listings
+                chunks_to_parse = None
+                if _is_likely_multi_listing(text) and \
+                        os.environ.get("LLM_MULTI_SPLIT_ALL", "1") != "0":
+                    try:
+                        chunks_to_parse = _llm_split_all_listings(text)
+                        if chunks_to_parse and len(chunks_to_parse) > 1:
+                            print(f"[telethon] Multi-listing: split into {len(chunks_to_parse)} chunks (msg_id={message.id})")
+                    except Exception as _e:
+                        print(f"[telethon] LLM split-all err: {_e}")
+                        chunks_to_parse = None
+                if not chunks_to_parse:
+                    chunks_to_parse = [text]
+
+                # Parse each chunk separately
+                multi_saved = 0
+                for chunk_idx, chunk_text in enumerate(chunks_to_parse):
+                    # Image attached only to FIRST chunk (one photo per post)
+                    chunk_images = image_urls if chunk_idx == 0 else None
+                    # Each chunk gets a synthetic message_id offset so listing_keys differ
+                    chunk_msg_id = message.id if chunk_idx == 0 else (message.id * 100 + chunk_idx)
+
+                    parsed = parse_message(
+                        text=chunk_text,
+                        message_id=chunk_msg_id,
+                        message_date=msg_date.isoformat() if msg_date else None,
+                        chat_id=str(entity.id),
+                        seller_username=seller_username,
+                        image_urls=chunk_images,
+                    )
+
+                    if not parsed:
+                        continue
+
+                    # Save remaining chunks via continue-flow at end of loop
+                    if chunk_idx == 0:
+                        parsed_first = parsed
+                        # For chunk #0, use original control flow below
+                        text = chunk_text  # update text variable for downstream
+                        parsed = parsed_first
+                        break  # Process chunk #0 below as before
+                    else:
+                        # Direct save for chunks ≥ 1 (no semantic dedup, dedup via content)
+                        try:
+                            cid, is_new = upsert_listing(parsed)
+                            if is_new:
+                                multi_saved += 1
+                                stats["new"] += 1
+                                if parsed.get("is_hot_deal"):
+                                    stats["hot"] += 1
+                        except Exception as _e:
+                            print(f"[telethon] multi-chunk #{chunk_idx} save err: {_e}")
+
+                if multi_saved:
+                    print(f"[telethon] Saved {multi_saved} additional chunks from msg_id={message.id}")
 
                 if not parsed:
                     continue
@@ -515,6 +565,13 @@ def start_scheduler():
         return get_real_last_message_id(channel) == 0
 
     def _scheduler():
+        # Startup delay чтобы старый Railway-контейнер успел отключиться от Telegram
+        # перед тем как новый подключится. Без задержки → конфликт сессий
+        # → AuthKeyDuplicated и бан ключа.
+        startup_delay = int(os.environ.get("TELETHON_STARTUP_DELAY_SEC", "60"))
+        if startup_delay > 0:
+            print(f"[telethon] Startup delay {startup_delay}s (avoid session conflict with old container)...")
+            time.sleep(startup_delay)
         print("[telethon] Scheduler started. Checking channel state...")
 
         # Для каждого канала определяем нужен ли backfill
