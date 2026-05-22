@@ -2116,9 +2116,18 @@ def extract_price(text: str) -> dict:
     # Поддерживаем все варианты: "Rented at 75k", "Rented: AED 280,000 / year",
     # "Rented till X (240k/year)", "Rent 155K", "Rented out 58k yearly".
     text = re.sub(
-        r'\brent(?:ed)?\s*(?:out\s+)?(?:at|@|till|until|for)?[\s:]*'
+        r'\brent(?:ed)?\s*(?:out\s+)?(?:at|@|till|until|for|[\-])?[\s:\-]*'
         r'(?:aed\s+)?[\d.,]+\s*[km]?\s*(?:aed)?\s*'
-        r'(?:/\s*(?:year|yr|month|mo)|per\s+(?:year|month|annum)|yearly|monthly)?',
+        r'(?:/\s*(?:year|yr|month|mo)|per\s+(?:year|month|annum)|yearly|monthly|'
+        r'till\s+\d|until\s+\d)?',
+        ' ', text, flags=re.I)
+    # «Rented MONTH YEAR - N AED» / «Rented till MONTH-YEAR - N AED» — расширенный
+    # формат с датой и тире между датой и суммой. Раньше "250 000 AED" из
+    # "Rented July 2026 -250 000 AED" утекало как sale price.
+    text = re.sub(
+        r'\brent(?:ed)?\s+(?:till\s+|until\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|'
+        r'январ|феврал|март|апрел|ма[йя]|июн|июл|авг|сент|октябр|ноябр|декабр)\w*\s+\d{4}'
+        r'[\s\-\(]*[\d, ]+\s*(?:aed|k|m)?(?:\s*\))?',
         ' ', text, flags=re.I)
     # Also strip parenthesised rental "(240k/year)" / "(58k yearly)"
     text = re.sub(
@@ -2217,6 +2226,16 @@ def extract_price(text: str) -> dict:
     # ── Normalise Cyrillic suffixes (often used in RU listings) ─────────
     # 'AED 3.5М' → 'AED 3.5M', '500К' → '500K'
     text = text.replace('М', 'M').replace('м', 'm').replace('К', 'K').replace('к', 'k')
+    # Cyrillic homoglyphs that look like Latin in English words —
+    # «Priсe» (с=cyr) → «Price», «Lоcation» (о=cyr) → «Location»
+    # Без этого `\bprice\b` regex не матчит «Priсe» и парсер пропускает цену.
+    HOMOGLYPHS = str.maketrans({
+        'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'у': 'y',
+        'х': 'x', 'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M',
+        'Н': 'H', 'О': 'O', 'Р': 'P', 'С': 'C', 'Т': 'T', 'У': 'Y',
+        'Х': 'X',
+    })
+    text = text.translate(HOMOGLYPHS)
     # ── Mixed European format: "2.300 000" / "1.500 000" (dot + space thousands)
     # ВАЖНО: ДО space-norm — иначе пробел между группами цифр съест и весь
     # формат развалится.
@@ -2267,13 +2286,22 @@ def extract_price(text: str) -> dict:
     if m:
         result["original_price"] = _parse_amount(m.group(1))
 
-    # -- Selling / Sales / Sale price → these are CURRENT price (priority)
-    m = re.search(r'(?:\bsp\b|sales?\s*price|selling\s*price|sale\s*price)[\s:]*([\d,\. ]+\s*[mkb]?l?)', t, re.I)
-    if m:
-        v = _parse_amount(m.group(1))
-        if v:
-            result["selling_price"] = v
-            result["price"] = v
+    # -- Selling / Sales / Sale / Final / Asking / Price / Net — these are CURRENT
+    # price. Priority order matters: специфичные label сначала, plain price в конце.
+    # NB: [\s:\-]* допускает дефис как разделитель ("Selling price -3M")
+    for selling_pat in [
+        r'(?:\bsp\b|sales?\s*price|selling\s*price|sale\s*price|final\s*price|asking\s*price|net\s+price|net\s+to\s+seller)[\s:\-]*(?:aed\s+)?([\d,\. ]+\s*[mkb]?l?)',
+        r'\bselling[\s:\-]+(?:aed\s+)?(\d[\d,\. ]*\s*[mkb]?l?)',
+        # plain "price" но не «Op is price», «from price»
+        r'(?<!is\s)(?<!from\s)(?<!op\s)\bprice[\s:\-]+(?:aed\s+)?(\d[\d,\. ]*\s*[mkb]?l?)',
+    ]:
+        m = re.search(selling_pat, t, re.I)
+        if m:
+            v = _parse_amount(m.group(1))
+            if v:
+                result["selling_price"] = v
+                result["price"] = v
+                break
 
     # If we still have only original_price, use it as fallback
     if result["original_price"] and not result["price"]:
@@ -2295,19 +2323,9 @@ def extract_price(text: str) -> dict:
             result["selling_price"] = v
             return result
 
-    if not result["price"]:
-        # ПРИОРИТЕТ: явные «final/sale/asking/selling price» перед plain "price"
-        # (которое может зацепить «Op is price 675k» как 675K вместо реального 600K).
-        for pat in [
-            r'(?:final\s+price|sale\s+price|selling\s+price|asking\s+price|net\s+price)\s*[:.\-*]*\s*(\d[\d,\. ]*\s*(?:mln|m|k)?)',
-            r'(?<!is\s)(?<!from\s)(?:price)\s*[:.\-*]+\s*(\d[\d,\. ]*\s*(?:mln|m|k)?)',
-        ]:
-            m = re.search(pat, t, re.I)
-            if m:
-                v = _parse_amount(m.group(1))
-                if v:
-                    result["price"] = v
-                    break
+    # NB: extract logic выше — мы уже пробежали все priority patterns
+    # (selling/sale/asking/final/net/plain price). Если ничего не нашли —
+    # дальше идут fallbacks (cash, mln, M-suffix, generic K/M etc).
     # ── SP / Selling price / Asking / PP ─────────────────────────────────────
     m = re.search(
         r'(?:sp|pp|selling\s*price|asking\s*price|ask)\s*:?\s*(?:aed|usd)?\s*([\d,. ]+\s*[mbk]?)',
@@ -2441,9 +2459,11 @@ def _first_listing_block(text: str) -> str:
                 # Маркер «новый листинг» — пустая строка, затем ● или ⚫ + текст
                 # с emoji-локатором или CAPS-словом (типичный bullet-style multi-listing)
                 r'|\n\s*\n\s*[●⚫◆◇]\s*'
-                # Маркер «новый листинг» через локатор-emoji 📍/🗺/🌍 после пустой строки
-                # (формат: "...info... \n\n📍 NEW AREA\n🔹 NEW BUILDING ...")
-                r'|\n\s*\n\s*[📍🗺🌍📌]\s*')
+                # Маркер «новый листинг» через локатор-emoji 📍/🗺/🌍 — ТОЛЬКО когда
+                # 3+ blank lines подряд (т.е. реальный разделитель листингов).
+                # Просто `\n\n📍` встречается ВНУТРИ одного объявления как
+                # лейбл локации / девелопера / соседств.
+                r'|\n\s*\n\s*\n\s*[📍🗺🌍📌]\s*')
     parts = re.split(sep_pat, text, maxsplit=5)
     if len(parts) <= 1:
         return text
@@ -3456,9 +3476,15 @@ def parse_message(
             cleaned = re.sub(r'^[^\w\d]+', '', cleaned).strip()
             cleaned = re.sub(r'\s*[-–—]\s*plot\s*$', '', cleaned, flags=re.I)
             cleaned = re.sub(r'\s+plot\s*$', '', cleaned, flags=re.I)
-            # Strip trailing " Area" — это типичный лeak когда «Project: X / Area: Y»
-            # парсер схватил вместе с label
-            cleaned = re.sub(r'\s+area\s*$', '', cleaned, flags=re.I).strip()
+            # Strip trailing " Area" / " Type" / " Property" / " Unit" — лейблы
+            # которые парсер схватил вместе с building name.
+            cleaned = re.sub(r'\s+(?:area|type|property|unit|apartment|villa|townhouse)\s*$',
+                              '', cleaned, flags=re.I).strip()
+            # Strip leading «Studio | X» / «1 BR | X» — type-token prefix
+            cleaned = re.sub(r'^(?:studio|\d+\s*br|apartment|villa|townhouse|penthouse|duplex)\s*\|\s*',
+                              '', cleaned, flags=re.I).strip()
+            # Strip trailing parenthetical area like "(Damac Hills 2)" если короткая
+            cleaned = re.sub(r'\s*\([^)]{3,30}\)\s*$', '', cleaned).strip()
             if area:
                 pat = re.compile(r'\s*[-–—]\s*' + re.escape(area) + r'\s*$', re.I)
                 cleaned = pat.sub('', cleaned).strip()

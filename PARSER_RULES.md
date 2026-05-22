@@ -36,6 +36,9 @@
 | 1.27 | «Paid X» / «Down payment X» / «NET TO OWNER X» strip | первый взнос не цена |
 | 1.28 | «Final/Sale/Selling/Asking price» приоритет перед plain «Price» | «Op is price 675k Final Price 600k» → 600K |
 | 1.29 | `(?<!is\s)(?<!from\s)price` lookbehind | «Op is price 675k» → не price=675K |
+| 1.30 | Dash `-` как separator между label и price | «Selling price -3M» = 3,000,000 |
+| 1.31 | «Rented MONTH YEAR -N AED» multi-listing rent-leak strip | «Rented July 2026 -250 000 AED» → не sale 250K |
+| 1.32 | Cyrillic→Latin homoglyph translate (с→c, о→o, р→p) | «Priсe: 4 690 000» = 4,690,000 (раньше не матчилось) |
 
 ## 2. Определение deal_type (`detect_deal_type`)
 
