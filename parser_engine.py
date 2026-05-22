@@ -2907,7 +2907,12 @@ def _llm_extract_building_area(text: str, timeout: int = 12) -> dict:
 
 def normalize_via_dld(building: Optional[str], area: Optional[str]) -> tuple:
     """Возвращает (canonical_building, canonical_area). Если DLD-словарь
-    содержит ключ — берём оттуда. Иначе возвращаем оригинал."""
+    содержит ключ — берём оттуда. Иначе возвращаем оригинал.
+
+    NB: после DLD normalize применяем DLD_TO_FRIENDLY чтобы заменить
+    официальные DLD-имена (Al Barsha South Fourth) на привычные пользователю
+    (Jumeirah Village Circle). Юзеры не знают официальных DLD-имён.
+    """
     new_bld, new_area = building, area
     if building:
         canon = _DLD_CANONICAL.get("buildings", {}).get(building.strip().lower())
@@ -2922,11 +2927,43 @@ def normalize_via_dld(building: Optional[str], area: Optional[str]) -> tuple:
         if canon:
             new_area = canon
     elif new_area:
-        # Уже есть area — нормализуем
         canon = _DLD_CANONICAL.get("areas", {}).get(new_area.strip().lower())
         if canon:
             new_area = canon
+    # ── Convert DLD official → friendly name (final layer) ─────────────
+    if new_area:
+        new_area = _DLD_TO_FRIENDLY.get(new_area, new_area)
     return new_bld, new_area
+
+
+# DLD official area names → user-friendly names.
+# Юзеры ищут «JVC», не «Al Barsha South Fourth». Конвертируем при выводе.
+_DLD_TO_FRIENDLY = {
+    "Al Barsha South Fourth":            "Jumeirah Village Circle",
+    "Al Barsha South Third":             "Jumeirah Village Triangle",
+    "Al Barsha South Second":            "Jumeirah Village Triangle",
+    "Marsa Dubai":                       "Dubai Marina",
+    "Hadaeq Sheikh Mohammed Bin Rashid": "MBR City",
+    "Al Khairan First":                  "Dubai Creek Harbour",
+    "Al Khairan Second":                 "Dubai Creek Harbour",
+    "Wadi Al Safa 2":                    "Dubai Hills Estate",
+    "Wadi Al Safa 3":                    "Dubai Hills Estate",
+    "Wadi Al Safa 5":                    "Dubai Hills Estate",
+    "Wadi Al Safa 7":                    "Dubai Hills Estate",
+    "Burj Khalifa":                      "Downtown Dubai",
+    "Jabal Ali First":                   "Jebel Ali",
+    "Saih Shuaib 2":                     "Dubai Investments Park",
+    "Madinat Al Mataar":                 "Dubai South",
+    "Marsa Al Arab":                     "Sufouh",
+    "Trade Center Second":               "DIFC",
+    "Trade Center First":                "DIFC",
+    "Mirdif":                            "Mirdiff Hills",
+    "Al Yufrah 1":                       "Town Square",
+    "Al Yufrah 2":                       "Town Square",
+    "Al Thanyah Fifth":                  "Jumeirah Lake Towers",
+    "Al Thanyah Fourth":                 "Jumeirah Lake Towers",
+    "Al Thanyah Third":                  "Jumeirah Lake Towers",
+}
 
 
 def extract_offplan(text: str) -> bool:

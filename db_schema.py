@@ -833,8 +833,19 @@ def search_listings(filters: dict, limit: int = 10, offset: int = 0) -> tuple[li
                 params.append(filters["emirate"])
 
             if filters.get("area"):
-                where.append("LOWER(area) LIKE LOWER(%s)")
-                params.append(f"%{filters['area']}%")
+                # Alias expansion: пользователи говорят «JVC», в DB может быть
+                # «Jumeirah Village Circle» или «Al Barsha South Fourth» (DLD official).
+                # Раскрываем запрос на ВСЕ варианты — пусть юзер всегда находит.
+                from area_aliases import expand_area_query
+                aliases = expand_area_query(filters["area"])
+                if len(aliases) > 1:
+                    placeholders = " OR ".join(["LOWER(area) LIKE LOWER(%s)"] * len(aliases))
+                    where.append(f"({placeholders})")
+                    for a in aliases:
+                        params.append(f"%{a}%")
+                else:
+                    where.append("LOWER(area) LIKE LOWER(%s)")
+                    params.append(f"%{filters['area']}%")
 
             if filters.get("building"):
                 where.append("LOWER(building) LIKE LOWER(%s)")
