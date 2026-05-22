@@ -2064,19 +2064,21 @@ def _parse_amount(s: str) -> Optional[int]:
 def _strip_phones(text: str) -> str:
     """Remove phone numbers so they can't be mistaken for prices."""
     # ANY international format: +XXX followed by 8-20 chars (digits/space/dash/paren).
-    # Catches +971, +380, +1, +44, +7, +44, etc. Range bumped to 20 chars to handle
-    # heavily-spaced formats like '+ 971 55 109 0599' (18 chars).
     text = re.sub(r'(?<!\d)\+\s*\d[\d\s\-\(\)]{6,22}\d(?!\d)', ' ', text)
     # 00XXX international prefix
     text = re.sub(r'(?<!\d)00\d{1,3}[\s\-]?\d[\d\s\-]{7,16}(?!\d)', ' ', text)
-    # 05X-XXX-XXXX (local UAE mobile)
-    text = re.sub(r'(?<!\d)0(?:50|52|54|55|56|58|2|3|4|6|7|9)\d{7}(?!\d)', ' ', text)
+    # 05X XXX XXXX (UAE mobile WITH spaces) — было только без пробелов
+    # Catches '058 519 6704' which was being concatenated into prices.
+    text = re.sub(r'(?<!\d)0(?:50|52|54|55|56|58|2|3|4|6|7|9)[\s\-]?\d{3}[\s\-]?\d{4}(?!\d)', ' ', text)
     # 50/52/54/55/56/58 XXX XXXX (mobile without leading 0/+, common in posts)
     text = re.sub(r'(?<!\d)(?:50|52|54|55|56|58)[\s\-]?\d{3}[\s\-]?\d{4}(?!\d)', ' ', text)
+    # WhatsApp/phone with text marker — strip whole tail '58 519 6704' even with weird spacing
+    text = re.sub(
+        r'(?:whatsapp|whats\s*up|wa\.me|contact|tel|phone|call|номер|телефон)[\s:.\-]*\+?\d[\d\s\-\(\)/]{6,18}\d',
+        ' ', text, flags=re.I)
     # Bare 971XXXXXXXXX at word boundary (no + prefix)
     text = re.sub(r'(?<!\d)971\s*\d[\d\s\-]{7,12}(?!\d)', ' ', text)
     # Bare long digit run >= 9 digits without M/K context (likely phone)
-    # (was 10 — bumped down to 9 to catch '551090599' which is a mobile minus country code)
     text = re.sub(r'(?<![\d.,])\d{9,15}(?!\s*[mkbMKB])(?!\.\d)', ' ', text)
     return text
 
@@ -2165,9 +2167,14 @@ def extract_price(text: str) -> dict:
     # "X to the owner / X to developer". Это куски сплит-платежа, не цена.
     text = re.sub(
         r'[\d.,]+\s*[km]?\s*(?:aed)?\s*'
-        r'(?:on\s+(?:handover|transfer|completion)|to\s+(?:the\s+)?(?:owner|developer|builder)|'
+        r'(?:on\s+(?:handover|transfer|completion|handower)|to\s+(?:the\s+)?(?:owner|developer|builder)|'
         r'left\s+(?:on\s+)?(?:post[\s\-]?handover|to\s+pay)|remaining)',
         ' ', text, flags=re.I)
+    # «PHPP\nN» / «PHPP: N» — Post-Handover Payment Plan installment, не цена
+    text = re.sub(
+        r'\bphpp[\s:\n]+[\d., ]+(?:\s*\([^)]*\))?', ' ', text, flags=re.I)
+    text = re.sub(
+        r'\bsoa[\s:\-]+\d+\s*%', ' ', text, flags=re.I)  # "SOA-75%"
     # Также: "Pay X now, Y on handover" — strip pay X now
     text = re.sub(r'\bpay\s+[\d.,]+\s*[km]?\s*(?:aed)?\s*now\b', ' ', text, flags=re.I)
     # "X each month" / "X monthly during N years" — installment, not total
@@ -2425,12 +2432,35 @@ def extract_price(text: str) -> dict:
             if result["price"]:
                 break
 
-    # Sanity cap: price > 10 billion AED is almost certainly a parsing error
-    # (phone number, multiple prices concatenated, etc). Drop suspect values.
+    # Sanity cap: price > 10 billion AED is almost certainly a parsing error.
     if result["price"] and result["price"] > 10_000_000_000:
         result["price"] = None
     if result["original_price"] and result["original_price"] > 10_000_000_000:
         result["original_price"] = None
+    # Sanity: 500M+ AED is extreme — only whole_hotel/plot. Drop if structure
+    # is short (text < 800 chars, likely concatenation bug). Hospitals/hotels
+    # usually have very long detailed descriptions.
+    if result["price"] and result["price"] > 500_000_000 and len(text) < 800:
+        result["price"] = None
+    if result["original_price"] and result["original_price"] > 500_000_000 and len(text) < 800:
+        result["original_price"] = None
+    # "1070 mln" / "X mln" where X looks suspicious: X > 100 для apartment context
+    # means likely typo of "1,070,000" (1.07M) — divide by 1000.
+    # Apartment context = text contains "bedroom"/"studio"/"sq.ft"/"apartment".
+    if result["price"] and result["price"] > 100_000_000:
+        tl_check = text[:1000].lower()
+        is_apt_or_studio = bool(re.search(
+            r'\b(?:bedroom|studio|sq\.?\s*ft|sqft|apartment|apt)\b', tl_check))
+        if is_apt_or_studio and result["price"] > 100_000_000:
+            # Likely typo "1070 mln" intended "1,070,000". Reduce by 1000.
+            result["price"] = result["price"] // 1000
+    # General sanity caps by property context
+    # Apartment max 200M (Bugatti Residences was 110M for top units)
+    if result["price"] and result["price"] > 200_000_000:
+        tl_check = text[:1000].lower()
+        if re.search(r'\b(?:bedroom|studio|apartment|apt)\b', tl_check) and \
+           not re.search(r'\bbuilding\s+for\s+sale|hotel|hospital|plot|land', tl_check):
+            result["price"] = None  # corrupt
 
     # Currency conversion: if the source text has explicit non-AED markers
     # (USD/EUR/GBP/RUB/$/€/£/₽) AND no explicit AED/Dhs marker — convert.
@@ -3476,6 +3506,15 @@ def parse_message(
                    # Month names (часто захватываются из «vacant in March»)
                    'january','february','march','april','may','june','july',
                    'august','september','october','november','december',
+                   # Marketing / status phrases that get mis-parsed as building
+                   'best payment plan in business bay','best payment plan',
+                   'not covered','i am covered','i\'m covered','direct',
+                   'built','built in wardrobes','built-in wardrobes',
+                   'ready to move in','ready to move','vacant on transfer',
+                   'price drop','price reduction','price update','price reduced',
+                   'mortgage accepted','cash payment','direct from owner',
+                   'below market','below market price','below original',
+                   'distress','distress deal','distress price',
                    # Area-name leak (когда area попадает в building):
                    'damac lagoon','damac lagoons','damac hills','damac hills 2',
                    'creek harbour','creek beach','sobha hartland','palm jumeirah',
