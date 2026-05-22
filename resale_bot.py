@@ -900,6 +900,12 @@ add_states  = {}
 admin_states = {}   # uid → {queue, idx, edits, edit_field, edit_qid}
 
 import threading
+# v53: централизованный error logger → push в intel DB
+try:
+    import error_logger as _err_logger
+except Exception:
+    _err_logger = None
+
 # Investment engine + PDF integration
 try:
     from investment_engine import compute_investment_score, build_conclusion_text
@@ -912,13 +918,47 @@ try:
 except ImportError:
     PDF_OK = False
 
+# v51 PERF: module-level imports to avoid repeated import cost in hot path
+try:
+    from parser_engine import _lookup_benchmark, MARKET
+    _PE_OK = True
+except ImportError:
+    _PE_OK = False
+    _lookup_benchmark = lambda x: None
+    MARKET = {}
+try:
+    from report_api import get_market_metrics, get_building_benchmark
+    _RA_OK = True
+except Exception:
+    _RA_OK = False
+    get_market_metrics = lambda x: None
+    get_building_benchmark = lambda x: None
+try:
+    import antispam as _antispam_mod
+except Exception:
+    _antispam_mod = None
+
 
 def _send_pdf(cid, uid, listing):
     """Generate investment PDF for a listing + send as document."""
     try:
-        from parser_engine import _lookup_benchmark, MARKET
+        # v51 PERF: use module-level imports (was lazy in hot path)
         dld_b = _lookup_benchmark(listing.get("building")) if listing.get("building") else None
-        mkt = MARKET.get(listing.get("area")) if listing.get("area") else None
+        mkt = None
+        try:
+            if listing.get("area"):
+                mkt = get_market_metrics(listing["area"])
+            if listing.get("building"):
+                better_b = get_building_benchmark(listing["building"])
+                if better_b:
+                    dld_b = dict(dld_b or {})
+                    for _k, _v in better_b.items():
+                        if _v is not None:
+                            dld_b[_k] = _v
+        except Exception as _e:
+            print(f"[ecosystem] report_api skip ({listing.get('id')}): {_e}")
+        if mkt is None and listing.get("area"):
+            mkt = MARKET.get(listing["area"])
         score = compute_investment_score(listing, dld_b, mkt)
         lang = _get_lang(uid)
         pdf_path = generate_pdf(listing, score, lang=lang)
@@ -1020,8 +1060,26 @@ def _get_file_url(file_id: str) -> str:
         pass
     return file_id
 
-def _answer(cbid):
-    _api("answerCallbackQuery", callback_query_id=cbid)
+_ACKED_CB_IDS: set = set()
+_ACKED_CB_ORDER: list = []
+_ACK_MAX_KEEP = 5000
+
+def _answer(cbid, text=None):
+    """ACK a callback query. Safe to call multiple times — only the FIRST call
+    actually sends ACK. Optional `text` displays a toast to the user (only
+    works on the first ACK). Without this de-dup the second ACK silently
+    fails with 'query is too old' and the toast is lost."""
+    if not cbid or cbid in _ACKED_CB_IDS:
+        return
+    _ACKED_CB_IDS.add(cbid)
+    _ACKED_CB_ORDER.append(cbid)
+    if len(_ACKED_CB_ORDER) > _ACK_MAX_KEEP:
+        old = _ACKED_CB_ORDER.pop(0)
+        _ACKED_CB_IDS.discard(old)
+    kwargs = {"callback_query_id": cbid}
+    if text:
+        kwargs["text"] = text
+    _api("answerCallbackQuery", **kwargs)
 
 def _btn(label, data):
     return {"text": label, "callback_data": data}
@@ -1913,9 +1971,23 @@ def format_card(listing, uid, rank=None):
     # ── INVESTMENT ANALYSIS — verdict, KPIs, vs bank, risk ─────────────────
     if INVEST_OK:
         try:
-            from parser_engine import _lookup_benchmark, MARKET
+            # v51 PERF: module-level imports
             dld_b = _lookup_benchmark(listing.get("building")) if listing.get("building") else None
-            mkt   = MARKET.get(listing.get("area")) if listing.get("area") else None
+            mkt   = None
+            try:
+                if listing.get("area"):
+                    mkt = get_market_metrics(listing["area"])
+                if listing.get("building"):
+                    better_b = get_building_benchmark(listing["building"])
+                    if better_b:
+                        dld_b = dict(dld_b or {})
+                        for _k, _v in better_b.items():
+                            if _v is not None:
+                                dld_b[_k] = _v
+            except Exception as _e2:
+                print(f"[ecosystem] report_api skip ({listing.get('id')}): {_e2}")
+            if mkt is None and listing.get("area"):
+                mkt = MARKET.get(listing["area"])
             inv   = compute_investment_score(listing, dld_b, mkt)
             lang  = _get_lang(uid)
             lines.append("")
@@ -2519,12 +2591,19 @@ def send_results(cid, uid, mid=None):
     if mid: _edit(cid, mid, header)
     else:   _send(cid, header)
 
+    # v52 PERF: batch-load favorites for this page (1 SQL instead of N)
+    try:
+        from db_schema import is_favorited_batch as _is_fav_batch
+        page_lids = [lst.get("id") for lst in items if lst.get("id")]
+        _fav_set = _is_fav_batch(uid, page_lids)
+    except Exception:
+        _fav_set = set()
+
     for i, lst in enumerate(items, start=start+1):
         text = format_card(lst, uid, rank=i)
         lid  = lst.get("id") or lst["id"]
-        from db_schema import is_favorited as _is_fav
         try:
-            fav_now = _is_fav(uid, lid)
+            fav_now = lid in _fav_set
         except Exception:
             fav_now = False
         fav_label = _t(uid, "btn_fav_rem") if fav_now else _t(uid, "btn_fav_add")
@@ -2995,6 +3074,11 @@ def show_detail(cid, uid, mid, lid):
     listing = get_listing_by_id(lid)
     if not listing:
         _edit(cid, mid, "Property not found."); return
+    # v49 AUDIT FIX: hide audit_flagged listings from user-facing detail view
+    # (admin queue uses separate code path)
+    if listing.get("status") == "audit_flagged" and uid != ADMIN_ID:
+        _edit(cid, mid, "Listing currently under review. Try another one or use search.")
+        return
 
     save_lead(uid, "", lid, "view")
     text     = format_detail(listing, uid)
@@ -3017,6 +3101,16 @@ def show_detail(cid, uid, mid, lid):
     if has_building:
         kb_rows.append([_btn(_t(uid, "btn_all_in_bld"), f"allbld|{lid}")])
     kb_rows.append([_btn(_t(uid, "btn_similar"), f"similar|{lid}"), _btn(_t(uid, "btn_back"), "results|back")])
+    # v47 ECOSYSTEM cross-nav: subtle marketing — leads пользователя в смежные боты
+    # когда он смотрит конкретный listing (highly intent moment).
+    # Кнопки расположены ОТДЕЛЬНЫМ блоком, чтобы не отвлекать от primary CTA.
+    kb_rows.append([
+        _url_btn("🏗 Новостройки от застройщика", "https://t.me/dubai_projects_monitor_bot?start=from_resale"),
+    ])
+    kb_rows.append([
+        _url_btn("📊 ROI калькулятор",      "https://t.me/dubai_roi_fpr_bot?start=from_resale"),
+        _url_btn("📈 Аналитика района",     "https://t.me/Analitik_price_bot?start=from_resale"),
+    ])
     kb_rows.append([_btn(_t(uid, "btn_menu"), "menu|main")])
     kb = _kb(*kb_rows)
 
@@ -3124,7 +3218,7 @@ def show_stats(cid, uid):
         audit_buckets_lines = ""
 
     text = (
-        f"{_sep()}\n  СТАТИСТИКА АДМИНА  ·  Dubai Resale Bot\n{_sep()}\n\n"
+        f"{_sep()}\n  СТАТИСТИКА АДМИНА  ·  Dubai Resale Intelligence\n{_sep()}\n\n"
 
         f"  Всего объектов:        {s['total']}\n"
         f"  В продаже:             {s['sale_total']}  ({s['sale_clean']} чистых)\n"
@@ -4216,6 +4310,15 @@ def handle_cb(cb):
     mid  = cb["message"]["message_id"]
     uid  = cb["from"]["id"]
     data = cb.get("data", "")
+    # v51 ANTISPAM (module-level, callback flood guard)
+    if _antispam_mod:
+        try:
+            r = _antispam_mod.is_spam(uid, "", is_admin=(uid == ADMIN_ID))
+            if r and r in ("flood_blocked", "blacklisted"):
+                _answer(cbid)
+                return
+        except Exception:
+            pass
     _answer(cbid)
     if "|" not in data: return
     parts  = data.split("|")
@@ -4503,11 +4606,13 @@ def handle_cb(cb):
         lid = int(parts[1]) if len(parts) > 1 else 0
         listing = get_listing_by_id(lid)
         if not listing:
-            _api("answerCallbackQuery", callback_query_id=cb.get("id"), text="Not found")
+            # ACK was already sent at the top — show via normal message
+            _send(cid, "Not found.")
             return
         ack = {"en": "📄 Generating PDF…", "ru": "📄 Готовлю PDF…",
                 "ar": "📄 جاري التحضير…"}.get(_get_lang(uid), "📄 Generating PDF…")
-        _api("answerCallbackQuery", callback_query_id=cb.get("id"), text=ack)
+        # Send as message (toast won't fire — ACK already sent at top of handle_cb)
+        _send(cid, ack)
         threading.Thread(target=_send_pdf, args=(cid, uid, dict(listing)),
                           daemon=True).start()
 
@@ -4809,6 +4914,15 @@ def handle_msg(msg):
     uid   = msg["from"]["id"]
     uname = msg["from"].get("username", "")
     fname = msg["from"].get("first_name", "")
+    # v51 ANTISPAM (module-level)
+    if _antispam_mod:
+        try:
+            reason = _antispam_mod.is_spam(uid, text, is_admin=(uid == ADMIN_ID))
+            if reason:
+                print(f"[antispam] blocked uid={uid} reason={reason}", flush=True)
+                return
+        except Exception:
+            pass
     lang  = user_lang.get(uid, "en")
     save_user(uid, uname, fname, lang)
 
@@ -5219,6 +5333,28 @@ def run_bot():
                     elif "message" in upd:       handle_msg(upd["message"])
                 except Exception as e:
                     print(f"[bot] Update error: {e}")
+                    # v53: log to bot_error_events для watchdog
+                    if _err_logger:
+                        try:
+                            import traceback as _tb
+                            uid = None
+                            ctx = {}
+                            if "callback_query" in upd:
+                                uid = upd["callback_query"]["from"]["id"]
+                                ctx["data"] = upd["callback_query"].get("data", "")[:200]
+                                handler = "handle_cb"
+                            elif "message" in upd:
+                                uid = upd["message"]["from"]["id"]
+                                ctx["text"] = (upd["message"].get("text") or "")[:200]
+                                handler = "handle_msg"
+                            else:
+                                handler = "update_loop"
+                            _err_logger.log_error("resale", handler, str(e),
+                                                    error_class=type(e).__name__,
+                                                    user_id=uid, context=ctx,
+                                                    tb=_tb.format_exc()[-1500:])
+                        except Exception:
+                            pass
         except requests.RequestException as e:
             print(f"[bot] Net: {e}"); time.sleep(5)
         except Exception as e:

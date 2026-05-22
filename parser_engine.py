@@ -450,6 +450,9 @@ DEVELOPERS = {
 # ══════════════════════════════════════════════════════════════════════════════
 # 5. MARKET DATA (per sqft AED, avg annual rent 1BR, annual growth %)
 # ══════════════════════════════════════════════════════════════════════════════
+# v45 ECOSYSTEM: MARKET — static fallback. Реальные данные подгружаются из
+# daily_market_reports через report_api.get_market_metrics() — см. resale_bot.py.
+# Static значения служат fallback'ом для районов, по которым нет свежего отчёта.
 MARKET = {
     "Business Bay":             {"sqft": 1800, "rent_1br": 105000, "growth": 6},
     "Downtown Dubai":           {"sqft": 2500, "rent_1br": 130000, "growth": 7},
@@ -1279,6 +1282,32 @@ _BUILDING_HEUR_STOPWORDS = {
     "availability", "balcony", "floor", "plot",
     # Pure marketing
     "luxury premium branded hotels", "branded hotels", "real estate",
+    # Regulatory / status flags — попадают в building из заголовков объявлений
+    "all licenses in place", "licenses in place", "license in place",
+    "off plan resale", "off-plan resale", "off plan", "off-plan",
+    "ready & vacant", "ready and vacant", "ready vacant", "vacant ready",
+    "vacant on transfer", "vacant unit", "vacant possession", "vacant now",
+    "vacant in may", "vacant in june", "vacant in july", "vacant in august",
+    "vacant in september", "vacant in october", "vacant in november",
+    "vacant in december", "vacant in january", "vacant in february",
+    "vacant in march", "vacant in april",
+    "backstosback midscorner", "back to back", "mid corner", "midscorner",
+    "vacant backstosback midscorner", "vacant backstosback",
+    "rented unit", "currently rented", "tenanted unit",
+    "ready to move", "ready to move in", "ready move in",
+    "with payment plan", "post handover payment plan",
+    "title deed ready", "title deed", "rera approved",
+    "investor deal", "investor opportunity", "genuine listing",
+    "genuine seller", "direct from owner", "from owner",
+    "high roi", "best roi", "guaranteed roi",
+    "new launch", "new project", "new development",
+    "limited offer", "limited time offer", "last unit", "last units",
+    # Building-as-investment описания
+    "all apartments", "all units", "all rented", "fully rented",
+    "rental income", "rented income", "yearly profit", "yearly profits",
+    "building for sale", "whole building", "entire building",
+    "g+p+", "g+p", "ground+podium", "ground + podium",
+    "total apartments", "total units", "total floors",
 }
 
 
@@ -1343,6 +1372,33 @@ def _is_building_stopword(s: str) -> bool:
         return True
     # Standalone area-acronyms (used as building) — these are area codes, not buildings
     if sl in {'jvc','jvt','jlt','jbr','dxb','dch','dhe','dha','dlrc','dso'}:
+        return True
+    # Regulatory / status flags появляются в заголовках объявлений и парсер
+    # ошибочно вытягивает их как building. Универсальные шаблоны:
+    if re.match(
+        r'^(?:all\s+licens|licens[ed]+\s+|licens[ed]+\s+in\s+|'
+        r'off[\s\-]?plan(?:\s+|$)|off[\s\-]?plan\s+resale|'
+        r'ready\s*(?:&|and)\s*vacant|ready\s+vacant|vacant\s+ready|'
+        r'vacant\s+(?:on\s+transfer|unit|possession|now|in\s+\w+)|'
+        r'rented\s+unit|currently\s+rented|tenanted|'
+        r'ready\s+to\s+move|ready\s+move|move\s+in\s+ready|'
+        r'(?:with|post[\s\-]?handover)\s+payment\s+plan|'
+        r'title\s+deed|rera\s+approved|escrow\s+(?:approved|account)|'
+        r'investor\s+(?:deal|opportunity)|genuine\s+(?:listing|seller|deal)|'
+        r'direct\s+from\s+owner|from\s+owner|by\s+owner|'
+        r'high\s+roi|best\s+roi|guaranteed\s+roi|\d+%\s*roi|'
+        r'limited\s+(?:offer|time|units?)|last\s+units?|'
+        r'backs?\s*to\s*backs?|back[\s\-]?to[\s\-]?back|mid[\s\-]?corner|'
+        r'corner\s+unit|end\s+unit)',
+        sl):
+        return True
+    # «Vacant <Month> <Year>», «Available <date>» — расписания, не здания
+    if re.match(
+        r'^(?:vacant|available|hand\s*over|handover)\s+'
+        r'(?:in\s+|on\s+|from\s+)?'
+        r'(?:january|february|march|april|may|june|july|august|september|'
+        r'october|november|december|q[1-4]|\d{4})',
+        sl):
         return True
     # Single-feature labels ("Covered", "Huge Terrace", "Spacious") — pure descriptors
     if sl in {'covered','spacious','luxury','modern','elegant','exclusive',
@@ -1895,7 +1951,9 @@ def extract_size(text: str) -> dict:
             return None
 
     def _in_range_sqft(v: Optional[float]) -> bool:
-        return v is not None and 50.0 <= v <= 100_000.0
+        # Minimum 200 sqft = ~18 sqm (smallest studio in Dubai).
+        # Anything below is parsing garbage (fractional part of "1754,52 ft²" etc.)
+        return v is not None and 200.0 <= v <= 100_000.0
 
     def _sqm_to_sqft(v: float) -> float:
         return round(v * 10.764, 1)
@@ -3537,15 +3595,25 @@ def compute_confidence(data: dict) -> tuple[float, bool, Optional[str]]:
 # LISTING KEY (for deduplication)
 # ══════════════════════════════════════════════════════════════════════════════
 def make_listing_key(data: dict) -> Optional[str]:
+    """v50 FIX: добавляем price и floor в key — иначе multi-listing posts
+    с N одинаковыми по параметрам, но разными по цене/этажу квартирами
+    схлопываются в 1 запись (UNIQUE constraint on listing_key)."""
     emirate = (data.get("emirate") or "").lower().replace(" ", "")
     area = (data.get("area") or "").lower().replace(" ", "")
     building = (data.get("building") or "").lower().replace(" ", "")
     unit = (data.get("unit_number") or "").lower().replace(" ", "")
     bedrooms = str(data.get("bedrooms") or "")
     size = str(int(data.get("size_sqft") or 0))
+    # v50: добавили price (целочисленно, чтобы избежать дубликатов при micro-разнице)
+    price_raw = data.get("price") or 0
+    try:
+        price_bucket = str(int(float(price_raw) / 1000))  # тысячи AED как bucket
+    except (ValueError, TypeError):
+        price_bucket = "0"
+    floor = str(data.get("floor") or "")
     if not (area or building):
         return None
-    parts = [p for p in [emirate, area, building, unit, bedrooms, size] if p]
+    parts = [p for p in [emirate, area, building, unit, bedrooms, size, price_bucket, floor] if p]
     return "|".join(parts)
 
 

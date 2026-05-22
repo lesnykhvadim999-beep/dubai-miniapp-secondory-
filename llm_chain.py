@@ -67,11 +67,11 @@ PROVIDERS = [
         "format": "openai",
     },
     {
-        # Gemini 1.5 Flash — 1500 RPD, отличное качество.
+        # Gemini 2.0 Flash — replaces deprecated gemini-1.5-flash (v50 fix)
         "name":  "gemini",
         "env":   "GEMINI_API_KEY",
-        "url":   "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
-        "model": "gemini-1.5-flash",
+        "url":   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "model": "gemini-2.0-flash",
         "format": "gemini",
     },
     {
@@ -120,7 +120,11 @@ def _call_openai_compat(provider: dict, prompt: str, max_tokens: int,
             return r.json()["choices"][0]["message"]["content"].strip()
         if r.status_code == 429:
             _mark_cooldown(provider["name"])
-            print(f"[llm_chain] {provider['name']} 429 → cooldown")
+            print(f"[llm_chain] {provider['name']} 429 -> cooldown")
+        elif r.status_code in (401, 403):
+            # Invalid/expired key — disable provider for 24h
+            _mark_cooldown(provider["name"], 86400)
+            print(f"[llm_chain] {provider['name']} {r.status_code} (bad key) -> 24h skip")
         elif r.status_code >= 400:
             print(f"[llm_chain] {provider['name']} {r.status_code}: {r.text[:120]}")
     except Exception as e:
@@ -154,7 +158,10 @@ def _call_gemini(provider: dict, prompt: str, max_tokens: int,
                     return parts[0]["text"].strip()
         if r.status_code == 429:
             _mark_cooldown(provider["name"])
-            print(f"[llm_chain] gemini 429 → cooldown")
+            print(f"[llm_chain] gemini 429 -> cooldown")
+        elif r.status_code in (401, 403):
+            _mark_cooldown(provider["name"], 86400)
+            print(f"[llm_chain] gemini {r.status_code} (bad key) -> 24h skip")
         elif r.status_code >= 400:
             print(f"[llm_chain] gemini {r.status_code}: {r.text[:120]}")
     except Exception as e:
@@ -183,7 +190,10 @@ def _call_anthropic(provider: dict, prompt: str, max_tokens: int,
             return r.json()["content"][0]["text"].strip()
         if r.status_code == 429:
             _mark_cooldown(provider["name"])
-            print(f"[llm_chain] anthropic 429 → cooldown")
+            print(f"[llm_chain] anthropic 429 -> cooldown")
+        elif r.status_code in (401, 403):
+            _mark_cooldown(provider["name"], 86400)
+            print(f"[llm_chain] anthropic {r.status_code} (bad key) -> 24h skip")
         elif r.status_code >= 400:
             print(f"[llm_chain] anthropic {r.status_code}: {r.text[:120]}")
     except Exception as e:
