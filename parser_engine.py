@@ -2512,6 +2512,115 @@ def _is_likely_multi_listing(text: str) -> bool:
     return price_count >= 3 or sqft_count >= 3
 
 
+def _llm_split_all_listings(text: str, timeout: int = 15) -> Optional[list]:
+    """LLM-powered split в N чанков. Каждый чанк — отдельное объявление.
+    Возвращает list[str] с текстами всех объявлений, или None при ошибке.
+    Если в тексте 1 объявление — возвращает [text] (один элемент).
+
+    Cache: md5(text[:2000]) → list of chunks.
+    """
+    if not text or len(text) < 100:
+        return [text] if text else None
+
+    h = _hashlib.md5((text[:2000] + "::ALL").encode('utf-8', errors='ignore')).hexdigest()
+    if h in _MULTI_SPLIT_CACHE:
+        cached = _MULTI_SPLIT_CACHE[h]
+        return cached if isinstance(cached, list) else [cached]
+
+    GROQ = os.environ.get("GROQ_API_KEY", "")
+    ANTH = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not (GROQ or ANTH):
+        return None
+
+    snippet = text[:4000]  # больше места — могут быть длинные multi-listing
+    prompt = (
+        "You are a UAE real estate text splitter. The following Telegram post "
+        "contains ONE OR MULTIPLE property listings. Split it into separate "
+        "listings — each chunk should contain ONE listing's full details "
+        "(building/location/bedrooms/sqft/price).\n\n"
+        "Return a JSON array of strings, each string is ONE listing's verbatim text.\n"
+        '  Format: ["listing1 text...", "listing2 text...", ...]\n\n'
+        "Rules:\n"
+        "- A new listing starts at: building name, 📍 location pin, or new property "
+        "type (Studio/1BR/Villa).\n"
+        "- Preserve original text VERBATIM — do not rephrase or summarize.\n"
+        "- Each chunk MUST contain at least price OR sqft OR bedrooms.\n"
+        "- If only ONE listing — return JSON array with single element.\n"
+        "- Maximum 15 chunks. If text contains banner/intro text without property "
+        "data — skip it (don't make it a chunk).\n"
+        "- Return ONLY the JSON array, no markdown fences, no commentary.\n\n"
+        f"Text:\n```\n{snippet}\n```\n\n"
+        "JSON array:"
+    )
+
+    text_resp = None
+    try:
+        import requests as _req
+        if GROQ:
+            r = _req.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ}",
+                         "Content-Type": "application/json"},
+                json={"model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+                      "max_tokens": 4000,
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=timeout)
+            if r.status_code == 200:
+                text_resp = r.json()["choices"][0]["message"]["content"].strip()
+        if not text_resp and ANTH:
+            r = _req.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": ANTH, "anthropic-version": "2023-06-01",
+                         "content-type": "application/json"},
+                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 4000,
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=timeout)
+            if r.status_code == 200:
+                text_resp = r.json()["content"][0]["text"].strip()
+    except Exception as e:
+        print(f"[parser] LLM split-all err: {e}")
+        return None
+
+    if not text_resp:
+        return None
+
+    # Parse JSON array — multi-line capable.
+    cleaned = re.sub(r'^```\w*\s*', '', text_resp)
+    cleaned = re.sub(r'\s*```\s*$', '', cleaned).strip()
+    # Try parsing the entire cleaned string as JSON first
+    chunks = None
+    try:
+        if cleaned.startswith('['):
+            chunks = _json.loads(cleaned)
+    except Exception:
+        pass
+    # Fallback: locate the [ ... ] block — DOTALL flag для multi-line content
+    if not isinstance(chunks, list):
+        m = re.search(r'\[[\s\S]*\]', cleaned)
+        if m:
+            try:
+                chunks = _json.loads(m.group(0))
+            except Exception as e:
+                print(f"[parser] LLM split-all JSON err: {e}")
+                return None
+    if not isinstance(chunks, list):
+        return None
+
+    if not isinstance(chunks, list) or not chunks:
+        return None
+
+    # Filter out tiny or empty chunks
+    chunks = [c.strip() for c in chunks if isinstance(c, str) and len(c.strip()) >= 30]
+    if not chunks:
+        return None
+
+    # Cache
+    if len(_MULTI_SPLIT_CACHE) >= _MULTI_SPLIT_MAX:
+        _MULTI_SPLIT_CACHE.pop(next(iter(_MULTI_SPLIT_CACHE)))
+    _MULTI_SPLIT_CACHE[h] = chunks
+    return chunks
+
+
 def _llm_split_first_listing(text: str, timeout: int = 12) -> Optional[str]:
     """LLM-powered first-listing extraction для multi-listing постов.
     Возвращает текст ТОЛЬКО первого объявления (где product, его цена и
