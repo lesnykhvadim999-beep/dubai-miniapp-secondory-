@@ -627,6 +627,60 @@ def is_spam(text: str) -> bool:
     tl = text.lower()
     if any(k in tl for k in SPAM_KEYWORDS): return True
     if any(k in tl for k in COMMERCIAL_KEYWORDS): return True
+
+    # v105: Vehicle listings disguised as real estate (BMW, Mercedes etc).
+    # Strong signal: car brand + (price OR transmission keyword).
+    car_brands = (
+        r'\b(?:bmw|mercedes|toyota|audi|ferrari|porsche|lamborghini|bentley|'
+        r'rolls[\s\-]?royce|honda|nissan|lexus|infiniti|chevrolet|ford|hyundai|'
+        r'kia|mazda|jeep|range\s+rover|land\s+rover|jaguar|mclaren|maserati|'
+        r'aston\s+martin|bugatti|tesla|cadillac|volkswagen|skoda|mitsubishi|'
+        r'subaru|gmc|chrysler|peugeot|renault|citroen)\s+'
+        r'(?:[a-z\d\-]+\s*){1,3}'
+    )
+    car_features = (
+        r'\b(?:automatic|manual|transmission|mileage|odometer|gcc\s+spec|'
+        r'leather\s+(?:seats?|interior)|sun\s*roof|panoramic\s+roof|'
+        r'turbocharg|v\d+\s+engine|cylinder|petrol|diesel|hybrid|'
+        r'horsepower|hp\b)\b'
+    )
+    if re.search(car_brands, tl) and re.search(car_features, tl):
+        return True
+    # Standalone "Year+Brand+Model" headline: "2018 BMW 640i M Sport"
+    if re.search(r'\b(?:20[01]\d|199\d)\s+(?:bmw|mercedes|audi|toyota|porsche|ferrari)\b', tl):
+        return True
+
+    # v105: Non-UAE real estate (Georgia/Turkey/Cyprus/Spain etc).
+    # If text mentions other countries WITHOUT Dubai/UAE markers — reject.
+    non_uae_markers = [
+        r'\b(?:tbilisi|batumi|kutaisi|rustavi|gudauri)\b',  # Georgia
+        r'\b(?:istanbul|antalya|bodrum|alanya|kusadasi|fethiye|izmir|bursa)\b',  # Turkey
+        r'\b(?:nicosia|limassol|paphos|larnaca|protaras)\b',  # Cyprus
+        r'\b(?:barcelona|madrid|marbella|valencia|malaga|alicante)\b',  # Spain
+        r'\b(?:phuket|pattaya|bangkok|hua\s+hin)\b',  # Thailand
+        r'\b(?:bali|jakarta|denpasar)\b',  # Indonesia
+        r'\b(?:moscow|москва|sochi|сочи|petersburg|петербург)\b',  # Russia
+        r'\bgeorgia\s+real\s+estate\b',
+        r'\bturkey\s+real\s+estate\b',
+        r'\bnorthern\s+cyprus\b',
+    ]
+    uae_markers = re.search(
+        r'\b(?:dubai|uae|emirates|abu\s+dhabi|sharjah|ajman|fujairah|'
+        r'ras\s+al\s+khaimah|rak|umm\s+al\s+quwain|دبي|الإمارات)\b', tl)
+    for marker in non_uae_markers:
+        if re.search(marker, tl) and not uae_markers:
+            return True
+
+    # v105: Investment / loan / business opportunity (not residential property).
+    # "Established and licensed business", "Investment partnership", "Loan opportunity"
+    investment_spam = [
+        r'\bestablished\s+(?:and\s+)?licens(?:ed)?\s+business',
+        r'\binvestment\s+(?:partnership|opportunity)\b.*\b(?:loan|business|company)\b',
+        r'\bbuy(?:ing)?\s+(?:a\s+)?(?:loan|business|company|franchise)\b',
+        r'\bbusiness\s+for\s+sale\b(?!.*(?:apartment|villa|townhouse|studio|land|plot))',
+    ]
+    if any(re.search(p, tl) for p in investment_spam):
+        return True
     # ── Buyer's request / search ad — это запрос, не предложение ───────────
     # Примеры: "❌ request ❌ Looking a hotel for sale Budget 90M"
     #          "Cash buyer looking for studio in JVC"
@@ -1308,6 +1362,39 @@ _BUILDING_HEUR_STOPWORDS = {
     "building for sale", "whole building", "entire building",
     "g+p+", "g+p", "ground+podium", "ground + podium",
     "total apartments", "total units", "total floors",
+    # ── v105: Patterns found by retro-audit v4 ──────────────────────────
+    # Marketing tag-lines that leaked into building
+    "below op", "below original price", "below market", "below market price",
+    "low market price", "best market price", "best price", "lowest price",
+    "iconic views", "iconic view", "stunning views", "panoramic views",
+    "full park", "park view", "garden view", "burj khalifa view",
+    "sea view", "marina view", "skyline view",
+    "surrounded", "surrounded by", "fully equipped", "fully fitted",
+    "roots", "essence", "soul", "spirit",   # generic marketing tag-words
+    "transferable payment plan", "flexible payment plan",
+    "act one act two",  # multi-listing slurp pattern
+    "act one", "act two",  # if alone — too generic
+    "smart home", "smart living", "smart investment",
+    "vacant on transfer", "ready to move", "key in hand",
+    "below the original price", "below opening price",
+    # Investment/loan/business opportunities (not real estate)
+    "investment opportunity", "investment required", "investor required",
+    "loan opportunity", "co-invest", "partnership",
+    "an established and licens", "licensed business", "established business",
+    "established and licensed",
+    # Feature descriptions
+    "community view", "10-20 floor", "high floor", "mid floor", "low floor",
+    "corner unit", "end unit",
+    # Generic locations not buildings
+    "downtown", "marina", "palm", "creek", "harbour", "harbor",
+    "dubai hill", "dubai hills", "dubailand",
+    # Vehicle/car keywords (when spam-leaked)
+    "bmw", "mercedes", "toyota", "audi", "ferrari", "porsche",
+    "honda", "nissan", "lexus", "infiniti",
+    # Statements with parsed numbers — handover/spec sheet lines
+    "q1 2026", "q2 2026", "q3 2026", "q4 2026",
+    "q1 2027", "q2 2027", "q3 2027", "q4 2027",
+    "q1 2028", "q2 2028", "q3 2028", "q4 2028",
 }
 
 
@@ -1437,7 +1524,32 @@ def _is_building_stopword(s: str) -> bool:
         if 'degree' in sl or 'with full' in sl:
             return True
     # Building name shouldn't contain phone digits or currency
+    # v105: catch comma-separated prices too ("850,000 AED")
     if re.search(r'\+?\d{6,}|aed\s*\d|\$\s*\d|€\s*\d', sl):
+        return True
+    # Comma-formatted price: "850,000", "1,250,000" etc.
+    if re.search(r'\d{1,3}(?:,\d{3}){1,}(?:\s*(?:aed|dh|dirham|usd|eur|\$|€| ))?', sl):
+        return True
+    # Number + AED/Dh anywhere
+    if re.search(r'\d[\d,\.\s]{2,}\s*(?:aed|dh|dirham|usd|eur|million|mln|m\b|k\b)', sl):
+        return True
+    # Unicode-spoofed (Cyrillic/Greek/Mathematical letters disguised as Latin).
+    # Real Dubai building names use ASCII letters only (plus occasional ', &, -, digits).
+    # If contains chars from Cyrillic (U+0400-U+04FF), Greek (U+0370-U+03FF),
+    # Mathematical Alphanumeric (U+1D400-U+1D7FF) — reject.
+    if re.search(r'[Ͱ-ϿЀ-ӿԀ-ԯⷠ-ⷿ]', s):
+        return True
+    # Mathematical alphanumeric (U+1D400-U+1D7FF) is on BMP supplementary plane
+    if re.search(r'[\U0001D400-\U0001D7FF]', s):
+        return True
+    # Tons of emoji ⛅🏛🏢🌟💎🔥 в имени → не building
+    # Allow at most 0-2 emoji-like glyphs; reject 3+
+    emoji_count = len(re.findall(
+        r'[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF]', sl))
+    if emoji_count >= 3:
+        return True
+    # "Building" string that starts/ends with multiple emoji + has only 1-2 words
+    if emoji_count >= 1 and len(sl.split()) <= 2:
         return True
     # Building shouldn't contain too many words (real building 1-5 words max)
     if len(sl.split()) > 7:
@@ -2228,6 +2340,14 @@ def extract_price(text: str) -> dict:
         r'(?:on\s+(?:handover|transfer|completion|handower)|to\s+(?:the\s+)?(?:owner|developer|builder)|'
         r'left\s+(?:on\s+)?(?:post[\s\-]?handover|to\s+pay)|remaining)',
         ' ', text, flags=re.I)
+    # v105: "Handover payment X" / "handover portion X" — куски, не total
+    text = re.sub(
+        r'\bhandover\s+(?:payment|portion|amount|cost)[\s:=]+(?:aed\s+)?[\d., ]+\s*[mk]?',
+        ' ', text, flags=re.I)
+    # v105: Q1 2026 - X / Q3 2025 - X — handover date + handover amount, не sale total
+    text = re.sub(
+        r'\bq[1-4]\s+\d{4}\s*[\-\—\:]\s*(?:aed\s+)?[\d., ]+\s*[mk]?',
+        ' ', text, flags=re.I)
     # «PHPP\nN» / «PHPP: N» — Post-Handover Payment Plan installment, не цена
     text = re.sub(
         r'\bphpp[\s:\n]+[\d., ]+(?:\s*\([^)]*\))?', ' ', text, flags=re.I)
@@ -2287,9 +2407,10 @@ def extract_price(text: str) -> dict:
         ' ', text, flags=re.I)
     # Strip per-sqft/per-sqm references — these are unit prices, NOT total price.
     # Examples: "1000aed per sqft", "1,300 AED/sqft", "$450 psf",
-    #           "market price 1300aed per sqft", "1.5K per sqm"
+    #           "market price 1300aed per sqft", "1.5K per sqm", "500K sqft"
+    # v105: добавлен суффикс [kKmM]? после числа — для "500k sqft" land/area
     text = re.sub(
-        r'[\d,\.]+\s*(?:aed|usd|eur)?\s*[/\\]?\s*(?:per\s+)?'
+        r'[\d,\.]+\s*[kKmM]?\s*(?:aed|usd|eur)?\s*[/\\]?\s*(?:per\s+)?'
         r'(?:sq\.?\s*ft|sqft|psf|sq\.?\s*m|sqm|psm|кв\.?\s*м|кв\.?\s*фут)',
         ' ', text, flags=re.I)
     # Also strip area-as-meters: "74 m²" / "74 m^2" / "74 m2" — это размер не цена.
@@ -2381,6 +2502,8 @@ def extract_price(text: str) -> dict:
     for selling_pat in [
         # NEW PRICE сначала — приоритет над OLD selling price если есть оба
         r'\bnew\s+price\s*[:\-]*\s*(?:aed\s+)?([\d,\. ]+\s*[mkb]?l?)',
+        # v105: "Final" / "Final Price" / "Final & Covered" имеют приоритет
+        r'\bfinal\s+(?:price|cost|amount|&\s+covered)?[\s:\-]*(?:aed\s+)?([\d,\. ]+\s*[mkb]?l?)',
         r'(?:\bsp\b|sales?\s*price|selling\s*price|sale\s*price|final\s*price|asking\s*price|net\s+price|net\s+to\s+seller)[\s:\-]*(?:aed\s+)?([\d,\. ]+\s*[mkb]?l?)',
         r'\bselling[\s:\-]+(?:aed\s+)?(\d[\d,\. ]*\s*[mkb]?l?)',
         # plain "price" но не «Op is price», «from price»
@@ -2393,6 +2516,20 @@ def extract_price(text: str) -> dict:
                 result["selling_price"] = v
                 result["price"] = v
                 break
+
+    # v105: Telegram-style emoji-flanked price "♦️♦️X♦️♦️" / "🔥X🔥"
+    # before falling back to OP. Real seller-marked final price.
+    if not result["price"]:
+        _emoji_flank = re.search(
+            r'(?:♦️♦️|♦️|💎|🔴|🌟|⭐️|🔥|✨)+\s*'
+            r'([\d,\. ]+\s*[mkb]?l?)\s*'
+            r'(?:♦️♦️|♦️|💎|🔴|🌟|⭐️|🔥|✨)+',
+            t)
+        if _emoji_flank:
+            v = _parse_amount(_emoji_flank.group(1))
+            if v and v > 100_000:
+                result["selling_price"] = v
+                result["price"] = v
 
     # If we still have only original_price, use it as fallback
     if result["original_price"] and not result["price"]:
@@ -2497,6 +2634,22 @@ def extract_price(text: str) -> dict:
                     break
             if result["price"]:
                 break
+
+    # v105: SANITY FLOOR. If text clearly says "for sale" (not rent) and price is
+    # suspiciously low (< 100k AED) — likely parser caught a sqft, payment-portion,
+    # or handover-installment number. Reject and let downstream LLM extract.
+    if result["price"] and result["price"] < 100_000:
+        tl_check = text[:2000].lower()
+        is_sale = bool(re.search(
+            r'\b(?:for\s+sale|fo?r\s+sa[lr]e|sale\s+price|selling|for\s+sa|listed\s+for\s+sale)\b',
+            tl_check))
+        is_rent = bool(re.search(
+            r'\b(?:for\s+rent|fo?r\s+rent|rent\s+price|rental|yearly\s+rent|/year|/yr|per\s+year|annual\s+rent)\b',
+            tl_check))
+        if is_sale and not is_rent:
+            # Suspicious — sale ad with sub-100k price. Likely sqft/handover misread.
+            result["price"] = None
+            result["selling_price"] = None
 
     # Sanity cap: price > 10 billion AED is almost certainly a parsing error.
     if result["price"] and result["price"] > 10_000_000_000:
@@ -3164,16 +3317,56 @@ def normalize_via_dld(building: Optional[str], area: Optional[str]) -> tuple:
 _BUILDING_AREA_CACHE: dict = {}
 
 
-def infer_area_from_building(building: str, db_dsn: str = None) -> Optional[str]:
+def infer_area_from_building(building: str, db_dsn: str = None,
+                              full_text: str = "") -> Optional[str]:
     """Trying 3 sources в каскаде:
     1. DLD canonical building→area mapping (4773 buildings)
     2. Существующие DB records с тем же building (majority area)
     3. Groq LLM с вопросом «in which Dubai district is X building?»
     Результат кешируется в _BUILDING_AREA_CACHE.
+
+    v105: добавлен full_text аргумент для disambiguation
+    (Palm Jumeirah vs Palm Jebel Ali, DAMAC Lagoons clusters etc).
     """
     if not building:
         return None
     key = building.strip().lower()
+
+    # v105: text-based DISAMBIGUATION FIRST. Если в полном тексте есть явное
+    # упоминание area — оно бьёт DLD/DB/LLM-инференс.
+    if full_text:
+        tl = full_text.lower()
+        # Palm Jumeirah vs Palm Jebel Ali — критичный case (разные острова).
+        if 'palm' in key or 'frond' in key or 'palm jumeirah' in tl or 'palm jebel ali' in tl:
+            if re.search(r'\bpalm\s+jebel\s+ali\b|\bjebel\s+ali\b', tl):
+                _BUILDING_AREA_CACHE[key] = "Palm Jebel Ali"
+                return "Palm Jebel Ali"
+            if re.search(r'\bpalm\s+jumeirah\b', tl):
+                _BUILDING_AREA_CACHE[key] = "Palm Jumeirah"
+                return "Palm Jumeirah"
+        # DAMAC Lagoons clusters (Santorini, Malta, Mykonos, Ibiza, ...)
+        if re.search(r'\bdamac\s+lagoons?\b', tl):
+            _BUILDING_AREA_CACHE[key] = "DAMAC Lagoons"
+            return "DAMAC Lagoons"
+        # The Oasis (Address Villas / Tilal / etc are in The Oasis)
+        if re.search(r'\bthe\s+oasis\b', tl):
+            return "The Oasis"
+        # Grand Polo Club & Resort (new Emaar)
+        if re.search(r'\bgrand\s+polo\s+club\b', tl):
+            return "Grand Polo Club & Resort"
+        # Bluewaters Island
+        if re.search(r'\bbluewaters?\s+island\b', tl):
+            return "Bluewaters Island"
+        # Dubai Harbour (отдельно от Marina)
+        if re.search(r'\bdubai\s+harbour\b', tl):
+            return "Dubai Harbour"
+        # Creek Harbour (отдельно от Downtown)
+        if re.search(r'\bcreek\s+harbour\b|\bcreek\s+harbor\b', tl):
+            return "Dubai Creek Harbour"
+        # JBR (Jumeirah Beach Residence) — иначе путается с Marina
+        if re.search(r'\bjbr\b|\bjumeirah\s+beach\s+residence\b', tl):
+            return "JBR"
+
     if key in _BUILDING_AREA_CACHE:
         return _BUILDING_AREA_CACHE[key]
 
@@ -3205,31 +3398,11 @@ def infer_area_from_building(building: str, db_dsn: str = None) -> Optional[str]
         except Exception as _e:
             print(f"[parser] DB infer_area err: {_e}")
 
-    # Step 3: LLM chain (Cerebras → Groq → SambaNova → Mistral → Gemini → ...)
-    prompt = (
-        f"You are a UAE real estate database. In which Dubai (or other UAE emirate) "
-        f"district/community is the building '{building}' located? "
-        f"Return ONLY a JSON object with a single 'area' field. "
-        f'Examples: {{"area": "Jumeirah Village Circle"}} or {{"area": "Dubai Marina"}}. '
-        f"If you don't know with confidence, return: {{\"area\": null}}.\n\n"
-        f"Use the FAMILIAR user-known name (JVC, Marina, Downtown, etc.), "
-        f"NOT DLD official names like 'Al Barsha South Fourth'."
-    )
-    text = _llm(prompt, max_tokens=80, timeout=10)
-    if text:
-        try:
-            cleaned = re.sub(r'```(?:json)?\s*', '', text).rstrip('` \n')
-            m = re.search(r'\{[^{}]*\}', cleaned, re.S)
-            if m:
-                obj = _json.loads(m.group(0))
-                area = obj.get("area")
-                if area and isinstance(area, str) and len(area) >= 3:
-                    friendly = _DLD_TO_FRIENDLY.get(area, area)
-                    _BUILDING_AREA_CACHE[key] = friendly
-                    return friendly
-        except Exception as _e:
-            print(f"[parser] LLM infer_area parse err: {_e}")
-
+    # v105: Step 3 LLM-based inference DISABLED for unknown buildings.
+    # LLM hallucinated areas regularly: Lime Gardens → MBR City (real: Dubai Hills),
+    # Opal Gardens → Arabian Ranches (real: District 11), Address The Bay → Dubai
+    # Marina (real: Emaar Beachfront). Better to leave NULL than to guess wrong.
+    # Caller can defer to LLM full-listing extraction for tough cases.
     _BUILDING_AREA_CACHE[key] = None
     return None
 
@@ -4112,9 +4285,10 @@ def parse_message(
     # Cron-friendly: вызывается ТОЛЬКО когда area null OR явно странный
     # (multi-listing leak).
     if data.get("building"):
-        # 1. Если area отсутствует — заполняем через infer
+        # 1. Если area отсутствует — заполняем через infer (с full_text для disambiguation)
         if not data.get("area"):
-            inferred = infer_area_from_building(data["building"])
+            inferred = infer_area_from_building(
+                data["building"], full_text=text or "")
             if inferred:
                 data["area"] = inferred
                 data["area_confidence"] = 0.85
