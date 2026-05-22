@@ -4381,13 +4381,22 @@ def _llm_quality_gate(data: dict, full_text: str, timeout: int = 15) -> dict:
     """
     if not full_text or len(full_text) < 100:
         return data
+    # v105.1: расширенный trigger — fire on ANY missing field.
+    # Цель: догнать completeness до 95%. Building/size/bedrooms часто NULL
+    # после regex, но в тексте присутствуют. LLM их вытянет.
     price = data.get("price") or 0
     high_stakes = price >= 1_500_000
-    missing_critical = not data.get("price") or not data.get("building") or not data.get("area")
+    missing_critical = (
+        not data.get("price") or not data.get("building") or
+        not data.get("area") or not data.get("bedrooms") or
+        not data.get("size_sqft")
+    )
     multi_risk = _is_likely_multi_listing(full_text)
+    # Run for any decent-length listing — LLM cost ~$0.001 per call, daily quota OK.
+    long_listing = len(full_text) >= 200
 
-    if not (high_stakes or missing_critical or multi_risk):
-        return data  # low-risk simple case — trust regex
+    if not (high_stakes or missing_critical or multi_risk or long_listing):
+        return data  # very short/trivial — skip
 
     # Cache check
     h = _hashlib.md5((full_text[:2000] + "::qgate").encode('utf-8', 'ignore')).hexdigest()
@@ -4400,7 +4409,7 @@ def _llm_quality_gate(data: dict, full_text: str, timeout: int = 15) -> dict:
     parsed_summary = (
         f"building={data.get('building')!r}, area={data.get('area')!r}, "
         f"price={data.get('price')!r}, bedrooms={data.get('bedrooms')!r}, "
-        f"deal_type={data.get('deal_type')!r}"
+        f"size_sqft={data.get('size_sqft')!r}, deal_type={data.get('deal_type')!r}"
     )
     prompt = (
         "You are a Dubai real estate parser QA. Compare PARSED fields vs ORIGINAL text. "
@@ -4408,20 +4417,24 @@ def _llm_quality_gate(data: dict, full_text: str, timeout: int = 15) -> dict:
         "PARSED:\n"
         f"{parsed_summary}\n\n"
         "ORIGINAL TEXT:\n```\n" + snippet + "\n```\n\n"
-        "Output JSON with these keys (set value to null if parsed is correct):\n"
-        '  "building": str|null (correct building name from text, or null if parsed is fine)\n'
-        '  "area": str|null (correct district/community using FAMILIAR name like JVC, Marina, '
-        'Palm Jumeirah, Palm Jebel Ali; null if fine)\n'
-        '  "price": int|null (correct AED price as integer; null if fine)\n'
-        '  "bedrooms": int|null (0 for studio, 1-N otherwise; null if fine)\n'
-        '  "deal_type": "sale"|"rent"|null (null if fine)\n'
-        '  "confidence": 0-100 integer for your overall confidence\n'
-        '  "should_reject": bool — true if listing is spam/non-Dubai/car/business and should be dropped\n\n'
+        "Output JSON with these keys (set value to null if parsed is correct OR not extractable):\n"
+        '  "building": str|null (specific project/tower name, e.g. "Binghatti Nova", "Sobha One"; '
+        'NOT a generic word like "Apartment" or "Villa")\n'
+        '  "area": str|null (district using FAMILIAR name: JVC, Marina, Downtown, Palm Jumeirah, '
+        'Palm Jebel Ali, Business Bay, etc.)\n'
+        '  "price": int|null (AED as integer, e.g. 2500000)\n'
+        '  "bedrooms": int|null (0 for studio, 1-N otherwise)\n'
+        '  "size_sqft": int|null (size in square feet; convert sqm to sqft via *10.764)\n'
+        '  "deal_type": "sale"|"rent"|null\n'
+        '  "confidence": 0-100 integer\n'
+        '  "should_reject": bool — true if spam/non-Dubai/car/business\n\n'
         "Rules:\n"
-        "- For Palm Jumeirah vs Palm Jebel Ali — read text carefully, they are DIFFERENT islands\n"
-        "- For multi-listing posts — focus on the FIRST listing only\n"
-        "- If parsed building looks like marketing ('Below OP', 'Iconic Views') — return real building name\n"
-        "- ONLY output valid JSON, no markdown fences, no commentary"
+        "- Palm Jumeirah vs Palm Jebel Ali — DIFFERENT islands, read carefully\n"
+        "- Multi-listing — focus on FIRST listing only\n"
+        "- If parsed building looks like marketing ('Below OP', 'Iconic Views', 'Brand New') "
+        "— return real building name\n"
+        "- DO NOT invent: if info absent, leave that field null\n"
+        "- ONLY valid JSON, no markdown, no commentary"
     )
 
     try:
@@ -4507,6 +4520,16 @@ def _apply_qgate_corrections(data: dict, corrections: dict) -> dict:
         if 0 <= new_bed <= 20 and data.get("bedrooms") != new_bed:
             data["bedrooms"] = new_bed
             data["bedrooms_source"] = "llm_qgate"
+
+    # v105.1: size_sqft correction (fills NULL or fixes wildly-off)
+    new_size = corrections.get("size_sqft")
+    if new_size is not None and isinstance(new_size, (int, float)) and conf >= 75:
+        new_size = int(new_size)
+        old_size = data.get("size_sqft") or 0
+        if 200 <= new_size <= 100_000:  # same sanity as regex parser
+            if not old_size or (old_size > 0 and abs(new_size - old_size) / max(old_size, 1) > 0.5):
+                data["size_sqft"] = new_size
+                data["size_source"] = "llm_qgate"
 
     # deal_type correction
     new_deal = corrections.get("deal_type")
