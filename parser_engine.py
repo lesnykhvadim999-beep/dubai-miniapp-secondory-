@@ -2936,6 +2936,108 @@ def normalize_via_dld(building: Optional[str], area: Optional[str]) -> tuple:
     return new_bld, new_area
 
 
+# ─── BUILDING → AREA INFERENCE CACHE ─────────────────────────────────────
+# Building name → known area. Кеш для каждого building чтобы не дёргать LLM
+# каждый раз. Заполняется из DLD + DB + Groq.
+_BUILDING_AREA_CACHE: dict = {}
+
+
+def infer_area_from_building(building: str, db_dsn: str = None) -> Optional[str]:
+    """Trying 3 sources в каскаде:
+    1. DLD canonical building→area mapping (4773 buildings)
+    2. Существующие DB records с тем же building (majority area)
+    3. Groq LLM с вопросом «in which Dubai district is X building?»
+    Результат кешируется в _BUILDING_AREA_CACHE.
+    """
+    if not building:
+        return None
+    key = building.strip().lower()
+    if key in _BUILDING_AREA_CACHE:
+        return _BUILDING_AREA_CACHE[key]
+
+    # Step 1: DLD canonical
+    dld_area = _DLD_CANONICAL.get("building_areas", {}).get(key)
+    if dld_area:
+        # Convert DLD official → friendly
+        friendly = _DLD_TO_FRIENDLY.get(dld_area, dld_area)
+        _BUILDING_AREA_CACHE[key] = friendly
+        return friendly
+
+    # Step 2: DB majority — if we have 5+ records of this building with non-null
+    # area, take the most common one.
+    if not db_dsn:
+        db_dsn = os.environ.get("DATABASE_URL", "")
+    if db_dsn:
+        try:
+            import psycopg2 as _pg
+            _conn = _pg.connect(db_dsn, connect_timeout=5)
+            _cur = _conn.cursor()
+            _cur.execute("""SELECT area, COUNT(*) AS n FROM listings
+                WHERE LOWER(building)=%s AND area IS NOT NULL
+                GROUP BY area ORDER BY n DESC LIMIT 1""", (key,))
+            row = _cur.fetchone()
+            _cur.close(); _conn.close()
+            if row and row[1] >= 5:  # need ≥ 5 confirmations
+                _BUILDING_AREA_CACHE[key] = row[0]
+                return row[0]
+        except Exception as _e:
+            print(f"[parser] DB infer_area err: {_e}")
+
+    # Step 3: Groq LLM — one-off lookup
+    GROQ = os.environ.get("GROQ_API_KEY", "")
+    ANTH = os.environ.get("ANTHROPIC_API_KEY", "")
+    if GROQ or ANTH:
+        prompt = (
+            f"You are a UAE real estate database. In which Dubai (or other UAE emirate) "
+            f"district/community is the building '{building}' located? "
+            f"Return ONLY a JSON object with a single 'area' field. "
+            f'Examples: {{"area": "Jumeirah Village Circle"}} or {{"area": "Dubai Marina"}}. '
+            f"If you don't know with confidence, return: {{\"area\": null}}.\n\n"
+            f"Use the FAMILIAR user-known name (JVC, Marina, Downtown, etc.), "
+            f"NOT DLD official names like 'Al Barsha South Fourth'."
+        )
+        try:
+            import requests as _req
+            text = None
+            if ANTH:
+                r = _req.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={"x-api-key": ANTH, "anthropic-version": "2023-06-01",
+                             "content-type": "application/json"},
+                    json={"model": "claude-haiku-4-5-20251001", "max_tokens": 80,
+                          "messages": [{"role": "user", "content": prompt}]},
+                    timeout=10)
+                if r.status_code == 200:
+                    text = r.json()["content"][0]["text"].strip()
+            if not text and GROQ:
+                r = _req.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {GROQ}",
+                             "Content-Type": "application/json"},
+                    json={"model": "llama-3.3-70b-versatile",
+                          "max_tokens": 80,
+                          "messages": [{"role": "user", "content": prompt}]},
+                    timeout=10)
+                if r.status_code == 200:
+                    text = r.json()["choices"][0]["message"]["content"].strip()
+            if text:
+                cleaned = re.sub(r'```(?:json)?\s*', '', text).rstrip('` \n')
+                m = re.search(r'\{[^{}]*\}', cleaned, re.S)
+                if m:
+                    obj = _json.loads(m.group(0))
+                    area = obj.get("area")
+                    if area and isinstance(area, str) and len(area) >= 3:
+                        # Apply friendly mapping just in case
+                        friendly = _DLD_TO_FRIENDLY.get(area, area)
+                        _BUILDING_AREA_CACHE[key] = friendly
+                        return friendly
+        except Exception as _e:
+            print(f"[parser] LLM infer_area err: {_e}")
+
+    _BUILDING_AREA_CACHE[key] = None
+    return None
+
+
 # DLD official area names → user-friendly names.
 # Юзеры ищут «JVC», не «Al Barsha South Fourth». Конвертируем при выводе.
 _DLD_TO_FRIENDLY = {
@@ -3797,6 +3899,31 @@ def parse_message(
         data["building"] = canon_bld
     if canon_area and canon_area != data.get("area"):
         data["area"] = canon_area
+
+    # ── Building → area cross-check ─────────────────────────────────────
+    # Если есть building, проверяем что area совпадает с тем где building
+    # реально находится. Используем 3 источника: DLD → DB majority → Groq.
+    # Cron-friendly: вызывается ТОЛЬКО когда area null OR явно странный
+    # (multi-listing leak).
+    if data.get("building"):
+        # 1. Если area отсутствует — заполняем через infer
+        if not data.get("area"):
+            inferred = infer_area_from_building(data["building"])
+            if inferred:
+                data["area"] = inferred
+                data["area_confidence"] = 0.85
+                data["area_source"] = "inferred"
+        # 2. Если area есть — проверяем DLD building→area, переписываем если есть
+        else:
+            bld_key = data["building"].strip().lower()
+            dld_area = _DLD_CANONICAL.get("building_areas", {}).get(bld_key)
+            if dld_area:
+                friendly = _DLD_TO_FRIENDLY.get(dld_area, dld_area)
+                if data["area"].strip().lower() != friendly.strip().lower():
+                    # Conflict — DLD wins (это source of truth)
+                    data["area"] = friendly
+                    data["area_confidence"] = 0.95
+                    data["area_source"] = "dld_override"
 
     # ── Stage 3: LLM fallback — если building всё ещё NULL, спросим Claude/Groq.
     # Лимит: только для текста ≥80 chars (иначе шум). Если LLM нашёл — пробуем
