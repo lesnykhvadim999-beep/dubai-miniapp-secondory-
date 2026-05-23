@@ -4986,6 +4986,11 @@ def handle_msg(msg):
             return
         if cmd == "start":
             user_lang.pop(uid, None); _reset(uid)
+            # v53: parse deep-link payload (from_hub, from_offplan_NNN, from_roi, from_analytics)
+            # Just logs the source — payload is for cross-bot tracking, no special UI.
+            if " " in text:
+                payload = text.split(" ", 1)[1].strip()
+                print(f"[resale] /start payload={payload} uid={uid}", flush=True)
             send_welcome_with_logo(cid, uid)
         elif cmd == "menu":  show_main(cid, uid)
         elif cmd == "stats": show_stats(cid, uid)
