@@ -969,7 +969,35 @@ def _send_pdf(cid, uid, listing):
             mkt = MARKET.get(listing["area"])
         score = compute_investment_score(listing, dld_b, mkt)
         lang = _get_lang(uid)
-        pdf_path = generate_pdf(listing, score, lang=lang)
+
+        # v_pdf2: общий брендовый Vadim Realty PDF (10 страниц).
+        pdf_path = None
+        try:
+            from vadim_pdf import generate_pdf_report
+            payload = {
+                "name": listing.get("building") or listing.get("area") or "Listing",
+                "title": listing.get("building") or "Property",
+                "area": listing.get("area"),
+                "emirate": listing.get("emirate"),
+                "avg_price": listing.get("price"),
+                "price_per_m2": (listing.get("price_per_sqft") or 0) * 10.764 if listing.get("price_per_sqft") else None,
+                "area_m2": (listing.get("size_sqft") or 0) * 0.0929 if listing.get("size_sqft") else None,
+                "yield": (mkt or {}).get("yield") if mkt else None,
+                "growth_yoy": (mkt or {}).get("growth_yoy") if mkt else None,
+                "deals": (dld_b or {}).get("deals") if dld_b else None,
+                "description": f"{listing.get('bedrooms','?')} BR · {listing.get('property_type','')} · score {score}",
+                "signals": [
+                    f"Investment score: {score}" if score else None,
+                    f"ROI estimate: {listing.get('roi_estimate')}%" if listing.get('roi_estimate') else None,
+                    f"Discount vs market: {listing.get('discount_percent')}%" if listing.get('discount_percent') else None,
+                ],
+            }
+            payload["signals"] = [s for s in payload["signals"] if s]
+            pdf_path = generate_pdf_report("listing", payload, lang=lang)
+        except Exception as _e:
+            print(f"[resale] vadim_pdf failed, fallback to legacy: {_e}")
+            pdf_path = generate_pdf(listing, score, lang=lang)
+
         if not pdf_path or not os.path.exists(pdf_path):
             _send(cid, {"en":"PDF failed","ru":"PDF не создан","ar":"فشل"}.get(lang,"PDF failed"))
             return
