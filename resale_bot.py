@@ -2276,12 +2276,6 @@ def format_card(listing, uid, rank=None):
             print(f"[bot] invest section: {_e}")
 
     return "\n".join(lines)
-    if roi and deal_type == "sale":
-        lines.append(f"📈 ROI {roi}% / year")
-    if score:
-        lines.append(f"⭐ Score {score}/10")
-
-    return "\n".join(lines)
 
 
 def format_detail(listing, uid):
@@ -5447,8 +5441,9 @@ def handle_msg(msg):
                 wid = int(cmd[len("unwatch_"):])
                 from db_schema import remove_watchlist
                 ok = remove_watchlist(uid, wid)
-                msg = _t(uid, "watch_removed") if ok else "Not found."
-                _send(cid, msg, kb_main_reply(uid))
+                # NB: avoid shadowing outer `msg` dict — use distinct local name
+                reply = _t(uid, "watch_removed") if ok else "Not found."
+                _send(cid, reply, kb_main_reply(uid))
             except Exception as _e:
                 _send(cid, "⚠ /unwatch_N — invalid id.")
             return
