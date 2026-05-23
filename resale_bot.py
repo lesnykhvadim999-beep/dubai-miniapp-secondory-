@@ -148,28 +148,15 @@ T = {
 "en": {
     "welcome": (
         "𝗗𝘂𝗯𝗮𝗶 𝗥𝗲𝗮𝗹 𝗘𝘀𝘁𝗮𝘁𝗲 𝗜𝗻𝘁𝗲𝗹𝗹𝗶𝗴𝗲𝗻𝗰𝗲\n"
-        "────────────────────\n"
-        "Your private real estate advisor for the UAE market.\n"
-        "3,700+ verified listings · ROI · Hot deals\n"
-        "Dubai · Abu Dhabi · RAK · Sharjah\n\n"
-        "*Quick start:*\n"
-        "1. Pick your language below\n"
-        "2. Tap any category in the main menu\n"
-        "3. Use ✦ AI Property Advisor for natural-language search\n\n"
-        "*Part of Vadim Realty ecosystem:*\n"
-        "• Hub: @dubai_realty_hub_bot\n"
-        "• Off-plan: @dubai_projects_monitor_bot\n"
-        "• ROI calculator: @dubai_roi_fpr_bot\n"
-        "• DLD analytics: @Analitik_price_bot\n"
-        "• Personal contact: @dubai_fpr_lead_bot\n\n"
-        "────────────────────\n"
+        "Your private UAE real estate advisor.\n"
+        "3,700+ verified listings · ROI · Hot deals\n\n"
         "Select your language ⬇️"
     ),
     "lang_set": "English selected",
     "main_menu": "────────────────────\n  UAE PROPERTY SEARCH\n────────────────────",
     "btn_ai":       "✦  AI Property Advisor",
     "btn_filter":   "Search by Filters",
-    "btn_hot":      "Hot Deals  ·  Below Market",
+    "btn_hot":      "Hot Deals",
     "btn_new":      "New Listings",
     "btn_budget":   "Search by Budget",
     "btn_area":     "Search by Area",
@@ -416,7 +403,7 @@ T = {
     "main_menu": "────────────────────\n  ПОИСК НЕДВИЖИМОСТИ\n────────────────────",
     "btn_ai":       "✦  AI Подбор объекта",
     "btn_filter":   "Поиск по фильтрам",
-    "btn_hot":      "Горячие предложения  ·  Ниже рынка",
+    "btn_hot":      "Горячие предложения",
     "btn_new":      "Новые объявления",
     "btn_budget":   "Поиск по бюджету",
     "btn_area":     "Поиск по району",
@@ -662,7 +649,7 @@ T = {
     "main_menu": "────────────────────\n  بحث العقارات\n────────────────────",
     "btn_ai":       "✦  مستشار AI العقاري",
     "btn_filter":   "البحث بالفلاتر",
-    "btn_hot":      "أفضل الصفقات  ·  أقل من السوق",
+    "btn_hot":      "أفضل الصفقات",
     "btn_new":      "الإعلانات الجديدة",
     "btn_budget":   "البحث بالميزانية",
     "btn_area":     "البحث بالمنطقة",
@@ -1113,21 +1100,16 @@ def _reply_remove():
 
 
 def kb_main_reply(uid):
-    """Persistent bottom menu — always visible.
-    Categories by deal type, so each entry leads ONLY to its own results:
-    - Buy → sale residential only
-    - Rent → rent residential only
-    - Commercial → office/retail/warehouse/hotel (any deal type)
-    - Land → plot only
-    Then: hot/new shortcuts, AI assistant, add listing, language.
+    """v53 UX (Layla): bottom menu compressed to 4 rows (was 6).
+    Частые действия наверху, редкие (Add, Lang) — через команды /add /lang.
+    Hot/New объединены в одну строку с AI — это quick-access shortcuts.
+    Хендлеры на rbtn_add / rbtn_lang сохранены для обратной совместимости.
     """
     return _reply_kb([
         [_t(uid, "rbtn_buy"),        _t(uid, "rbtn_rent")],
         [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
-        [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new")],
-        [_t(uid, "rbtn_ai"),         _t(uid, "rbtn_add")],
-        [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts")],
-        [_t(uid, "rbtn_lang")],
+        [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new"),   _t(uid, "rbtn_ai")],
+        [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts"), _t(uid, "rbtn_lang")],
     ])
 
 
