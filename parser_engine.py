@@ -4859,44 +4859,26 @@ def expand_abbreviations(text):
 DLD_DB_URL = "postgresql://postgres:REDACTED_ARCHIVE_DB_PASSWORD@switchback.proxy.rlwy.net:23244/railway"
 
 def dld_lookup(building_name):
-    """Lookup building in live DLD Postgres. Returns dict with building/area/avg_price or None.
-    Includes AVG(actual_worth) so callers can do price comparison.
+    """v110 READ-MODEL ONLY: lookup строится через dxb_stats_client
+    (read-model building_stats), а не через raw dld_sales_unified.
+    Возвращает dict с building/area/avg_price/count или None.
     """
     if not building_name or len(building_name) < 3:
         return None
     try:
-        import psycopg2
-        conn = psycopg2.connect(DLD_DB_URL, connect_timeout=5)
-        cur = conn.cursor()
-        # Exact match (case-insensitive)
-        cur.execute("""
-            SELECT building_name_en, area_name_en, AVG(actual_worth) AS avg_price, COUNT(*) AS cnt
-            FROM dld_sales_unified
-            WHERE UPPER(building_name_en) = UPPER(%s) AND building_name_en != ''
-            GROUP BY building_name_en, area_name_en
-            ORDER BY cnt DESC LIMIT 1
-        """, (building_name,))
-        row = cur.fetchone()
-        if not row:
-            # Partial match
-            cur.execute("""
-                SELECT building_name_en, area_name_en, AVG(actual_worth) AS avg_price, COUNT(*) AS cnt
-                FROM dld_sales_unified
-                WHERE building_name_en ILIKE %s AND building_name_en != ''
-                GROUP BY building_name_en, area_name_en
-                ORDER BY cnt DESC LIMIT 1
-            """, ('%' + building_name + '%',))
-            row = cur.fetchone()
-        cur.close()
-        conn.close()
-        if row:
+        import dxb_stats_client as _dxb
+        # 12-мес окно достаточно для price comparison новой sale-листинга
+        row = _dxb.get_building_stats(building_name, months=12,
+                                      rooms=None, deal_type="sale")
+        if row and (row.get("deals") or 0) > 0:
             return {
-                "building": row[0],
-                "area": row[1],
-                "avg_price": float(row[2]) if row[2] else None,
-                "count": int(row[3]) if row[3] else 0,
+                "building": row.get("building_name") or building_name,
+                "area": row.get("area_name"),
+                "avg_price": float(row["avg_price"]) if row.get("avg_price") else None,
+                "count": int(row.get("deals") or 0),
             }
-    except Exception:
+    except Exception as _e:
+        # тихо — caller сам решит как обработать None
         pass
     return None
 
