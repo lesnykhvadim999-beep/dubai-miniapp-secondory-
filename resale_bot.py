@@ -3562,22 +3562,29 @@ def dispatch_main_button(cid, uid, rkey):
         _reset(uid)
         gs(uid)["filters"]["deal_type"] = "sale"
         gs(uid)["filters"]["property_type_not_in"] = COMMERCIAL_TYPES + LAND_TYPES
+        # Wizard hints — recovered by do_search if filters are dropped en route
+        gs(uid)["wizard_deal_hint"] = "sale"
+        gs(uid)["wizard_pt_not_in_hint"] = COMMERCIAL_TYPES + LAND_TYPES
         gs(uid)["wizard"] = "emirate"
         _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
     elif rkey == "rbtn_rent":
         _reset(uid)
         gs(uid)["filters"]["deal_type"] = "rent"
         gs(uid)["filters"]["property_type_not_in"] = COMMERCIAL_TYPES + LAND_TYPES
+        gs(uid)["wizard_deal_hint"] = "rent"
+        gs(uid)["wizard_pt_not_in_hint"] = COMMERCIAL_TYPES + LAND_TYPES
         gs(uid)["wizard"] = "emirate"
         _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
     elif rkey == "rbtn_commercial":
         _reset(uid)
         gs(uid)["filters"]["property_type_in"] = COMMERCIAL_TYPES
+        gs(uid)["wizard_pt_in_hint"] = COMMERCIAL_TYPES
         gs(uid)["wizard"] = "emirate"
         _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
     elif rkey == "rbtn_plot":
         _reset(uid)
         gs(uid)["filters"]["property_type"] = "plot"
+        gs(uid)["wizard_pt_hint"] = "plot"
         gs(uid)["wizard"] = "emirate"
         _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
     elif rkey == "rbtn_hot":
@@ -5490,7 +5497,15 @@ def handle_msg(msg):
     if len(text) > 5:
         filters = parse_nl(text, lang)
         if filters:
-            s["filters"] = filters
+            # Merge with existing filters so prior wizard category (e.g. SALE)
+            # is preserved when NL did not explicitly mention deal_type / type.
+            existing = dict(s.get("filters", {}))
+            for k, v in filters.items():
+                existing[k] = v
+            # Restore default_deal if NL did not specify deal_type
+            if "deal_type" not in existing and s.get("default_deal"):
+                existing["deal_type"] = s["default_deal"]
+            s["filters"] = existing
             resp = _send(cid, _t(uid, "searching"))
             do_search(uid)
             mid = resp.get("result", {}).get("message_id")
