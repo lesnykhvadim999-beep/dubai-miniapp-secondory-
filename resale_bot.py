@@ -1355,9 +1355,43 @@ def _load_all_areas() -> list:
     return items
 
 
+# v110: master-zone canonical search (единая функция для всех ботов).
+# Используется чтобы при вводе "JVC" / "Marina" / "Al Hebiah First"
+# resale-bot сразу понимал, что речь о master-zone "Jumeirah Village Circle"
+# и матчил листинги по её каноническому имени, а не по DLD sub-area.
+try:
+    from area_search import search_area_canonical as _v110_canonical_search
+except Exception as _e:
+    print(f"[resale_bot] v110 area_search unavailable: {_e}")
+    _v110_canonical_search = None
+
+
+def _master_zone_aliases(q: str) -> list:
+    """Если query разрешается в master-zone, возвращает список её алиасов
+    (master_zone + display_en + display_ru). Используется как первый фильтр
+    в search_areas_by_query, чтобы JVC / Marina / Al Hebiah First попадали
+    в одну сгруппированную область."""
+    if not _v110_canonical_search:
+        return []
+    try:
+        rows = _v110_canonical_search(q, limit=1) or []
+        if rows and rows[0].get("kind") == "master_zone":
+            r = rows[0]
+            out = []
+            for k in ("master_zone", "display_en", "display_ru"):
+                v = r.get(k)
+                if v and v not in out:
+                    out.append(v)
+            return out
+    except Exception as _e:
+        print(f"[resale_bot] master_zone alias err: {_e}")
+    return []
+
+
 def search_areas_by_query(q: str, emirate: str = None, limit: int = 8) -> list:
     """Возвращает top-N matching areas. Логика:
-       1. Точное совпадение name / alias (case-insensitive) — топ
+       0. v110: master-zone canonical (JVC → Jumeirah Village Circle и его алиасы) — топ
+       1. Точное совпадение name / alias (case-insensitive)
        2. startswith — следующие
        3. contains — последние
     Если emirate задан — фильтруем."""
@@ -1368,10 +1402,15 @@ def search_areas_by_query(q: str, emirate: str = None, limit: int = 8) -> list:
     if emirate:
         items = [i for i in items if not i.get("emirate") or i["emirate"] == emirate]
 
-    exact, starts, contains = [], [], []
+    # v110: 0. master-zone alias-set
+    mz_aliases = [a.lower() for a in _master_zone_aliases(q)]
+
+    mz_matches, exact, starts, contains = [], [], [], []
     for item in items:
         names_to_check = [item["name"]] + list(item.get("aliases") or [])
         names_lower = [n.lower() for n in names_to_check if n]
+        if mz_aliases and any(n in mz_aliases for n in names_lower):
+            mz_matches.append(item); continue
         if qn in names_lower:
             exact.append(item); continue
         if any(n.startswith(qn) for n in names_lower):
@@ -1380,7 +1419,7 @@ def search_areas_by_query(q: str, emirate: str = None, limit: int = 8) -> list:
             contains.append(item)
     # Дедуп — name уникален
     seen, result = set(), []
-    for it in exact + starts + contains:
+    for it in mz_matches + exact + starts + contains:
         if it["name"] in seen: continue
         seen.add(it["name"]); result.append(it)
         if len(result) >= limit:
