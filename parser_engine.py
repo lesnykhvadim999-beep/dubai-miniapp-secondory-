@@ -1248,7 +1248,10 @@ def _is_landmark_view_reference(text_lower: str, m: re.Match) -> bool:
         r'towards?|stunning|close\s+to|next\s+to|distance\s+(?:from|to)|'
         r'walking\s+distance|minutes?\s+from|minutes?\s+to|drive\s+to|'
         r'beside|adjacent\s+to|right\s+next\s+to)\b'
-        r'(?:\s+[a-z][a-z\s,]{0,40})?\s*(?:and\s+)?$'
+        # v107: разрешаем разделитель ":" / "-" / "—" между маркером и именем
+        # ("VIEW: BURJ KHALIFA", "View — Marina").
+        r'\s*[:\-–—]?\s*'
+        r'(?:[a-z][a-z\s,]{0,40})?\s*(?:and\s+)?$'
     )
     if re.search(pre_markers, before):
         return True
