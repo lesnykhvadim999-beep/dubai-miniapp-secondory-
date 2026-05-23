@@ -1,17 +1,21 @@
-"""Universal LLM chain — fallback across 7 providers.
+"""Universal LLM chain — fallback across 11 providers.
 
 Каждый провайдер имеет свои лимиты. Когда один упирается в лимит (429) —
-автоматически переходим к следующему. Это даёт ~3-5M токенов/день
+автоматически переходим к следующему. Это даёт ~5-10M токенов/день
 суммарно бесплатно.
 
 Order (по приоритету скорости/качества):
-  1. Cerebras   — 1M tokens/day, Llama 3.3 70B (быстрее всех)
-  2. Groq       — 100K tokens/day, Llama 3.3 70B
-  3. SambaNova  — 1M tokens/day, Llama 3.1 405B (мощнее)
-  4. Mistral    — щедрый free tier, Mistral Large
-  5. Gemini     — 1500 RPD, Gemini 1.5 Flash
-  6. OpenRouter — free model rotation
-  7. Anthropic  — Claude Haiku (paid но есть credits)
+  1.  Cerebras       — 1M tokens/day, Llama 3.3 70B / Qwen 235B (быстрее всех)
+  2.  Groq           — 100K tokens/day, Llama 3.3 70B
+  3.  SambaNova      — 1M tokens/day, Llama 3.1 405B (мощнее)
+  4.  Mistral        — щедрый free tier, Mistral Large
+  5.  OpenRouter     — free model rotation (DeepSeek/Gemini)
+  6.  Gemini         — 1500 RPD, Gemini 2.0 Flash
+  7.  GitHub Models  — free для GitHub users, GPT-4o-mini / Llama
+  8.  DeepSeek       — $5 free credits, DeepSeek-V3
+  9.  Together AI    — $5 free credits, множество open-source моделей
+  10. Cloudflare AI  — 10K req/day free, Llama 3.1 8B
+  11. Anthropic      — Claude Haiku (paid но есть credits)
 
 Usage:
     from llm_chain import llm_call
@@ -73,6 +77,45 @@ PROVIDERS = [
         "url":   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
         "model": "gemini-2.0-flash",
         "format": "gemini",
+    },
+    # ── v107: 4 новых провайдера для отказоустойчивости ───────────────────
+    {
+        # GitHub Models — free для всех GitHub users (~150 req/day на модель).
+        # Auth: GitHub PAT с правом models:read.
+        # Endpoint OpenAI-compatible.
+        "name":  "github_models",
+        "env":   "GITHUB_MODELS_TOKEN",
+        "url":   "https://models.inference.ai.azure.com/chat/completions",
+        "model": "gpt-4o-mini",
+        "format": "openai",
+    },
+    {
+        # DeepSeek — $5 free credits при регистрации, очень дешёвые после.
+        # DeepSeek-V3 — мощная модель, OpenAI-compatible API.
+        "name":  "deepseek",
+        "env":   "DEEPSEEK_API_KEY",
+        "url":   "https://api.deepseek.com/v1/chat/completions",
+        "model": "deepseek-chat",
+        "format": "openai",
+    },
+    {
+        # Together AI — $5 free credits, множество open-source моделей.
+        # Llama 3.3 70B — отличный default.
+        "name":  "together",
+        "env":   "TOGETHER_API_KEY",
+        "url":   "https://api.together.xyz/v1/chat/completions",
+        "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "format": "openai",
+    },
+    {
+        # Cloudflare Workers AI — 10K req/day free.
+        # Особый endpoint: требуется CLOUDFLARE_ACCOUNT_ID + token.
+        # Формат body OpenAI-compatible (messages array).
+        "name":  "cloudflare",
+        "env":   "CLOUDFLARE_API_TOKEN",
+        "url":   "",  # builds dynamically from account_id + model
+        "model": "@cf/meta/llama-3.1-8b-instruct",
+        "format": "cloudflare",
     },
     {
         # Claude Haiku — paid но из free credits, отличное качество.
@@ -210,6 +253,55 @@ def _call_anthropic(provider: dict, prompt: str, max_tokens: int,
     return None
 
 
+def _call_cloudflare(provider: dict, prompt: str, max_tokens: int,
+                     timeout: int) -> Optional[str]:
+    """Cloudflare Workers AI — требует CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN.
+    URL вида: https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}
+    Body OpenAI-compatible (messages array)."""
+    key = os.environ.get(provider["env"], "")
+    account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
+    if not key or not account_id:
+        return None
+    url = (f"https://api.cloudflare.com/client/v4/accounts/{account_id}"
+           f"/ai/run/{provider['model']}")
+    try:
+        r = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {key}",
+                     "Content-Type": "application/json"},
+            json={"max_tokens": max_tokens,
+                  "messages": [{"role": "user", "content": prompt}]},
+            timeout=timeout,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            # Cloudflare wraps response: {"result": {"response": "..."}, "success": true}
+            if data.get("success"):
+                result = data.get("result") or {}
+                text = result.get("response") or ""
+                if text:
+                    return text.strip()
+                # Иногда возвращается в OpenAI-формате
+                choices = result.get("choices") or []
+                if choices:
+                    msg = choices[0].get("message") or {}
+                    if msg.get("content"):
+                        return msg["content"].strip()
+            print(f"[llm_chain] cloudflare 200 but empty: {r.text[:120]}")
+            return None
+        if r.status_code == 429:
+            _mark_cooldown(provider["name"])
+            print(f"[llm_chain] cloudflare 429 -> cooldown")
+        elif r.status_code in (401, 403):
+            _mark_cooldown(provider["name"], 86400)
+            print(f"[llm_chain] cloudflare {r.status_code} (bad key) -> 24h skip")
+        elif r.status_code >= 400:
+            print(f"[llm_chain] cloudflare {r.status_code}: {r.text[:120]}")
+    except Exception as e:
+        print(f"[llm_chain] cloudflare err: {e}")
+    return None
+
+
 def llm_call(prompt: str, max_tokens: int = 600, timeout: int = 15) -> Optional[str]:
     """Universal LLM call с fallback chain.
     Возвращает ответ от первого работающего провайдера или None если все
@@ -226,6 +318,8 @@ def llm_call(prompt: str, max_tokens: int = 600, timeout: int = 15) -> Optional[
             result = _call_gemini(provider, prompt, max_tokens, timeout)
         elif provider["format"] == "anthropic":
             result = _call_anthropic(provider, prompt, max_tokens, timeout)
+        elif provider["format"] == "cloudflare":
+            result = _call_cloudflare(provider, prompt, max_tokens, timeout)
         else:
             continue
 
@@ -240,6 +334,9 @@ def status() -> dict:
     out = {}
     for p in PROVIDERS:
         has_key = bool(os.environ.get(p["env"]))
+        # Cloudflare требует ещё account_id
+        if p["name"] == "cloudflare":
+            has_key = has_key and bool(os.environ.get("CLOUDFLARE_ACCOUNT_ID"))
         cooled = _is_cooled_down(p["name"])
         out[p["name"]] = {
             "configured": has_key,
