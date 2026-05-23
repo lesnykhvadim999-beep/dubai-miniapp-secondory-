@@ -1804,10 +1804,12 @@ _RB_AREA_CANDIDATES = {
                             "Dubai Hills Estate"],
     "Business Bay":      ["Business Bay"],
     "JVC":               ["Jumeirah Village Circle", "JVC"],
-    "JVT":               ["Jumeirah Village Triangle"],
-    "JLT":               ["Jumeirah Lake Towers"],
+    "JVT":               ["Jumeirah Village Triangle", "JVT"],
+    # v124 fix: DLD-канон с "s" (Lakes) + физический sub-area Al Thanyah Fifth
+    "JLT":               ["Jumeirah Lakes Towers", "Jumeirah Lake Towers",
+                            "Al Thanyah Fifth"],
     "Palm Jumeirah":     ["Palm Jumeirah"],
-    "MBR City":          ["Wadi Al Safa 3", "Wadi Al Safa 6", "Wadi Al Safa 7"],
+    "MBR City":          ["MBR City", "Wadi Al Safa 3", "Wadi Al Safa 6", "Wadi Al Safa 7"],
     "Dubai Creek Harbour":["Dubai Creek Harbour", "Al Jaddaf"],
     "Creek Harbour":     ["Dubai Creek Harbour", "Al Jaddaf"],
     "Dubai South":       ["Madinat Al Mataar", "Dubai South"],
@@ -1917,6 +1919,9 @@ def get_area_aggregate(area: str) -> dict | None:
         print(f"[LAT_SLOW] R1_get_area_aggregate: {_dt_aa:.0f}ms", flush=True)
     if not best_sale and not best_rent:
         return None
+    # v124 fix: yield-колонки в mv_area_12m_summary заполняются в
+    # backfill_rental_yield на строках sale (sale.avg_rental_yield_pct), а
+    # rent-строки имеют NULL. Берём yield prefer-from-sale, fallback-rent.
     out = {
         "deals":                   (best_sale or {}).get("deals"),
         "avg_price":               (best_sale or {}).get("avg_price"),
@@ -1925,8 +1930,10 @@ def get_area_aggregate(area: str) -> dict | None:
         "top_quartile_psf":        (best_sale or {}).get("top_quartile_psf"),
         "yoy_growth_pct":          (best_sale or {}).get("yoy_growth_pct"),
         "yoy_growth_top_pct":      (best_sale or {}).get("yoy_growth_top_pct"),
-        "avg_rental_yield_pct":    (best_rent or {}).get("avg_rental_yield_pct"),
-        "top_rental_yield_pct":    (best_rent or {}).get("top_rental_yield_pct"),
+        "avg_rental_yield_pct":    ((best_sale or {}).get("avg_rental_yield_pct")
+                                    or (best_rent or {}).get("avg_rental_yield_pct")),
+        "top_rental_yield_pct":    ((best_sale or {}).get("top_rental_yield_pct")
+                                    or (best_rent or {}).get("top_rental_yield_pct")),
         "rent_avg_price":          (best_rent or {}).get("avg_price"),
     }
     return out
