@@ -1100,8 +1100,9 @@ def _reply_remove():
 
 
 def kb_main_reply(uid):
-    """v53 UX (Layla): bottom menu compressed to 4 rows (was 6).
-    Частые действия наверху, редкие (Add, Lang) — через команды /add /lang.
+    """v54 UX (Layla follow-up): «🌐 Язык» убран из меню — теперь только команда /language.
+    v53: bottom menu compressed to 4 rows (was 6).
+    Частые действия наверху, редкие (Add, Lang) — через команды /add /language.
     Hot/New объединены в одну строку с AI — это quick-access shortcuts.
     Хендлеры на rbtn_add / rbtn_lang сохранены для обратной совместимости.
     """
@@ -1109,7 +1110,7 @@ def kb_main_reply(uid):
         [_t(uid, "rbtn_buy"),        _t(uid, "rbtn_rent")],
         [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
         [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new"),   _t(uid, "rbtn_ai")],
-        [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts"), _t(uid, "rbtn_lang")],
+        [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts")],
     ])
 
 
@@ -2764,8 +2765,12 @@ def send_results(cid, uid, mid=None):
             fav_now = False
         fav_label = _t(uid, "btn_fav_rem") if fav_now else _t(uid, "btn_fav_add")
         has_building = bool(lst.get("building"))
+        # v54 UX (Layla): «Оставить заявку» (btn_book) убрана с карточки списка —
+        # cluttering CTA. Кнопка остаётся на детальном экране (btn_analysis →
+        # «Инвестиционный анализ»), где сохранена _url_btn lead-bot (см. ~строку 3251).
+        # Callback `book|{lid}` handler не удалён — обратная совместимость.
         kb_rows = [
-            [_btn(_t(uid, "btn_analysis"), f"detail|{lid}"), _btn(_t(uid, "btn_book"),    f"book|{lid}")],
+            [_btn(_t(uid, "btn_analysis"), f"detail|{lid}")],
             [_btn(fav_label,               f"fav|{lid}"),    _btn(_t(uid, "btn_compare"), f"cmp|{lid}")],
             [_btn(_t(uid, "btn_map"),      f"map|{lid}"),    _btn(_t(uid, "btn_photos"),  f"photos|{lid}")],
         ]
@@ -5142,6 +5147,11 @@ def handle_msg(msg):
             show_favorites(cid, uid); return
         if cmd == "alerts":
             show_alerts(cid, uid); return
+        if cmd in ("language", "lang"):
+            # v54 UX (Layla follow-up): команда /language заменяет «🌐 Язык» в меню.
+            _send(cid, "🌐  Select your language / Выберите язык / اختر لغتك",
+                  kb_lang_reply())
+            return
         if cmd == "compare":
             show_compare(cid, uid); return
         if cmd == "compare_clear":
