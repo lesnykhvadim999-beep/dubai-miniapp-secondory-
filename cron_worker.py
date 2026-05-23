@@ -197,6 +197,35 @@ def photo_dedup_loop():
         time.sleep(30 * 60)
 
 
+# ── 6. Buildings backfill (daily, v128) ────────────────────────────────────────
+def buildings_backfill_loop():
+    """UPSERT справочник buildings из listings ежедневно 03:30 UTC.
+
+    Нужен для:
+      • быстрого fuzzy-поиска зданий по aliases (RERA / DLD short-names)
+      • экспоненциального матчинга в audit-pipeline
+      • справочника developer/area для UI
+    """
+    last_run_day = None
+    while True:
+        try:
+            now = datetime.utcnow()
+            if now.hour == 3 and now.minute >= 30 and last_run_day != now.date():
+                print("[cron] Running buildings backfill...")
+                import subprocess
+                r = subprocess.run(["python", "_buildings_backfill.py"],
+                                   cwd=os.path.dirname(__file__) or ".",
+                                   check=False, timeout=600,
+                                   capture_output=True, text=True)
+                print("[cron] buildings_backfill out:", (r.stdout or "")[-500:])
+                if r.stderr:
+                    print("[cron] buildings_backfill err:", r.stderr[-500:])
+                last_run_day = now.date()
+        except Exception as e:
+            print(f"[cron] buildings_backfill error: {e}")
+        time.sleep(20 * 60)
+
+
 def digest_loop():
     """Sends daily digest to admin at ~09:00 UTC."""
     last_sent_day = None
@@ -537,6 +566,7 @@ def start_all():
     threading.Thread(target=digest_loop, daemon=True).start()
     threading.Thread(target=rebenchmark_loop, daemon=True).start()
     threading.Thread(target=photo_dedup_loop, daemon=True).start()
+    threading.Thread(target=buildings_backfill_loop, daemon=True).start()
     threading.Thread(target=watchlist_daily_loop, daemon=True).start()
     threading.Thread(target=watchlist_weekly_loop, daemon=True).start()
     start_health_server(port=int(os.environ.get("PORT", "8080")))

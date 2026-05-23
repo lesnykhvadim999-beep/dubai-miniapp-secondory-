@@ -1839,6 +1839,8 @@ except Exception as _e:
 
 
 # user-facing area → возможные DLD canonical имена для read-model
+# v128: расширен на основе coverage-аудита от 2026-05-24 (см. _coverage_audit.py).
+# Цель: покрыть top-20 ранее непокрытых районов через sub-area aggregation.
 _RB_AREA_CANDIDATES = {
     "Dubai Marina":      ["Dubai Marina", "Marsa Dubai"],
     "Marina":            ["Marsa Dubai", "Dubai Marina"],
@@ -1850,29 +1852,129 @@ _RB_AREA_CANDIDATES = {
                             "Dubai Hills Estate"],
     "Business Bay":      ["Business Bay"],
     "JVC":               ["Jumeirah Village Circle", "JVC"],
+    "Jumeirah Village Circle": ["Jumeirah Village Circle", "JVC"],
     "JVT":               ["Jumeirah Village Triangle", "JVT"],
+    "Jumeirah Village Triangle": ["Jumeirah Village Triangle", "JVT"],
     # v124 fix: DLD-канон с "s" (Lakes) + физический sub-area Al Thanyah Fifth
     "JLT":               ["Jumeirah Lakes Towers", "Jumeirah Lake Towers",
                             "Al Thanyah Fifth"],
+    "Jumeirah Lake Towers": ["Jumeirah Lakes Towers", "Jumeirah Lake Towers",
+                              "Al Thanyah Fifth"],
     "Palm Jumeirah":     ["Palm Jumeirah"],
     "MBR City":          ["MBR City", "Wadi Al Safa 3", "Wadi Al Safa 6", "Wadi Al Safa 7"],
     "Dubai Creek Harbour":["Dubai Creek Harbour", "Al Jaddaf"],
     "Creek Harbour":     ["Dubai Creek Harbour", "Al Jaddaf"],
+    "Creek Beach":       ["Dubai Creek Harbour", "Al Jaddaf"],
     "Dubai South":       ["Madinat Al Mataar", "Dubai South"],
     "Al Furjan":         ["Al Furjan", "Jabal Ali First"],
     "Arjan":             ["Arjan", "Al Barsha South Fourth"],
     "Silicon Oasis":     ["Dubai Silicon Oasis", "Silicon Oasis"],
     "Sports City":       ["Dubai Sports City", "Sports City"],
     "DIFC":              ["DIFC", "Zaabeel Second"],
-    "Meydan":            ["Meydan", "Nad Al Sheba"],
+    # v128: Meydan в DLD дробится на Meydan One / Meydan Avenue + историч. Nad Al Sheba
+    "Meydan":            ["Meydan", "Meydan One", "Meydan Avenue", "Nad Al Sheba"],
     "Al Barsha":         ["Al Barsha First", "Al Barsha South Fourth"],
+    # ── v128 NEW ALIAS BUCKETS (top uncovered areas, по DLD-маппингу) ──
+    "Wadi Al Safa":      ["Wadi Al Safa 2", "Wadi Al Safa 3", "Wadi Al Safa 4",
+                          "Wadi Al Safa 5", "Wadi Al Safa 6", "Wadi Al Safa 7"],
+    "Maritime City":     ["Dubai Maritime City", "Maritime City"],
+    "Studio City":       ["Dubai Studio City", "Studio City"],
+    "Dubai Studio City": ["Dubai Studio City", "Studio City"],
+    "Dubai Production City": ["Dubai Production City", "IMPZ"],
+    "International City": ["International City Ph 1", "International City Ph 2 & 3",
+                            "Warsan First"],
+    "Arabian Ranches":   ["Arabian Ranches I", "Arabian Ranches II", "Arabian Ranches III",
+                            "Wadi Al Safa 5", "Wadi Al Safa 7"],
+    "Arabian Ranches 1": ["Arabian Ranches I", "Wadi Al Safa 5"],
+    "Arabian Ranches 2": ["Arabian Ranches II"],
+    "Arabian Ranches 3": ["Arabian Ranches III"],
+    "Dubai Investment Park": ["Dubai Investment Park First", "Dubai Investment Park Second"],
+    "DIP":               ["Dubai Investment Park First", "Dubai Investment Park Second"],
+    "Bluewaters":        ["Bluewaters", "Bluewaters Island"],
+    "Bluewaters Island": ["Bluewaters", "Bluewaters Island"],
+    "JBR":               ["Jumeirah Beach Residence", "Marsa Dubai"],
+    "Jumeirah Beach Residence": ["Jumeirah Beach Residence", "Marsa Dubai"],
+    "Al Jaddaf":         ["Al Jaddaf", "Dubai Creek Harbour"],
+    "MBR":               ["MBR City", "Wadi Al Safa 3", "Wadi Al Safa 6", "Wadi Al Safa 7"],
+    "District One":      ["District One", "MBR City", "Nad Al Sheba"],
+    "Mohammed Bin Rashid City": ["MBR City", "Wadi Al Safa 3", "Wadi Al Safa 6", "Wadi Al Safa 7"],
+    "Town Square":       ["Al Yelayiss 2", "Town Square"],
+    "Tilal Al Ghaf":     ["Tilal Al Ghaf"],
+    "DAMAC Hills":       ["DAMAC Hills", "Al Hebiah Fourth", "Al Hebiah Third"],
+    "DAMAC Hills 2":     ["DAMAC Hills 2", "Al Yufrah 1", "Al Yufrah 2"],
+    "Akoya":             ["DAMAC Hills 2", "Al Yufrah 1", "Al Yufrah 2"],
+    "Mudon":             ["Al Hebiah Sixth", "Mudon"],
+    "Sobha Hartland":    ["Sobha Hartland", "Nad Al Sheba", "Wadi Al Safa 3"],
+    "The Valley":        ["The Valley", "Al Yelayiss 1"],
+    "Reem":              ["Al Reem", "Wadi Al Safa 6"],
+    "Remraam":           ["Remraam", "Al Hebiah Fifth"],
+    "Discovery Gardens": ["Discovery Gardens", "Jebel Ali First"],
+    "IMPZ":              ["Dubai Production City", "IMPZ"],
+    "Motor City":        ["Motor City", "Al Hebiah Third"],
+    "Liwan":             ["Liwan", "Al Mizhar Third"],
+    "Al Mizhar":         ["Al Mizhar First", "Al Mizhar Second", "Al Mizhar Third"],
+    # v128 part-2 — off-plan / new launches
+    "Dubai Islands":     ["Palm Deira", "Deira", "Dubai Islands"],
+    "Madinat Jumeirah":  ["Umm Suqeim Third", "Umm Suqeim Second", "Madinat Jumeirah"],
+    "Madinat Jumeirah Living": ["Umm Suqeim Third", "Madinat Jumeirah"],
+    "Madinat Hind":      ["Madinat Hind 1", "Madinat Hind 3", "Madinat Hind 4"],
+    "Dubailand":         ["Wadi Al Safa 5", "Wadi Al Safa 6", "Wadi Al Safa 7",
+                          "Al Hebiah Fourth", "Al Yelayiss 1", "Al Yelayiss 2"],
+    "Warsan":            ["Al Warsan First", "Al Warsan Second", "Al Warsan Third",
+                          "Warsan Fourth"],
+    "International City Phase 2": ["International City Ph 2 & 3", "Warsan First"],
+    "Emaar Beachfront":  ["Marsa Dubai", "Dubai Marina"],
+    "Madinat Al Mataar": ["Madinat Al Mataar"],
+    "World Islands":     ["World Islands"],
+    "Jumeirah Islands":  ["Jumeirah Islands"],
 }
+
+
+# v128: дополнительный кэш alias-ов из read-model.master_project_zones
+# (single fetch, lazy, TTL 1ч). Снимает необходимость хардкодить весь словарь.
+_MPZ_CACHE = {"data": None, "ts": 0.0}
+_MPZ_TTL_SEC = 3600
+
+def _mpz_aliases(area_key_lc: str):
+    """Возвращает list[area-name lower] из master_project_zones, если найден.
+    Безопасно: при ошибке/отсутствии — пустой список.
+    """
+    import time as _t
+    if not _DXB_STATS_OK or not area_key_lc:
+        return []
+    now = _t.time()
+    if not _MPZ_CACHE["data"] or (now - _MPZ_CACHE["ts"]) > _MPZ_TTL_SEC:
+        try:
+            with _dxb_stats._conn().cursor() as cur:
+                cur.execute("""
+                    SELECT LOWER(display_en), LOWER(area_key), dld_master_project_names
+                    FROM master_project_zones
+                """)
+                rows = cur.fetchall()
+            cache = {}
+            for disp, ak, names in rows:
+                bucket = []
+                for n in (names or []):
+                    if n: bucket.append(n.strip().lower())
+                # доступ как по display, так и по area_key
+                for key in {disp, ak}:
+                    if key:
+                        cache[key] = list(set(bucket))
+            _MPZ_CACHE["data"] = cache
+            _MPZ_CACHE["ts"] = now
+        except Exception as _e:
+            print(f"[resale_bot] mpz fetch err: {_e}", flush=True)
+            _MPZ_CACHE["data"] = {}
+            _MPZ_CACHE["ts"] = now
+    return _MPZ_CACHE["data"].get(area_key_lc, [])
 
 
 def _rb_area_candidates(area: str):
     if not area:
         return []
     out = list(_RB_AREA_CANDIDATES.get(area, []))
+    # v128: подмешиваем алиасы из master_project_zones по lower(area)
+    out.extend(_mpz_aliases(area.strip().lower()))
     if area not in out:
         out.append(area)
     out.extend([area.upper(), area.title()])
@@ -2066,7 +2168,62 @@ def get_market_summary(area: str, strategy: str = None) -> str:
 
 
 def get_best_areas_from_db(strategy: str, emirate: str = None, limit: int = 3) -> list:
-    """Get best areas dynamically from market_data based on strategy."""
+    """Get best areas dynamically by strategy.
+
+    v128: ПРИОРИТЕТ read-model (live DLD aggregates через mv_area_12m_summary):
+    - airbnb / longterm: топ по rental yield (top_rental_yield_pct)
+    - growth:            топ по YoY-росту (yoy_growth_top_pct)
+    - resale:            топ по числу сделок (ликвидность) + рост
+    - default:           топ по deals
+    Fallback: легаси market_data (статический seed), warning в логи если упало туда.
+    """
+    # ── v128 fast path: read-model ────────────────────────────────────────
+    if _DXB_STATS_OK:
+        try:
+            if strategy in ("airbnb", "longterm"):
+                order = "top_rental_yield_pct DESC NULLS LAST, deals DESC"
+            elif strategy == "growth":
+                order = "yoy_growth_top_pct DESC NULLS LAST, deals DESC"
+            elif strategy == "resale":
+                order = "deals DESC, yoy_growth_top_pct DESC NULLS LAST"
+            else:
+                order = "deals DESC"
+            sql = f"""
+                SELECT area_name, deals,
+                       avg_rental_yield_pct, top_rental_yield_pct,
+                       yoy_growth_pct, yoy_growth_top_pct
+                FROM mv_area_12m_summary
+                WHERE rooms='all' AND property_type='apartment' AND deal_type='sale'
+                  AND area_name IS NOT NULL
+                  AND deals >= 30
+                ORDER BY {order}
+                LIMIT %s
+            """
+            with _dxb_stats._conn().cursor() as cur:
+                cur.execute(sql, (limit * 3,))  # запас для dedup
+                rows = cur.fetchall()
+            # display map: DLD canonical → user-facing (через _RB_AREA_CANDIDATES inverse)
+            inverse = {}
+            for user_name, dld_list in _RB_AREA_CANDIDATES.items():
+                for d in dld_list:
+                    inverse.setdefault(d.strip().lower(), user_name)
+            out, seen = [], set()
+            for r in rows:
+                dld_name = (r[0] or "").strip()
+                pretty = inverse.get(dld_name.lower(), dld_name)
+                if pretty in seen:
+                    continue
+                seen.add(pretty)
+                out.append(pretty)
+                if len(out) >= limit:
+                    break
+            if out:
+                return out
+        except Exception as _e:
+            print(f"[resale_bot] get_best_areas_from_db read-model err: {_e}", flush=True)
+
+    # ── fallback: legacy market_data (статический seed) ───────────────────
+    print(f"[resale_bot] WARN: get_best_areas_from_db fallback to market_data (strategy={strategy})", flush=True)
     try:
         conn = get_conn()
         with conn.cursor() as cur:
