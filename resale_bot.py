@@ -1726,8 +1726,145 @@ def _sep():
     return "────────────────────"
 
 # ── Market data helpers ───────────────────────────────────────────────────────
+
+# v107 read-model: pre-aggregated DLD stats (≤50ms vs raw scan)
+try:
+    import dxb_stats_client as _dxb_stats
+    _DXB_STATS_OK = True
+except Exception as _e:
+    print(f"[resale_bot] dxb_stats_client unavailable: {_e}", flush=True)
+    _dxb_stats = None
+    _DXB_STATS_OK = False
+
+
+# user-facing area → возможные DLD canonical имена для read-model
+_RB_AREA_CANDIDATES = {
+    "Dubai Marina":      ["Dubai Marina", "Marsa Dubai"],
+    "Marina":            ["Marsa Dubai", "Dubai Marina"],
+    "Downtown Dubai":    ["Burj Khalifa", "Downtown Dubai"],
+    "Downtown":          ["Burj Khalifa", "Downtown Dubai"],
+    "Dubai Hills":       ["Hadaeq Sheikh Mohammed Bin Rashid",
+                            "Dubai Hills Estate"],
+    "Dubai Hills Estate":["Hadaeq Sheikh Mohammed Bin Rashid",
+                            "Dubai Hills Estate"],
+    "Business Bay":      ["Business Bay"],
+    "JVC":               ["Jumeirah Village Circle", "JVC"],
+    "JVT":               ["Jumeirah Village Triangle"],
+    "JLT":               ["Jumeirah Lake Towers"],
+    "Palm Jumeirah":     ["Palm Jumeirah"],
+    "MBR City":          ["Wadi Al Safa 3", "Wadi Al Safa 6", "Wadi Al Safa 7"],
+    "Dubai Creek Harbour":["Dubai Creek Harbour", "Al Jaddaf"],
+    "Creek Harbour":     ["Dubai Creek Harbour", "Al Jaddaf"],
+    "Dubai South":       ["Madinat Al Mataar", "Dubai South"],
+    "Al Furjan":         ["Al Furjan", "Jabal Ali First"],
+    "Arjan":             ["Arjan", "Al Barsha South Fourth"],
+    "Silicon Oasis":     ["Dubai Silicon Oasis", "Silicon Oasis"],
+    "Sports City":       ["Dubai Sports City", "Sports City"],
+    "DIFC":              ["DIFC", "Zaabeel Second"],
+    "Meydan":            ["Meydan", "Nad Al Sheba"],
+    "Al Barsha":         ["Al Barsha First", "Al Barsha South Fourth"],
+}
+
+
+def _rb_area_candidates(area: str):
+    if not area:
+        return []
+    out = list(_RB_AREA_CANDIDATES.get(area, []))
+    if area not in out:
+        out.append(area)
+    out.extend([area.upper(), area.title()])
+    seen, uniq = set(), []
+    for n in out:
+        k = (n or "").strip().lower()
+        if k and k not in seen:
+            seen.add(k); uniq.append(n)
+    return uniq
+
+
+def get_area_aggregate(area: str) -> dict | None:
+    """v107: возвращает агрегат района из read-model (dxb_stats).
+
+    Returns dict с полями:
+        avg_price, top_quartile_price, avg_price_psf, top_quartile_psf,
+        yoy_growth_pct, yoy_growth_top_pct, avg_rental_yield_pct,
+        top_rental_yield_pct, deals, rent_avg_price.
+
+    None если read-model не настроена / нет данных по району.
+    """
+    if not _DXB_STATS_OK or not area:
+        return None
+    best_sale, best_rent = None, None
+    for nm in _rb_area_candidates(area):
+        s = _dxb_stats.get_area_stats(nm, months=12,
+                                       property_type="apartment",
+                                       rooms="all", deal_type="sale")
+        if not s:
+            s = _dxb_stats.get_area_stats(nm, months=12,
+                                           rooms="all", deal_type="sale")
+        if s and (s.get("deals") or 0) >= 3:
+            if best_sale is None or s["deals"] > (best_sale.get("deals") or 0):
+                best_sale = s
+        r = _dxb_stats.get_area_stats(nm, months=12,
+                                       property_type="apartment",
+                                       rooms="all", deal_type="rent")
+        if not r:
+            r = _dxb_stats.get_area_stats(nm, months=12,
+                                           rooms="all", deal_type="rent")
+        if r and (r.get("deals") or 0) >= 3:
+            if best_rent is None or r["deals"] > (best_rent.get("deals") or 0):
+                best_rent = r
+    if not best_sale and not best_rent:
+        return None
+    out = {
+        "deals":                   (best_sale or {}).get("deals"),
+        "avg_price":               (best_sale or {}).get("avg_price"),
+        "top_quartile_price":      (best_sale or {}).get("top_quartile_price"),
+        "avg_price_psf":           (best_sale or {}).get("avg_price_psf"),
+        "top_quartile_psf":        (best_sale or {}).get("top_quartile_psf"),
+        "yoy_growth_pct":          (best_sale or {}).get("yoy_growth_pct"),
+        "yoy_growth_top_pct":      (best_sale or {}).get("yoy_growth_top_pct"),
+        "avg_rental_yield_pct":    (best_rent or {}).get("avg_rental_yield_pct"),
+        "top_rental_yield_pct":    (best_rent or {}).get("top_rental_yield_pct"),
+        "rent_avg_price":          (best_rent or {}).get("avg_price"),
+    }
+    return out
+
+
 def get_market_summary(area: str, strategy: str = None) -> str:
-    """Get market summary text from market_data table."""
+    """Market summary текст. v107: сначала пробуем dxb_stats read-model, потом fallback на market_data."""
+    # ── v107 fast path: read-model ─────────────────────────────────────────
+    agg = get_area_aggregate(area) if area else None
+    if agg and (agg.get("deals") or 0) >= 5:
+        lines = [f"\n{_sep()}\n  MARKET INSIGHT  ·  {area.upper()}\n{_sep()}"]
+        roi_top = agg.get("top_rental_yield_pct")
+        roi_avg = agg.get("avg_rental_yield_pct")
+        gr_avg  = agg.get("yoy_growth_pct")
+        gr_top  = agg.get("yoy_growth_top_pct")
+        avg_p   = agg.get("avg_price")
+        top_p   = agg.get("top_quartile_price")
+        rent_yr = agg.get("rent_avg_price")
+        if roi_avg:
+            lines.append(f"  ROI              {round(float(roi_avg),1)}% yearly")
+        if roi_top and (not roi_avg or roi_top > roi_avg):
+            lines.append(f"  Premium ROI      up to {round(float(roi_top),1)}%")
+        if gr_avg is not None:
+            trend = "↑" if gr_avg > 0 else "↓"
+            lines.append(f"  Annual growth    {trend} {abs(round(float(gr_avg),1))}%")
+        if gr_top is not None and (gr_avg is None or gr_top > gr_avg):
+            lines.append(f"  Premium growth   up to {round(float(gr_top),1)}%")
+        if avg_p:
+            lines.append(f"  Avg deal         {_fmt(float(avg_p))}")
+        if top_p:
+            lines.append(f"  Premium segment  {_fmt(float(top_p))}")
+        if rent_yr:
+            lines.append(f"  Avg annual rent  {_fmt(float(rent_yr))}/year")
+        if agg.get("deals"):
+            lines.append(f"  Yearly deals     {int(agg['deals'])}")
+        lines.append("  _source: DLD aggregates_")
+        lines.append(_sep())
+        return "\n".join(lines)
+
+    # ── fallback: market_data (legacy путь) ───────────────────────────────
     try:
         conn = get_conn()
         with conn.cursor() as cur:
@@ -1967,6 +2104,19 @@ def format_card(listing, uid, rank=None):
         analytics.append(f"📈 {_t(uid, 'card_roi')} {roi}%{_t(uid, 'card_per_year_short')}")
     if score:
         analytics.append(f"⭐ {score}/10  ·  {_t(uid, 'card_score')}")
+    # v107: sравнение с премиум-сегментом района из read-model
+    try:
+        _lp = listing.get("price") or 0
+        if deal_type == "sale" and _lp and area and _DXB_STATS_OK:
+            _agg = get_area_aggregate(area)
+            if _agg:
+                _top = _agg.get("top_quartile_price")
+                if _top and float(_top) > 0 and _lp < float(_top):
+                    _diff = round((1 - _lp / float(_top)) * 100, 1)
+                    if 1 < _diff < 90:
+                        analytics.append(f"👑 {_diff}% below premium segment")
+    except Exception:
+        pass
     if analytics:
         lines.append(SEPARATOR)
         lines.extend(analytics)
@@ -2545,6 +2695,27 @@ def do_search(uid, extra=None):
     # Apply default deal preference when no explicit deal_type filter is set
     if "deal_type" not in filters and s.get("default_deal"):
         filters["deal_type"] = s["default_deal"]
+    # SAFETY NET: if user came from the wizard via a category button
+    # (Купить / Снять / Коммерция / Земля) we expect the corresponding
+    # filter to be set. If it has been silently dropped somewhere in the
+    # flow, recover it from the wizard hint so SALE queries never leak
+    # rent / commercial / plot listings (and vice versa).
+    wiz_deal = s.get("wizard_deal_hint")
+    if wiz_deal and "deal_type" not in filters:
+        filters["deal_type"] = wiz_deal
+    wiz_pt_not_in = s.get("wizard_pt_not_in_hint")
+    if wiz_pt_not_in and "property_type_not_in" not in filters \
+       and "property_type_in" not in filters \
+       and "property_type" not in filters:
+        filters["property_type_not_in"] = wiz_pt_not_in
+    wiz_pt_in = s.get("wizard_pt_in_hint")
+    if wiz_pt_in and "property_type_in" not in filters \
+       and "property_type" not in filters:
+        filters["property_type_in"] = wiz_pt_in
+    wiz_pt = s.get("wizard_pt_hint")
+    if wiz_pt and "property_type" not in filters \
+       and "property_type_in" not in filters:
+        filters["property_type"] = wiz_pt
     results, total = search_listings(filters, limit=PER_PAGE * 5)
     s["results"] = results
     s["total"]   = total
@@ -3448,7 +3619,11 @@ def dispatch_wizard_button(cid, uid, text):
     Returns True if the text matched a wizard button and was handled."""
     state = gs(uid)
     wizard = state.get("wizard")
-    filters = state.get("filters", {})
+    # Make sure filters is a real reference inside state so mutations persist.
+    # Previously `state.get("filters", {})` could return a *new* empty dict that
+    # would never be written back if state["filters"] was missing — leading to
+    # silently lost deal_type/property_type filters in the wizard flow.
+    filters = state.setdefault("filters", {})
 
     # Emirate step
     if wizard == "emirate":
