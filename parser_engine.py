@@ -2057,8 +2057,35 @@ def extract_size(text: str) -> dict:
     text = _first_listing_block(text)
     result = {"size_sqft": None, "bua_sqft": None, "plot_sqft": None}
     def _parse_num(s: str) -> Optional[float]:
+        """v107: smart parse handling European decimal vs US thousands.
+        - "41,73" (1 comma, <=2 digits after) → decimal 41.73
+        - "1,234" (1 comma, 3 digits after) → thousands 1234
+        - "1,234,567" (multi comma) → thousands 1234567
+        - "1.234,56" (dot+comma) → thousands+decimal 1234.56 (european)
+        """
         try:
-            return float(str(s).replace(",", ".").replace(" ", "").strip()) if str(s).count(",") <= 1 else float(str(s).replace(",", "").replace(" ", "").strip())
+            raw = str(s).strip().replace(" ", "")
+            if not raw:
+                return None
+            ncomma = raw.count(",")
+            ndot = raw.count(".")
+            if ncomma == 0:
+                return float(raw)
+            if ncomma == 1 and ndot == 0:
+                # Decide: decimal or thousands?
+                after_comma = raw.split(",", 1)[1]
+                if len(after_comma) <= 2:
+                    return float(raw.replace(",", "."))  # 41,73 → 41.73
+                else:
+                    return float(raw.replace(",", ""))   # 1,234 → 1234
+            if ncomma >= 1 and ndot == 1:
+                # European format: "1.234,56" → 1234.56
+                if raw.rfind(",") > raw.rfind("."):
+                    return float(raw.replace(".", "").replace(",", "."))
+                # US format: "1,234.56" → 1234.56
+                return float(raw.replace(",", ""))
+            # Multi comma → thousands
+            return float(raw.replace(",", ""))
         except (ValueError, TypeError):
             return None
 
@@ -2074,25 +2101,25 @@ def extract_size(text: str) -> dict:
     # "BUA: 3683 sqft", "Bua 1865 sq.ft", "BUA size: 2,456 Sq. Ft.", "BUA: 1865"
     m = re.search(r'\bBUA\s*(?:size)?\s*[:\-]?\s*([\d,]+\.?\d*)\s*(?:sq\.?\s*ft|sqft|sq\.?\s*f\b|sq\.?)?', text, re.I)
     if m:
-        v = _parse_num(m.group(1).replace(",", ""))
+        v = _parse_num(m.group(1))
         if _in_range_sqft(v):
             result["bua_sqft"] = v
     # BUA in sqm
     m = re.search(r'\bBUA\s*(?:size)?\s*[:\-]?\s*([\d,]+\.?\d*)\s*(?:sqm|sq\.?\s*m\b|m2|sq\.?\s*m)', text, re.I)
     if m and result["bua_sqft"] is None:
-        v = _parse_num(m.group(1).replace(",", ""))
+        v = _parse_num(m.group(1))
         if v and 5 <= v <= 10_000:
             result["bua_sqft"] = _sqm_to_sqft(v)
 
     # ── Plot ────────────────────────────────────────────────────────────────
     m = re.search(r'\bPlot\s*(?:size|area)?\s*[:\-]?\s*([\d,]+\.?\d*)\s*(?:sq\.?\s*ft|sqft|sq\.?)', text, re.I)
     if m:
-        v = _parse_num(m.group(1).replace(",", ""))
+        v = _parse_num(m.group(1))
         if _in_range_sqft(v):
             result["plot_sqft"] = v
     m = re.search(r'\bPlot\s*(?:size|area)?\s*[:\-]?\s*([\d,]+\.?\d*)\s*(?:sqm|sq\.?\s*m\b|m2)', text, re.I)
     if m and result["plot_sqft"] is None:
-        v = _parse_num(m.group(1).replace(",", ""))
+        v = _parse_num(m.group(1))
         if v and 5 <= v <= 10_000:
             result["plot_sqft"] = _sqm_to_sqft(v)
 
@@ -2111,7 +2138,7 @@ def extract_size(text: str) -> dict:
     for pat in sqm_label_patterns:
         m = re.search(pat, text, re.I)
         if m:
-            v = _parse_num(m.group(1).replace(",", "").replace(" ", ""))
+            v = _parse_num(m.group(1))
             if v and 5 <= v <= 10_000:
                 result["size_sqft"] = _sqm_to_sqft(v)
                 break
@@ -2130,7 +2157,7 @@ def extract_size(text: str) -> dict:
         for pat in sqft_label_patterns:
             m = re.search(pat, text, re.I)
             if m:
-                v = _parse_num(m.group(1).replace(",", "").replace(" ", ""))
+                v = _parse_num(m.group(1))
                 if _in_range_sqft(v):
                     result["size_sqft"] = v
                     break
@@ -2148,7 +2175,7 @@ def extract_size(text: str) -> dict:
         for pat in bare_sqft_patterns:
             m = re.search(pat, text, re.I)
             if m:
-                v = _parse_num(m.group(1).replace(",", "").replace(" ", ""))
+                v = _parse_num(m.group(1))
                 if _in_range_sqft(v):
                     result["size_sqft"] = v
                     break
@@ -2164,7 +2191,7 @@ def extract_size(text: str) -> dict:
         for pat in bare_sqm_patterns:
             m = re.search(pat, text, re.I)
             if m:
-                v = _parse_num(m.group(1).replace(",", "").replace(" ", ""))
+                v = _parse_num(m.group(1))
                 if v and 5 <= v <= 10_000:
                     result["size_sqft"] = _sqm_to_sqft(v)
                     break
@@ -2305,6 +2332,21 @@ def extract_price(text: str) -> dict:
     text = re.sub(
         r'\(\s*[\d.,]+\s*[km]?\s*(?:aed)?\s*'
         r'/?\s*(?:year|yr|month|mo|yearly|monthly|annum)\s*\)',
+        ' ', text, flags=re.I)
+    # v107: Monthly installments. Strip только если number и unit-слово в
+    # ТЕСНОЙ связке (≤2 пробела между ними, без точки/двоеточия — иначе
+    # съест "Price: 2,500,000. Monthly installment..." целиком).
+    # Suffix-форма: "X/month", "X per month"
+    text = re.sub(
+        r'\b(?:aed\s+)?[\d.,]+\s*[km]?\s{0,2}'
+        r'(?:/\s*(?:month|mo)\b|per\s+month|/\s*мес\b|в\s+месяц)',
+        ' ', text, flags=re.I)
+    # Prefix-форма: "Monthly installment X" / "installment of X" / "per month: X"
+    text = re.sub(
+        r'\b(?:monthly\s+)?installments?\s*(?:of|[:=\-])?\s*(?:aed\s+)?[\d.,]+\s*[km]?',
+        ' ', text, flags=re.I)
+    text = re.sub(
+        r'\bper\s+month\s*[:=\-]\s*(?:aed\s+)?[\d.,]+\s*[km]?',
         ' ', text, flags=re.I)
     # And '(OP X,XXX)' without comma-K-million suffix — likely truncated OP
     # like 'OP 2,355' that should be 2,355,000 but ambiguous → strip safer.

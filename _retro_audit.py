@@ -112,7 +112,7 @@ ORIGINAL TEXT:
 PARSED DATA:
 - Building: {parsed['building']}
 - Area: {parsed['area']}
-- Price (AED): {parsed['price_aed']:,} if parsed['price_aed'] else None
+- Price (AED): {('{:,}'.format(parsed['price_aed']) if parsed['price_aed'] else 'None')}
 - Bedrooms: {parsed['bedrooms']}
 - Size: {parsed['size_sqft']} sqft
 - Deal type: {parsed['deal_type']}
