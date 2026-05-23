@@ -157,6 +157,28 @@ CREATE TABLE IF NOT EXISTS listing_images (
 
 CREATE INDEX IF NOT EXISTS idx_images_listing ON listing_images(listing_id);
 
+-- ── Pending image uploads (retry queue) ──────────────────────────────────────
+-- Когда save_images вызывается до того, как listing promoted из staging в listings,
+-- FK на listings(id) ещё нет. Раньше мы просто молча выходили, картинки терялись.
+-- Теперь складываем такие urls сюда, а cron pending_images_retry.py забирает
+-- их позже и пытается вставить.
+CREATE TABLE IF NOT EXISTS pending_image_uploads (
+    id              BIGSERIAL PRIMARY KEY,
+    listing_id      BIGINT      NOT NULL,
+    image_url       TEXT        NOT NULL,
+    sort_order      INT         DEFAULT 0,
+    attempts        INT         DEFAULT 0,
+    last_attempt_at TIMESTAMPTZ,
+    last_error      TEXT,
+    resolved_at     TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(listing_id, image_url)
+);
+CREATE INDEX IF NOT EXISTS idx_piu_listing
+    ON pending_image_uploads(listing_id) WHERE resolved_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_piu_pending
+    ON pending_image_uploads(created_at) WHERE resolved_at IS NULL;
+
 -- ── Price History ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS price_history (
     id          SERIAL PRIMARY KEY,
@@ -271,6 +293,42 @@ CREATE INDEX IF NOT EXISTS idx_listings_frozen ON listings(is_frozen) WHERE is_f
 
 CREATE INDEX IF NOT EXISTS idx_listings_phash ON listings(photo_phash);
 CREATE INDEX IF NOT EXISTS idx_listings_offplan ON listings(is_off_plan);
+
+-- ── Watchlists (v55) ─────────────────────────────────────────────────────────
+-- Универсальные подписки: на район/здание/девелопера/ценовой диапазон/listing.
+-- Cron worker раз в день шлёт дайджест matches, раз в неделю — AI digest.
+CREATE TABLE IF NOT EXISTS watchlists (
+    id                BIGSERIAL PRIMARY KEY,
+    user_id           BIGINT NOT NULL,
+    watch_type        TEXT,
+    watch_value       TEXT,
+    filters           JSONB,
+    notification_freq TEXT DEFAULT 'daily',
+    is_active         BOOLEAN DEFAULT TRUE,
+    last_notified_at  TIMESTAMPTZ,
+    last_weekly_at    TIMESTAMPTZ,
+    created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_w_user_active ON watchlists(user_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_w_active ON watchlists(is_active) WHERE is_active = TRUE;
+
+-- ── Cross-bot UTM tracking (v55) ─────────────────────────────────────────────
+-- Логирует каждый /start <payload> переход между ботами экосистемы.
+-- Источник правды для analytics конверсий hub→resale→roi→lead и т.п.
+CREATE TABLE IF NOT EXISTS cross_bot_jumps (
+    id           BIGSERIAL PRIMARY KEY,
+    from_bot     TEXT,
+    to_bot       TEXT,
+    user_id      BIGINT,
+    payload      TEXT,
+    utm_source   TEXT,
+    utm_campaign TEXT,
+    utm_content  TEXT,
+    jumped_at    TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_cbj_to_bot ON cross_bot_jumps(to_bot, jumped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cbj_from_bot ON cross_bot_jumps(from_bot, jumped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cbj_user ON cross_bot_jumps(user_id, jumped_at DESC);
 """
 
 SEED_SQL = """
@@ -588,10 +646,27 @@ def save_images(listing_id: int, urls: list[str]):
             # FK guard: upsert_listing может вернуть id из listings_staging
             # (incomplete listings), а listing_images.listing_id ссылается на
             # listings.id. Без этой проверки получаем FK violation для каждого
-            # incomplete объявления. Skip silently — staging promoter позже
-            # дотянет картинки когда листинг promoted в listings.
+            # incomplete объявления. Если listing ещё нет в listings — кладём
+            # urls в pending_image_uploads, retry-cron вставит их позже когда
+            # listing будет promoted.
             cur.execute("SELECT 1 FROM listings WHERE id=%s", (listing_id,))
             if not cur.fetchone():
+                for i, url in enumerate(urls):
+                    try:
+                        cur.execute(
+                            """
+                            INSERT INTO pending_image_uploads
+                                (listing_id, image_url, sort_order)
+                            VALUES (%s, %s, %s)
+                            ON CONFLICT (listing_id, image_url) DO NOTHING
+                            """,
+                            (listing_id, url, i),
+                        )
+                    except Exception as e:
+                        # pending_image_uploads ещё может не существовать на
+                        # стороне БД при первом деплое — не падаем, просто лог.
+                        print(f"[db] pending_image_uploads insert skipped: {e}")
+                        break
                 conn.commit()
                 return
             for i, url in enumerate(urls):
@@ -1190,5 +1265,157 @@ def update_alert_last_notified(alert_id: int, listing_id: int):
                 "UPDATE price_alerts SET last_notified=NOW(), last_listing_id=%s WHERE id=%s",
                 (listing_id, alert_id))
         conn.commit()
+    finally:
+        conn.close()
+
+
+# ── Watchlists (v55) ─────────────────────────────────────────────────────────
+def add_watchlist(user_id: int, watch_type: str, watch_value: str,
+                  filters: dict = None, freq: str = "daily") -> int:
+    """INSERT новой подписки или re-activate существующей.
+    Возвращает id. Уникальность по (user_id, watch_type, watch_value)."""
+    import json as _json
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id FROM watchlists
+                WHERE user_id=%s AND watch_type=%s AND watch_value=%s
+                LIMIT 1
+            """, (user_id, watch_type, watch_value or ""))
+            row = cur.fetchone()
+            if row:
+                cur.execute("""
+                    UPDATE watchlists
+                       SET is_active=TRUE, filters=%s, notification_freq=%s
+                     WHERE id=%s
+                """, (_json.dumps(filters or {}), freq, row["id"]))
+                conn.commit()
+                return row["id"]
+            cur.execute("""
+                INSERT INTO watchlists
+                    (user_id, watch_type, watch_value, filters, notification_freq)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+            """, (user_id, watch_type, watch_value or "",
+                  _json.dumps(filters or {}), freq))
+            new_id = cur.fetchone()["id"]
+        conn.commit()
+        return new_id
+    finally:
+        conn.close()
+
+
+def remove_watchlist(user_id: int, watch_id: int) -> bool:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE watchlists SET is_active=FALSE "
+                        "WHERE id=%s AND user_id=%s", (watch_id, user_id))
+            ok = cur.rowcount > 0
+        conn.commit()
+        return ok
+    finally:
+        conn.close()
+
+
+def get_user_watchlists(user_id: int) -> list:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT * FROM watchlists
+                 WHERE user_id=%s AND is_active=TRUE
+                 ORDER BY created_at DESC
+            """, (user_id,))
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+def is_watching(user_id: int, watch_type: str, watch_value: str) -> bool:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT 1 FROM watchlists
+                 WHERE user_id=%s AND watch_type=%s AND watch_value=%s
+                   AND is_active=TRUE LIMIT 1
+            """, (user_id, watch_type, watch_value or ""))
+            return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def get_active_watchlists(freq: str = None) -> list:
+    """Все активные watchlists. Если freq задан — только указанной частоты."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            if freq:
+                cur.execute("SELECT * FROM watchlists WHERE is_active=TRUE "
+                            "AND notification_freq=%s", (freq,))
+            else:
+                cur.execute("SELECT * FROM watchlists WHERE is_active=TRUE")
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+def update_watchlist_notified(watch_id: int, weekly: bool = False):
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            if weekly:
+                cur.execute("UPDATE watchlists SET last_weekly_at=NOW() "
+                            "WHERE id=%s", (watch_id,))
+            else:
+                cur.execute("UPDATE watchlists SET last_notified_at=NOW() "
+                            "WHERE id=%s", (watch_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ── Cross-bot UTM tracking (v55) ─────────────────────────────────────────────
+def log_cross_bot_jump(from_bot: str, to_bot: str, user_id: int,
+                        payload: str = "", utm_source: str = None,
+                        utm_campaign: str = None, utm_content: str = None) -> None:
+    """Логирует /start <payload> переход между ботами экосистемы.
+    Никогда не бросает (silent fail) — analytics не должна ломать UX."""
+    try:
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO cross_bot_jumps
+                        (from_bot, to_bot, user_id, payload,
+                         utm_source, utm_campaign, utm_content)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (from_bot or "unknown", to_bot, user_id,
+                      payload or "", utm_source, utm_campaign, utm_content))
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[cbj] log fail: {e}", flush=True)
+
+
+def get_cross_bot_stats(days: int = 7) -> list:
+    """Возвращает агрегированную таблицу from_bot → to_bot за N дней."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            # NB: интервал нельзя параметризовать как INTERVAL '%s days' —
+            # подставляем как f-string (days приходит из кода, не от юзера)
+            cur.execute(f"""
+                SELECT from_bot, to_bot, COUNT(*) AS n,
+                       COUNT(DISTINCT user_id) AS users
+                  FROM cross_bot_jumps
+                 WHERE jumped_at > NOW() - INTERVAL '{int(days)} days'
+                 GROUP BY from_bot, to_bot
+                 ORDER BY n DESC
+            """)
+            return list(cur.fetchall())
     finally:
         conn.close()
