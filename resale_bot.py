@@ -1500,7 +1500,13 @@ def search_buildings_by_query(q: str, emirate: str = None, area: str = None,
        При совпадениях — по count DESC (популярные первыми).
        Если emirate / area задан — СТРОГИЙ фильтр (без NULL).
        Раньше: items без area тоже проходили → юзер в JVC видел
-       Binghatti из других районов. Теперь только точное совпадение."""
+       Binghatti из других районов. Теперь только точное совпадение.
+
+       v_unified: если локальная база listings ничего не вернула — fallback
+       в канонический поиск по DLD-архиву (mv_building_12m_summary) через
+       building_search.search_building_canonical. Так пользователь НИКОГДА
+       не получает пустой ответ — даже на опечатки и редкие здания.
+    """
     if not q or len(q.strip()) < 1:
         return []
     qn = q.strip().lower()
@@ -1529,7 +1535,34 @@ def search_buildings_by_query(q: str, emirate: str = None, area: str = None,
         seen.add(it["name"]); result.append(it)
         if len(result) >= limit:
             break
-    return result
+    if result:
+        return result
+
+    # ── DLD fallback: если в локальных listings ничего — спрашиваем архив ──
+    try:
+        from building_search import search_building_canonical as _dld_search
+        dld_rows = _dld_search(q, limit=limit, include_popular_fallback=True) or []
+    except Exception as _e:
+        print(f"[building_search] DLD fallback error: {_e}")
+        dld_rows = []
+    # Если выбран area-фильтр — отсекаем здания не из этого района (master_zone тоже учитываем).
+    if area:
+        a_low = area.lower()
+        dld_rows = [r for r in dld_rows
+                    if (r.get("area_name") or "").lower() == a_low
+                    or (r.get("master_zone") or "").lower() == a_low]
+    suggestions = []
+    for r in dld_rows:
+        suggestions.append({
+            "name":    r["name"],
+            "area":    r.get("master_zone") or r.get("area_name"),
+            "emirate": emirate or "Dubai",
+            "aliases": [],
+            "count":   r.get("deals_12m") or 0,
+            "is_dld_suggest": True,
+            "kind":    r.get("kind"),
+        })
+    return suggestions[:limit]
 
 
 def kb_reply_building_input(uid):
@@ -3916,16 +3949,27 @@ def dispatch_wizard_button(cid, uid, text):
             return True
         # ВСЕГДА показываем suggestions (даже при 1 матче) — юзер может проверить
         # что попало в фильтр + видит фактический count объявлений в каждом.
+        is_suggest = any(it.get("is_dld_suggest") for it in matches)
         rows = []
         for it in matches:
             cnt = it.get("count", 0)
             label = it["name"]
-            if cnt > 0:
+            if it.get("is_dld_suggest"):
+                # подсказка из DLD-архива: показываем район + кол-во сделок
+                area_lbl = it.get("area") or ""
+                if area_lbl:
+                    label = f"{it['name']}  · {area_lbl}"
+                if cnt > 0:
+                    label = f"{label} · {cnt} сделок"
+            elif cnt > 0:
                 label = f"{it['name']}  · {cnt}"
             rows.append([_btn(label, f"pickbld|{it['name']}")])
         rows.append([_btn(_t(uid, "wiz_bld_any"), "pickbld|__any__")])
-        _send(cid, _t(uid, "wiz_bld_match"),
-              {"inline_keyboard": rows})
+        header = _t(uid, "wiz_bld_match")
+        if is_suggest:
+            # «У нас нет объявлений в этом здании, но возможно вы имели в виду:»
+            header = "💡 Возможно, вы имели в виду (из DLD-архива):"
+        _send(cid, header, {"inline_keyboard": rows})
         return True
 
     return False
