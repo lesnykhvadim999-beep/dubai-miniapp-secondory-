@@ -580,11 +580,20 @@ def _insert_to_staging(cur, conn, data: dict) -> int:
 
 
 def save_images(listing_id: int, urls: list[str]):
-    if not urls:
+    if not urls or not listing_id:
         return
     conn = get_conn()
     try:
         with conn.cursor() as cur:
+            # FK guard: upsert_listing может вернуть id из listings_staging
+            # (incomplete listings), а listing_images.listing_id ссылается на
+            # listings.id. Без этой проверки получаем FK violation для каждого
+            # incomplete объявления. Skip silently — staging promoter позже
+            # дотянет картинки когда листинг promoted в listings.
+            cur.execute("SELECT 1 FROM listings WHERE id=%s", (listing_id,))
+            if not cur.fetchone():
+                conn.commit()
+                return
             for i, url in enumerate(urls):
                 cur.execute(
                     "INSERT INTO listing_images(listing_id, url, sort_order) VALUES(%s,%s,%s) ON CONFLICT DO NOTHING",
@@ -598,7 +607,7 @@ def save_images(listing_id: int, urls: list[str]):
         conn.commit()
     except Exception as e:
         conn.rollback()
-        print(f"[db] save_images error: {e}")
+        print(f"[db] save_images error (listing_id={listing_id}): {e}")
     finally:
         conn.close()
 
