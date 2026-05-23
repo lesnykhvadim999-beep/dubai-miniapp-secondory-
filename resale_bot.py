@@ -274,8 +274,14 @@ T = {
     "btn_map":       "🗺 Map",
     "btn_compare":   "⚖️ Compare",
     "btn_photos":    "📸 All photos",
+    "btn_watch_add": "⭐ Watch",
+    "btn_watch_rem": "⭐ Stop watching",
     "rbtn_favs":     "❤️ Saved",
     "rbtn_alerts":   "🔔 Alerts",
+    "watch_added":     "⭐ Added to your watchlist. /watch — view list.",
+    "watch_removed":   "Removed from watchlist.",
+    "watch_empty":     "Your watchlist is empty. Tap ⭐ on any listing to start watching.",
+    "watch_title":     "──── ⭐ YOUR WATCHLIST ────",
     "rbtn_compare":  "⚖️ Compare ({n})",
     "favs_empty":    "No saved properties yet. Tap ❤️ on any listing.",
     "favs_title":    "──── ❤️ SAVED PROPERTIES ────",
@@ -521,8 +527,14 @@ T = {
     "btn_map":       "🗺 На карте",
     "btn_compare":   "⚖️ Сравнить",
     "btn_photos":    "📸 Все фото",
+    "btn_watch_add": "⭐ Следить",
+    "btn_watch_rem": "⭐ Не следить",
     "rbtn_favs":     "❤️ Избранное",
     "rbtn_alerts":   "🔔 Уведомления",
+    "watch_added":     "⭐ Добавлено в watchlist. /watch — список подписок.",
+    "watch_removed":   "Удалено из watchlist.",
+    "watch_empty":     "Watchlist пуст. Нажмите ⭐ на карточке, чтобы начать следить.",
+    "watch_title":     "──── ⭐ ВАШ WATCHLIST ────",
     "rbtn_compare":  "⚖️ Сравнить ({n})",
     "favs_empty":    "Список избранного пуст. Нажмите ❤️ на любом объявлении.",
     "favs_title":    "──── ❤️ ИЗБРАННОЕ ────",
@@ -787,8 +799,14 @@ T = {
     "btn_map":       "🗺 الخريطة",
     "btn_compare":   "⚖️ مقارنة",
     "btn_photos":    "📸 كل الصور",
+    "btn_watch_add": "⭐ متابعة",
+    "btn_watch_rem": "⭐ إلغاء المتابعة",
     "rbtn_favs":     "❤️ المحفوظة",
     "rbtn_alerts":   "🔔 التنبيهات",
+    "watch_added":     "⭐ تمت الإضافة إلى قائمة المتابعة. /watch — عرض القائمة.",
+    "watch_removed":   "تمت إزالته من قائمة المتابعة.",
+    "watch_empty":     "قائمة المتابعة فارغة. اضغط ⭐ على أي إعلان لبدء المتابعة.",
+    "watch_title":     "──── ⭐ قائمة المتابعة ────",
     "rbtn_compare":  "⚖️ مقارنة ({n})",
     "favs_empty":    "لا توجد عقارات محفوظة. اضغط ❤️ على أي إعلان.",
     "favs_title":    "──── ❤️ المحفوظة ────",
@@ -3376,11 +3394,19 @@ def show_detail(cid, uid, mid, lid):
     except Exception:
         fav_now = False
     fav_label = _t(uid, "btn_fav_rem") if fav_now else _t(uid, "btn_fav_add")
+    # v55: watchlist toggle button — подписка на этот конкретный listing
+    try:
+        from db_schema import is_watching as _is_watch
+        watch_now = _is_watch(uid, "listing", str(lid))
+    except Exception:
+        watch_now = False
+    watch_label = _t(uid, "btn_watch_rem") if watch_now else _t(uid, "btn_watch_add")
     lang_user = user_lang.get(uid, "en")
     has_building = bool(listing.get("building"))
     kb_rows = [
         [_url_btn(_t(uid, "btn_book"), lead_url)],
         [_btn(fav_label,              f"fav|{lid}"),    _btn(_t(uid, "btn_compare"), f"cmp|{lid}")],
+        [_btn(watch_label,            f"watch|{lid}")],
         [_btn(_t(uid, "btn_map"),     f"map|{lid}"),    _btn(_t(uid, "btn_photos"),  f"photos|{lid}")],
         [_btn("🌐 Translate",         f"translate|{lid}|{lang_user}")],
     ]
@@ -3390,13 +3416,16 @@ def show_detail(cid, uid, mid, lid):
     kb_rows.append([_btn(_t(uid, "btn_similar"), f"similar|{lid}"), _btn(_t(uid, "btn_back"), "results|back")])
     # v47 ECOSYSTEM cross-nav: subtle marketing — leads пользователя в смежные боты
     # когда он смотрит конкретный listing (highly intent moment).
-    # Кнопки расположены ОТДЕЛЬНЫМ блоком, чтобы не отвлекать от primary CTA.
+    # v55: расширили payload до from_resale_utm_resale_card_detail для UTM tracking.
     kb_rows.append([
-        _url_btn("🏗 Новостройки от застройщика", "https://t.me/dubai_projects_monitor_bot?start=from_resale"),
+        _url_btn("🏗 Новостройки от застройщика",
+                 "https://t.me/dubai_projects_monitor_bot?start=from_resale_utm_resale_card_detail"),
     ])
     kb_rows.append([
-        _url_btn("📊 ROI калькулятор",      "https://t.me/dubai_roi_fpr_bot?start=from_resale"),
-        _url_btn("📈 Аналитика района",     "https://t.me/Analitik_price_bot?start=from_resale"),
+        _url_btn("📊 ROI калькулятор",
+                 "https://t.me/dubai_roi_fpr_bot?start=from_resale_utm_resale_card_detail"),
+        _url_btn("📈 Аналитика района",
+                 "https://t.me/Analitik_price_bot?start=from_resale_utm_resale_card_detail"),
     ])
     kb_rows.append([_btn(_t(uid, "btn_menu"), "menu|main")])
     kb = _kb(*kb_rows)
@@ -3564,6 +3593,23 @@ def show_stats(cid, uid):
     )
     _send(cid, f"`{text}`")
 
+    # ── Cross-bot conversions (v55) ─────────────────────────────────────────
+    try:
+        from db_schema import get_cross_bot_stats
+        cbj = get_cross_bot_stats(days=7)
+        if cbj:
+            lines = ["🔀 *Cross-bot conversions* (last 7d):\n"]
+            for r in cbj[:25]:
+                lines.append(
+                    f"  `{r['from_bot']:>10} → {r['to_bot']:<10}`  "
+                    f"{r['n']}  (users {r['users']})"
+                )
+            _send(cid, "\n".join(lines))
+        else:
+            _send(cid, "🔀 *Cross-bot conversions*: пока нет данных за 7 дней.")
+    except Exception as e:
+        print(f"[stats] cbj err: {e}", flush=True)
+
 
 # ── Main menu ─────────────────────────────────────────────────────────────────
 def show_deal_type_menu(cid, uid, mid=None):
@@ -3584,6 +3630,86 @@ def show_main(cid, uid, mid=None):
         try: _api("deleteMessage", chat_id=cid, message_id=mid)
         except: pass
     _send(cid, _t(uid, "main_menu"), kb_main_reply(uid))
+
+
+def _parse_payload(payload: str):
+    """Парсит deep-link payload и возвращает (from_bot, utm_source, utm_campaign, utm_content).
+
+    Поддерживает 2 формата:
+      • легаси: from_<botname>[_<id>]   → from_hub / from_offplan_3190 / from_resale
+      • новый: ...<legacy>...utm_<source>_<campaign>[_<content>]
+        пример: from_offplan_3190_utm_resale_card_share
+                → from_bot=offplan, utm_source=resale, utm_campaign=card_share
+
+    Также поддерживает префиксы legacy lead-bot: resale-, proj-, roi-, area-, bld-.
+    """
+    if not payload:
+        return ("unknown", None, None, None)
+    p = payload.strip()
+
+    # Разрезаем по '_utm_' если есть extended UTM
+    utm_source = utm_campaign = utm_content = None
+    if "_utm_" in p:
+        head, _, tail = p.partition("_utm_")
+        utm_parts = tail.split("_")
+        if len(utm_parts) >= 1: utm_source   = utm_parts[0] or None
+        if len(utm_parts) >= 2: utm_campaign = utm_parts[1] or None
+        if len(utm_parts) >= 3: utm_content  = "_".join(utm_parts[2:]) or None
+        p = head
+
+    # Определяем from_bot
+    from_bot = "unknown"
+    if p.startswith("from_"):
+        # from_hub / from_resale / from_offplan_3190 / from_roi / from_analytics
+        tail = p[len("from_"):]
+        first = tail.split("_", 1)[0] if tail else ""
+        # map alias offplan→channel
+        mapping = {"offplan": "channel", "channel": "channel",
+                   "resale": "resale", "hub": "hub", "roi": "roi",
+                   "analytics": "analytics", "dld": "analytics",
+                   "lead": "lead"}
+        from_bot = mapping.get(first.lower(), first.lower() or "unknown")
+    elif p.startswith("proj-") or p.startswith("proj_") or p.startswith("proj|"):
+        from_bot = "channel"
+    elif p.startswith("resale-") or p.startswith("resale_"):
+        from_bot = "resale"
+    elif p.startswith("roi-") or p.startswith("roi_"):
+        from_bot = "roi"
+    elif p.startswith("area-") or p.startswith("area_") or \
+         p.startswith("bld-") or p.startswith("bld_"):
+        from_bot = "analytics"
+    return (from_bot, utm_source, utm_campaign, utm_content)
+
+
+def show_watchlist(cid, uid):
+    """Show user's active watchlists with /unwatch_N commands."""
+    try:
+        from db_schema import get_user_watchlists
+        rows = get_user_watchlists(uid)
+    except Exception as e:
+        _send(cid, f"⚠ Watchlist error: {e}")
+        return
+    if not rows:
+        _send(cid, _t(uid, "watch_empty"), kb_main_reply(uid))
+        return
+    lines = [_t(uid, "watch_title"), f"  {len(rows)} items", ""]
+    for r in rows:
+        wt = r.get("watch_type") or "?"
+        wv = r.get("watch_value") or "—"
+        freq = r.get("notification_freq") or "daily"
+        icon = {"area": "📍", "building": "🏢", "developer": "🏗",
+                "price_range": "💰", "listing": "🏠"}.get(wt, "•")
+        # для listing — попытаемся показать здание/район
+        extra = ""
+        if wt == "listing" and wv.isdigit():
+            try:
+                lst = get_listing_by_id(int(wv))
+                if lst:
+                    extra = f" — {lst.get('building') or lst.get('area') or '—'}"
+            except Exception:
+                pass
+        lines.append(f"{icon} `{wt}`: {wv}{extra}  · {freq}    /unwatch_{r['id']}")
+    _send(cid, "\n".join(lines), kb_main_reply(uid))
 
 
 def show_favorites(cid, uid):
@@ -5013,6 +5139,41 @@ def handle_cb(cb):
         do_search(uid)
         send_results(cid, uid)
 
+    # ── Watchlist toggle (v55) ────────────────────────────────────────────────
+    elif action == "watch":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        try:
+            from db_schema import (add_watchlist, remove_watchlist,
+                                    is_watching, get_user_watchlists)
+            if is_watching(uid, "listing", str(lid)):
+                # удалить из watchlist по listing_value
+                rows = [r for r in get_user_watchlists(uid)
+                        if r.get("watch_type") == "listing"
+                        and r.get("watch_value") == str(lid)]
+                for r in rows:
+                    remove_watchlist(uid, r["id"])
+                _api("answerCallbackQuery", callback_query_id=cb["id"],
+                     text=_t(uid, "watch_removed"))
+            else:
+                # listing watchlist + сохраняем филтры из listing
+                lst = get_listing_by_id(lid) or {}
+                filters = {
+                    "area":          lst.get("area"),
+                    "building":      lst.get("building"),
+                    "bedrooms":      lst.get("bedrooms"),
+                    "deal_type":     lst.get("deal_type"),
+                    "property_type": lst.get("property_type"),
+                    "price":         lst.get("price"),
+                }
+                add_watchlist(uid, "listing", str(lid),
+                              filters=filters, freq="daily")
+                _api("answerCallbackQuery", callback_query_id=cb["id"],
+                     text=_t(uid, "watch_added"))
+        except Exception as e:
+            print(f"[watch] toggle fail uid={uid} lid={lid}: {e}", flush=True)
+            _api("answerCallbackQuery", callback_query_id=cb["id"],
+                 text="⚠ Watchlist error.")
+
     elif action == "fav":
         lid = int(parts[1]) if len(parts) > 1 else 0
         from db_schema import add_favorite, remove_favorite, is_favorited
@@ -5280,6 +5441,22 @@ def handle_msg(msg):
             except Exception:
                 pass
             return
+        # /unwatch_42 → remove watchlist id 42  (v55)
+        if cmd.startswith("unwatch_"):
+            try:
+                wid = int(cmd[len("unwatch_"):])
+                from db_schema import remove_watchlist
+                ok = remove_watchlist(uid, wid)
+                msg = _t(uid, "watch_removed") if ok else "Not found."
+                _send(cid, msg, kb_main_reply(uid))
+            except Exception as _e:
+                _send(cid, "⚠ /unwatch_N — invalid id.")
+            return
+        if cmd == "watch":
+            show_watchlist(cid, uid); return
+        if cmd == "unwatch":
+            # без аргумента — показать список с командами удаления
+            show_watchlist(cid, uid); return
         if cmd == "favs":
             show_favorites(cid, uid); return
         if cmd == "alerts":
@@ -5297,11 +5474,22 @@ def handle_msg(msg):
             return
         if cmd == "start":
             user_lang.pop(uid, None); _reset(uid)
-            # v53: parse deep-link payload (from_hub, from_offplan_NNN, from_roi, from_analytics)
-            # Just logs the source — payload is for cross-bot tracking, no special UI.
+            # v55: parse deep-link payload + log cross-bot UTM jump.
+            # Supports old format (from_hub, from_offplan_3190) and new
+            # extended format (from_offplan_3190_utm_resale_card_share).
             if " " in text:
                 payload = text.split(" ", 1)[1].strip()
                 print(f"[resale] /start payload={payload} uid={uid}", flush=True)
+                try:
+                    from db_schema import log_cross_bot_jump
+                    from_bot, src, camp, content = _parse_payload(payload)
+                    log_cross_bot_jump(
+                        from_bot=from_bot, to_bot="resale",
+                        user_id=uid, payload=payload,
+                        utm_source=src, utm_campaign=camp, utm_content=content,
+                    )
+                except Exception as _e:
+                    print(f"[resale] /start cbj log err: {_e}", flush=True)
             send_welcome_with_logo(cid, uid)
         elif cmd == "menu":  show_main(cid, uid)
         elif cmd == "stats": show_stats(cid, uid)
