@@ -1776,26 +1776,73 @@ def get_area_aggregate(area: str) -> dict | None:
     """
     if not _DXB_STATS_OK or not area:
         return None
+    import time as _time_aa
+    _t_aa = _time_aa.perf_counter()
     best_sale, best_rent = None, None
-    for nm in _rb_area_candidates(area):
-        s = _dxb_stats.get_area_stats(nm, months=12,
-                                       property_type="apartment",
-                                       rooms="all", deal_type="sale")
-        if not s:
-            s = _dxb_stats.get_area_stats(nm, months=12,
-                                           rooms="all", deal_type="sale")
+    # v111: один SQL по всем кандидатам сразу — было 4 * N round-trip.
+    candidates = _rb_area_candidates(area)
+    keys = []
+    seen = set()
+    for n in candidates:
+        k = (n or "").strip().lower()
+        if k and k not in seen:
+            seen.add(k); keys.append(k)
+    batch = {}
+    if keys:
+        try:
+            sql = """
+                SELECT area_key, area_name, property_type, deal_type,
+                       deals, avg_price, avg_price_psf,
+                       top_quartile_price, top_quartile_psf,
+                       yoy_growth_pct, yoy_growth_top_pct,
+                       avg_rental_yield_pct, top_rental_yield_pct
+                FROM mv_area_12m_summary
+                WHERE area_key=ANY(%s) AND rooms='all'
+                  AND property_type IN ('apartment','all')
+                  AND deal_type IN ('sale','rent')
+            """
+            c = _dxb_stats._conn()
+            with c.cursor() as cur:
+                cur.execute(sql, (keys,))
+                rows = cur.fetchall()
+            tmp = {}
+            for r in rows:
+                ak, anm, pt, dt_, deals, ap, apsf, tqp, tpsf, gy, gyt, yy, yyt = r
+                slot = tmp.setdefault(ak, {"sale": {}, "rent": {}})
+                target = "sale" if dt_ == "sale" else "rent"
+                d = {
+                    "area_name": anm, "deals": int(deals or 0),
+                    "avg_price": float(ap) if ap else None,
+                    "avg_price_psf": float(apsf) if apsf else None,
+                    "top_quartile_price": float(tqp) if tqp else None,
+                    "top_quartile_psf": float(tpsf) if tpsf else None,
+                    "yoy_growth_pct": float(gy) if gy is not None else None,
+                    "yoy_growth_top_pct": float(gyt) if gyt is not None else None,
+                    "avg_rental_yield_pct": float(yy) if yy is not None else None,
+                    "top_rental_yield_pct": float(yyt) if yyt is not None else None,
+                }
+                slot[target].setdefault(pt, d)
+            for ak, slot in tmp.items():
+                batch[ak] = {
+                    "sale": slot["sale"].get("apartment") or slot["sale"].get("all"),
+                    "rent": slot["rent"].get("apartment") or slot["rent"].get("all"),
+                }
+        except Exception as _ex:
+            print(f"[resale_bot] batch_area err: {_ex}", flush=True)
+            batch = {}
+    for nm in candidates:
+        slot = batch.get((nm or "").strip().lower()) or {}
+        s = slot.get("sale"); r = slot.get("rent")
         if s and (s.get("deals") or 0) >= 3:
             if best_sale is None or s["deals"] > (best_sale.get("deals") or 0):
                 best_sale = s
-        r = _dxb_stats.get_area_stats(nm, months=12,
-                                       property_type="apartment",
-                                       rooms="all", deal_type="rent")
-        if not r:
-            r = _dxb_stats.get_area_stats(nm, months=12,
-                                           rooms="all", deal_type="rent")
         if r and (r.get("deals") or 0) >= 3:
             if best_rent is None or r["deals"] > (best_rent.get("deals") or 0):
                 best_rent = r
+    _dt_aa = (_time_aa.perf_counter() - _t_aa) * 1000
+    print(f"[LAT] R1_get_area_aggregate: {_dt_aa:.0f}ms area={str(area)[:40]!r} cands={len(candidates)}", flush=True)
+    if _dt_aa > 500:
+        print(f"[LAT_SLOW] R1_get_area_aggregate: {_dt_aa:.0f}ms", flush=True)
     if not best_sale and not best_rent:
         return None
     out = {
