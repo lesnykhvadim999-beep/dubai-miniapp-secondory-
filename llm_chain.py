@@ -173,6 +173,10 @@ def _call_openai_compat(provider: dict, prompt: str, max_tokens: int,
             # Invalid/expired key — disable provider for 24h
             _mark_cooldown(provider["name"], 86400)
             print(f"[llm_chain] {provider['name']} {r.status_code} (bad key) -> 24h skip")
+        elif r.status_code == 402 or (r.status_code >= 400 and "insufficient" in r.text.lower()):
+            # Insufficient balance — disable provider for 24h (need top-up)
+            _mark_cooldown(provider["name"], 86400)
+            print(f"[llm_chain] {provider['name']} 402 (insufficient balance) -> 24h skip")
         elif r.status_code >= 400:
             print(f"[llm_chain] {provider['name']} {r.status_code}: {r.text[:120]}")
     except Exception as e:
