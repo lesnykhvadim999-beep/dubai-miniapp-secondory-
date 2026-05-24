@@ -16,7 +16,6 @@ Providers (priority order):
   4.  Mistral        — free 1 RPS, mistral-small-latest (multi-key)
   5.  OpenRouter     — free models ~200 req/day (multi-key)
   6.  Gemini         — 1500 RPD, Gemini 2.0 Flash (multi-key)
-  7.  Together AI    — free tier Llama 3.3 70B Turbo (CF proxy, multi-key)
   8.  GitHub Models  — ~150 req/day, GPT-4o-mini (multi-key)
   9.  Cohere         — 1000 req/month, command-r (multi-key)
   10. Ollama self    — UNLIMITED, llama3.2:3b, Railway internal
@@ -142,15 +141,6 @@ PROVIDERS = [
         "model":  "gemini-2.0-flash",
         "format": "gemini",
         "rpm":    14,  # 15 RPM on free tier
-    },
-    {
-        "name":   "together",
-        "env_keys": ["TOGETHER_API_KEY", "TOGETHER_API_KEY_2", "TOGETHER_API_KEY_3"],
-        "url":    "https://api.together.xyz/v1/chat/completions",
-        "model":  "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
-        "format": "openai",
-        "proxy_via_cf": True,
-        "rpm":    10,
     },
     {
         "name":   "github_models",
