@@ -4942,6 +4942,18 @@ def handle_cb(cb):
     mid  = cb["message"]["message_id"]
     uid  = cb["from"]["id"]
     data = cb.get("data", "")
+    # v112 централизованный tracking callbacks → bot_users
+    try:
+        from bot_user_tracker import track_user_async
+        track_user_async(
+            telegram_id=uid,
+            username=cb["from"].get("username", ""),
+            first_name=cb["from"].get("first_name", ""),
+            language=cb["from"].get("language_code", ""),
+            action="callback",
+        )
+    except Exception:
+        pass
     # v51 ANTISPAM (module-level, callback flood guard)
     if _antispam_mod:
         try:
@@ -5581,6 +5593,14 @@ def handle_msg(msg):
     uid   = msg["from"]["id"]
     uname = msg["from"].get("username", "")
     fname = msg["from"].get("first_name", "")
+    _lang_code = msg["from"].get("language_code", "")
+    # v112 централизованный user tracking → bot_users (resale-DB)
+    try:
+        from bot_user_tracker import track_user_async
+        track_user_async(telegram_id=uid, username=uname, first_name=fname,
+                         language=_lang_code, action="message")
+    except Exception:
+        pass
     # v51 ANTISPAM (module-level)
     if _antispam_mod:
         try:
