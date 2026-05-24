@@ -961,7 +961,7 @@ _SALE_HARD_RE = re.compile(
 
 _RENT_HARD_RE = re.compile(
     r'\b(?:for\s+rent|to\s+let|rental\s+listing|rental\s+opportunity|'
-    r'yearly\s+rent|monthly\s+rent|per\s+(?:annum|year|month)|'
+    r'yearly\s+rent|monthly\s+rent|annual\s+rent|per\s+(?:annum|year|month)|'
     r'/year|/yr|/month|/mo|\d+\s+cheques?|cheques?\s*:\s*\d+|'
     r'аренда|сдаю|сдается|сдаётся|сдам|снять|'
     r'long[\s-]?term\s+rent|short[\s-]?term\s+rent)\b',
@@ -4424,6 +4424,14 @@ def parse_message(
 
     # Final stopword check на extracted building (на случай если detect_building не отсек)
     if building and _is_building_stopword(building):
+        building = None
+        building_conf = 0.0
+
+    # v134 HARD CAP: building >60 chars — почти всегда mis-capture marketing
+    # block / multi-tower bulk listing / section header. Real Dubai building
+    # names обычно ≤40 chars («The Ritz-Carlton Residences – Creekside» = 56).
+    # Cap 60 безопасен для legitimate, отсекает мусор. См. B003 cascade.
+    if building and len(building) > 60:
         building = None
         building_conf = 0.0
 
