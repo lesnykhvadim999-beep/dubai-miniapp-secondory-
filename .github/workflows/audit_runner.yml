@@ -40,7 +40,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
-          GITHUB_MODELS_TOKEN: ${{ secrets.GITHUB_MODELS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CF_WORKER_PROXY: ${{ secrets.CF_WORKER_PROXY }}
         run: python ${{ inputs.script }}
