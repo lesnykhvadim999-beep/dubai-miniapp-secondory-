@@ -19,7 +19,7 @@
 
 Output:
   _nightly_log.txt — лог каждой записи + расхождений
-  _nightly_todo.txt — TODO для парсера: «надо чтобы было X но парсер вернул Y»
+  _nightly_todo.txt — список расхождений для парсера: «ожидалось X — парсер вернул Y»
 """
 import os, sys, io, re, json, time, psycopg2, traceback
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
