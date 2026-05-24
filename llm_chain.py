@@ -38,6 +38,56 @@ import threading
 import requests
 from typing import Optional, List
 
+# v131 anti-block: curl_cffi TLS fingerprint masking (Chrome impersonation).
+# Standard Python TLS stack is easily detected by Cloudflare via JA3 fingerprint.
+# curl_cffi mimics a real Chrome TLS handshake, bypassing CF 1010 / JA3 bans.
+# Optional dependency — if not installed we silently fall back to `requests`.
+try:
+    from curl_cffi import requests as _cffi_requests  # type: ignore
+    _HAS_CURL_CFFI = True
+except Exception:
+    _cffi_requests = None
+    _HAS_CURL_CFFI = False
+
+_CURL_IMPERSONATE = os.getenv("CURL_IMPERSONATE", "chrome124")
+
+
+class _ResponseLike:
+    """Adapter so callers can use .status_code / .json() / .text uniformly."""
+    __slots__ = ("status_code", "_text")
+
+    def __init__(self, status_code: int, text: str):
+        self.status_code = status_code
+        self._text = text
+
+    @property
+    def text(self) -> str:
+        return self._text
+
+    def json(self):
+        return json.loads(self._text)
+
+
+def _post(url: str, *, headers=None, json_body=None, timeout: int = 15):
+    """Unified POST: prefer curl_cffi (TLS Chrome impersonation), fall back to
+    plain `requests` if curl_cffi is unavailable or errors out."""
+    if _HAS_CURL_CFFI:
+        try:
+            r = _cffi_requests.post(
+                url,
+                headers=headers or {},
+                json=json_body,
+                timeout=timeout,
+                impersonate=_CURL_IMPERSONATE,
+            )
+            # curl_cffi exposes .status_code and .text on its Response.
+            return _ResponseLike(r.status_code, r.text)
+        except Exception as e:
+            print(f"[llm_chain] curl_cffi err ({type(e).__name__}: {e}); falling back to requests")
+    # Fallback path — vanilla requests (Python TLS stack).
+    r = requests.post(url, headers=headers or {}, json=json_body, timeout=timeout)
+    return _ResponseLike(r.status_code, r.text)
+
 
 # ── Provider configs ─────────────────────────────────────────────────────
 # env_keys: list of env-var NAMES to try as keys for this provider.
@@ -515,12 +565,12 @@ def _call_openai_compat(provider: dict, key_idx: int, key: str, prompt: str,
         headers = _common_headers()
         headers.update({"Authorization": f"Bearer {key}",
                         "Content-Type": "application/json"})
-        r = requests.post(
+        r = _post(
             _maybe_proxy_url(provider),
             headers=headers,
-            json={"model": provider["model"],
-                  "max_tokens": max_tokens,
-                  "messages": [{"role": "user", "content": prompt}]},
+            json_body={"model": provider["model"],
+                       "max_tokens": max_tokens,
+                       "messages": [{"role": "user", "content": prompt}]},
             timeout=timeout,
         )
         if r.status_code == 200:
@@ -546,10 +596,10 @@ def _call_gemini(provider: dict, key_idx: int, key: str, prompt: str,
     try:
         headers = _common_headers()
         headers["Content-Type"] = "application/json"
-        r = requests.post(
+        r = _post(
             f'{provider["url"]}?key={key}',
             headers=headers,
-            json={
+            json_body={
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"maxOutputTokens": max_tokens,
                                      "temperature": 0.2},
@@ -590,12 +640,12 @@ def _call_anthropic(provider: dict, key_idx: int, key: str, prompt: str,
         headers.update({"x-api-key": key,
                         "anthropic-version": "2023-06-01",
                         "content-type": "application/json"})
-        r = requests.post(
+        r = _post(
             provider["url"],
             headers=headers,
-            json={"model": provider["model"],
-                  "max_tokens": max_tokens,
-                  "messages": [{"role": "user", "content": prompt}]},
+            json_body={"model": provider["model"],
+                       "max_tokens": max_tokens,
+                       "messages": [{"role": "user", "content": prompt}]},
             timeout=timeout,
         )
         if r.status_code == 200:
@@ -630,12 +680,12 @@ def _call_cohere(provider: dict, key_idx: int, key: str, prompt: str,
         headers = _common_headers()
         headers.update({"Authorization": f"Bearer {key}",
                         "Content-Type": "application/json"})
-        r = requests.post(
+        r = _post(
             provider["url"],
             headers=headers,
-            json={"model": provider["model"],
-                  "max_tokens": max_tokens,
-                  "messages": [{"role": "user", "content": prompt}]},
+            json_body={"model": provider["model"],
+                       "max_tokens": max_tokens,
+                       "messages": [{"role": "user", "content": prompt}]},
             timeout=timeout,
         )
         if r.status_code == 200:
@@ -664,13 +714,13 @@ def _call_ollama(provider: dict, key_idx: int, key: str, prompt: str,
     try:
         headers = _common_headers()
         headers["Content-Type"] = "application/json"
-        r = requests.post(
+        r = _post(
             provider["url"],
             headers=headers,
-            json={"model": provider["model"],
-                  "messages": [{"role": "user", "content": prompt}],
-                  "stream": False,
-                  "options": {"num_predict": max_tokens}},
+            json_body={"model": provider["model"],
+                       "messages": [{"role": "user", "content": prompt}],
+                       "stream": False,
+                       "options": {"num_predict": max_tokens}},
             timeout=timeout,
         )
         if r.status_code == 200:
@@ -843,49 +893,49 @@ def health_check_all(timeout: int = 10) -> dict:
             if fmt == "openai":
                 headers.update({"Authorization": f"Bearer {key}",
                                 "Content-Type": "application/json"})
-                r = requests.post(
+                r = _post(
                     _maybe_proxy_url(p),
                     headers=headers,
-                    json={"model": p["model"], "max_tokens": 10,
-                          "messages": [{"role": "user", "content": test_prompt}]},
+                    json_body={"model": p["model"], "max_tokens": 10,
+                               "messages": [{"role": "user", "content": test_prompt}]},
                     timeout=timeout,
                 )
             elif fmt == "gemini":
                 headers["Content-Type"] = "application/json"
-                r = requests.post(
+                r = _post(
                     f'{p["url"]}?key={key}',
                     headers=headers,
-                    json={"contents": [{"parts": [{"text": test_prompt}]}],
-                          "generationConfig": {"maxOutputTokens": 10}},
+                    json_body={"contents": [{"parts": [{"text": test_prompt}]}],
+                               "generationConfig": {"maxOutputTokens": 10}},
                     timeout=timeout,
                 )
             elif fmt == "anthropic":
                 headers.update({"x-api-key": key,
                                 "anthropic-version": "2023-06-01",
                                 "content-type": "application/json"})
-                r = requests.post(
+                r = _post(
                     p["url"], headers=headers,
-                    json={"model": p["model"], "max_tokens": 10,
-                          "messages": [{"role": "user", "content": test_prompt}]},
+                    json_body={"model": p["model"], "max_tokens": 10,
+                               "messages": [{"role": "user", "content": test_prompt}]},
                     timeout=timeout,
                 )
             elif fmt == "cohere":
                 headers.update({"Authorization": f"Bearer {key}",
                                 "Content-Type": "application/json"})
-                r = requests.post(
+                r = _post(
                     p["url"], headers=headers,
-                    json={"model": p["model"], "max_tokens": 10,
-                          "messages": [{"role": "user", "content": test_prompt}]},
+                    json_body={"model": p["model"], "max_tokens": 10,
+                               "messages": [{"role": "user", "content": test_prompt}]},
                     timeout=timeout,
                 )
             elif fmt == "ollama":
                 headers["Content-Type"] = "application/json"
-                r = requests.post(
+                r = _post(
                     p["url"], headers=headers,
-                    json={"model": p["model"],
-                          "messages": [{"role": "user", "content": test_prompt}],
-                          "stream": False,
-                          "options": {"num_predict": 10}},
+                    json_body={"model": p["model"],
+                               "messages": [{"role": "user", "content": test_prompt}],
+                               "stream": False,
+                               "options": {"num_predict": 10}},
                     timeout=timeout,
                 )
             else:
