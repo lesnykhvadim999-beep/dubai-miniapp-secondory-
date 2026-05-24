@@ -4709,6 +4709,28 @@ def parse_message(
 
     # ── Strict validator — помечаем подозрительные сразу в audit ───────────
     audit_reasons = _validate_listing_strict(data)
+
+    # B038: если бенчмарк подсветил >40% отклонение цены — попросим LLM сверить
+    # parsed price vs original text. Если LLM возвращает существенно другую цену
+    # с высокой confidence — берём её. Если LLM подтверждает mis-parse —
+    # is_audit=TRUE даже без замены.
+    try:
+        if any(r.startswith("price_off_median_") for r in audit_reasons):
+            data, bench_action = _bench_llm_verify(data, text)
+            if bench_action == "accepted_correction":
+                # LLM поправил цену — перевалидируем (старые reasons по off-median
+                # могут отвалиться)
+                audit_reasons = _validate_listing_strict(data)
+            elif bench_action == "confirmed_misparse":
+                data["is_audit"] = True
+                if "bench_misparse_confirmed" not in audit_reasons:
+                    audit_reasons.append("bench_misparse_confirmed")
+    except Exception as _be:
+        try:
+            print(f"[bench] verify err: {_be}")
+        except Exception:
+            pass
+
     if audit_reasons:
         data["needs_manual_review"] = True
         data["review_reason"] = "; ".join(audit_reasons)
@@ -4719,7 +4741,8 @@ def parse_message(
         # Теперь любой sale_absurd_low/sale_too_low/sale_psf_absurd → immediate hide.
         _critical_reason_prefixes = ("sale_absurd_low", "sale_too_low",
                                      "sale_psf_absurd", "rent_absurd_low",
-                                     "rent_psf_absurd")
+                                     "rent_psf_absurd",
+                                     "bench_misparse_confirmed")
         for r in audit_reasons:
             if any(r.startswith(p) for p in _critical_reason_prefixes):
                 data["is_audit"] = True
@@ -4906,6 +4929,206 @@ def _apply_qgate_corrections(data: dict, corrections: dict) -> dict:
     return data
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# B038: Area + category price-benchmark gate
+# ──────────────────────────────────────────────────────────────────────────────
+# Lookup median price from `area_price_benchmark` (built by build_area_benchmarks.py
+# from DLD analytics data) and flag listings whose price deviates >40% from the
+# district+category median. Replaces the coarse global thresholds for those
+# districts where we have enough data.
+# ══════════════════════════════════════════════════════════════════════════════
+_BENCH_CACHE: dict = {}  # (area_lc, pt, br, deal) -> (median, sample_size)
+_BENCH_LOADED = False
+_BENCH_DEVIATION_THRESHOLD = 0.40  # 40% off median ⇒ suspicious
+
+
+def _bench_norm_area(area: str | None) -> str | None:
+    if not area:
+        return None
+    return area.strip().lower()
+
+
+def _bench_load_all() -> None:
+    """Eager-load benchmark table into in-memory dict. Called once."""
+    global _BENCH_LOADED
+    if _BENCH_LOADED:
+        return
+    dsn = os.environ.get("DATABASE_URL", "")
+    if not dsn:
+        _BENCH_LOADED = True
+        return
+    try:
+        import psycopg2 as _pg
+        conn = _pg.connect(dsn, connect_timeout=5)
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT area, property_type, bedrooms, deal_type, median, sample_size
+               FROM area_price_benchmark
+               WHERE sample_size >= 5"""
+        )
+        n = 0
+        for area, pt, br, deal, med, n_samples in cur.fetchall():
+            key = (str(area).strip().lower(),
+                   str(pt).strip().lower(),
+                   br,  # may be None
+                   str(deal).strip().lower())
+            try:
+                med_f = float(med) if med is not None else None
+            except Exception:
+                med_f = None
+            if med_f and med_f > 0:
+                _BENCH_CACHE[key] = (med_f, int(n_samples or 0))
+                n += 1
+        cur.close(); conn.close()
+        print(f"[bench] loaded {n} benchmark rows into cache")
+    except Exception as _e:
+        print(f"[bench] load error: {_e}")
+    _BENCH_LOADED = True
+
+
+def _check_area_benchmark(data: dict) -> Optional[str]:
+    """Return reason string if price deviates >40% from area+category median.
+
+    Returns None if no benchmark available for this bucket (fallback to existing
+    hard thresholds). Fail-safe: any exception → None.
+    """
+    try:
+        _bench_load_all()
+        if not _BENCH_CACHE:
+            return None
+        price = data.get("price")
+        if not price or price <= 0:
+            return None
+        area_lc = _bench_norm_area(data.get("area"))
+        if not area_lc:
+            return None
+        pt = (data.get("property_type") or "").strip().lower()
+        if pt not in ("apartment", "villa", "townhouse", "penthouse", "studio"):
+            return None
+        deal = (data.get("deal_type") or "sale").strip().lower()
+        if deal not in ("sale", "rent"):
+            return None
+        br = data.get("bedrooms")
+        if isinstance(br, float):
+            br = int(br)
+
+        # Try most specific → less specific lookups.
+        candidates = [
+            (area_lc, pt, br, deal),
+            (area_lc, pt, None, deal),  # NULL bedrooms bucket
+        ]
+        for key in candidates:
+            row = _BENCH_CACHE.get(key)
+            if row:
+                median, n = row
+                if n < 5 or median <= 0:
+                    continue
+                dev = abs(float(price) - median) / median
+                if dev > _BENCH_DEVIATION_THRESHOLD:
+                    return f"price_off_median_{int(dev * 100)}pct"
+                return None  # within band — explicitly OK
+        return None
+    except Exception as _e:
+        # fail-safe: never block the parser
+        try:
+            print(f"[bench] check err: {_e}")
+        except Exception:
+            pass
+        return None
+
+
+def _bench_llm_verify(data: dict, full_text: str, timeout: int = 15) -> tuple[dict, str]:
+    """B038: LLM cross-check after off-median benchmark flag.
+
+    Returns (data, action) where action ∈
+      'accepted_correction' — LLM gave new price, applied to data
+      'confirmed_misparse'  — LLM thinks parser is wrong but didn't provide a value
+      'noop'                — LLM either has no opinion / agrees with parser / unavailable
+
+    Strictly free-tier — uses existing llm_chain.llm_call.
+    """
+    if not full_text or len(full_text) < 50:
+        return data, "noop"
+    try:
+        from llm_chain import llm_call as _chain_llm_call
+    except Exception:
+        return data, "noop"
+
+    snippet = full_text[:1500].strip()
+    parsed_price = data.get("price")
+    deal = data.get("deal_type") or "sale"
+    pt = data.get("property_type") or "apartment"
+    br = data.get("bedrooms")
+    area = data.get("area")
+
+    prompt = (
+        "You are a Dubai real-estate parser auditor. Our parser may have mis-read the price. "
+        "Compare PARSED with ORIGINAL TEXT and answer in strict JSON only.\n\n"
+        f"PARSED: price={parsed_price} AED, deal_type={deal}, property_type={pt}, "
+        f"bedrooms={br}, area={area!r}\n\n"
+        "ORIGINAL TEXT:\n```\n" + snippet + "\n```\n\n"
+        "Return JSON with keys:\n"
+        '  "correct_price": int|null  — the real price in AED if parser is wrong, '
+        'else null if parser is correct\n'
+        '  "is_misparse": bool        — true if parser clearly misread (rent shown as sale, '
+        'price-per-month vs price-per-year, missing zero, decimal point error, multi-listing leak)\n'
+        '  "confidence": 0-100\n'
+        "Rules:\n"
+        "- AED prices: rent is annual; if text says monthly, multiply by 12 ONLY if obvious\n"
+        "- If unsure, set is_misparse=false and correct_price=null\n"
+        "- Never invent a price not present in the text\n"
+        "Return ONLY the JSON object, no markdown."
+    )
+    try:
+        resp = _chain_llm_call(prompt, max_tokens=200, timeout=timeout)
+    except Exception:
+        return data, "noop"
+    if not resp:
+        return data, "noop"
+
+    # Tolerant JSON parse
+    import re as _re
+    import json as _json
+    m = _re.search(r"\{.*\}", resp, _re.S)
+    if not m:
+        return data, "noop"
+    try:
+        obj = _json.loads(m.group(0))
+    except Exception:
+        return data, "noop"
+    if not isinstance(obj, dict):
+        return data, "noop"
+
+    conf = obj.get("confidence") or 0
+    try:
+        conf = int(conf)
+    except Exception:
+        conf = 0
+    is_mis = bool(obj.get("is_misparse"))
+    new_price = obj.get("correct_price")
+
+    # Accept correction only if LLM is confident AND new price meaningfully differs
+    if new_price is not None and isinstance(new_price, (int, float)) and conf >= 75:
+        try:
+            new_price = int(new_price)
+        except Exception:
+            new_price = None
+        if new_price and new_price > 0 and parsed_price:
+            try:
+                ratio = abs(new_price - int(parsed_price)) / max(int(parsed_price), 1)
+            except Exception:
+                ratio = 0
+            if new_price >= 5000 and ratio >= 0.20:
+                data["price"] = new_price
+                data["price_source"] = "llm_bench_verify"
+                return data, "accepted_correction"
+
+    if is_mis and conf >= 70:
+        return data, "confirmed_misparse"
+
+    return data, "noop"
+
+
 def _validate_listing_strict(data: dict) -> list:
     """Возвращает список причин подозрительности или [] если всё ок.
     Логика синхронизирована с DB-валидатором — те же эвристики."""
@@ -4982,6 +5205,15 @@ def _validate_listing_strict(data: dict) -> list:
     if sqft and br is not None and br > 0:
         if sqft < br * 200:
             reasons.append(f"sqft_too_small_{sqft}")
+
+    # B038: data-driven area+category benchmark check (replaces blunt premium-villa /
+    # min-by-br thresholds for districts where DLD analytics has enough samples).
+    try:
+        bench_reason = _check_area_benchmark(data)
+        if bench_reason:
+            reasons.append(bench_reason)
+    except Exception:
+        pass
 
     # Type vs text contradictions
     if text:
