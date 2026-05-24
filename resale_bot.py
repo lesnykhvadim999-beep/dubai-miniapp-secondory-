@@ -148,9 +148,15 @@ T = {
 "en": {
     "welcome": (
         "𝗗𝘂𝗯𝗮𝗶 𝗥𝗲𝗮𝗹 𝗘𝘀𝘁𝗮𝘁𝗲 𝗜𝗻𝘁𝗲𝗹𝗹𝗶𝗴𝗲𝗻𝗰𝗲\n"
-        "Your private UAE real estate advisor.\n"
-        "4,500+ verified listings · ROI · Hot deals\n\n"
-        "Select your language ⬇️"
+        "Your private UAE property advisor.\n"
+        "10,000+ verified Dubai listings · Hot deals\n"
+        "DLD price benchmarks · Investment PDF · Direct broker\n\n"
+        "─────────────────────\n"
+        "𝗡𝗘𝗗𝗩𝗜𝗭𝗛𝗜𝗠𝗢𝗦𝗧 𝗢𝗔𝗘\n"
+        "Ваш личный советник по недвижимости ОАЭ.\n"
+        "10 000+ проверенных объектов · Горячие сделки\n"
+        "Бенчмарки цен DLD · Инвест-PDF · Прямой брокер\n\n"
+        "Select your language / Выберите язык ⬇️"
     ),
     "lang_set": "English selected",
     "main_menu": "────────────────────\n  UAE PROPERTY SEARCH\n────────────────────",
@@ -399,16 +405,16 @@ T = {
 },
 "ru": {
     "welcome": (
+        "𝗗𝘂𝗯𝗮𝗶 𝗥𝗲𝗮𝗹 𝗘𝘀𝘁𝗮𝘁𝗲 𝗜𝗻𝘁𝗲𝗹𝗹𝗶𝗴𝗲𝗻𝗰𝗲\n"
+        "Your private UAE property advisor.\n"
+        "10,000+ verified Dubai listings · Hot deals\n"
+        "DLD price benchmarks · Investment PDF · Direct broker\n\n"
+        "─────────────────────\n"
         "𝗡𝗘𝗗𝗩𝗜𝗭𝗛𝗜𝗠𝗢𝗦𝗧 𝗢𝗔𝗘\n"
-        "────────────────────\n"
-        "Ваш личный советник\n"
-        "по рынку недвижимости ОАЭ.\n\n"
-        "4 500+ проверенных объектов\n"
-        "Инвестиционный анализ · ROI · Аренда\n"
-        "Горячие предложения ниже рынка\n\n"
-        "Дубай · Абу-Даби · РАК · Шарджа\n"
-        "────────────────────\n"
-        "Выберите язык"
+        "Ваш личный советник по недвижимости ОАЭ.\n"
+        "10 000+ проверенных объектов · Горячие сделки\n"
+        "Бенчмарки цен DLD · Инвест-PDF · Прямой брокер\n\n"
+        "Select your language / Выберите язык ⬇️"
     ),
     "lang_set": "Язык: Русский",
     "main_menu": "────────────────────\n  ПОИСК НЕДВИЖИМОСТИ\n────────────────────",
@@ -1181,7 +1187,7 @@ def kb_main_reply(uid):
         [_t(uid, "rbtn_apt"),        _t(uid, "rbtn_villa")],
         [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
         [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new"),   _t(uid, "rbtn_ai")],
-        [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts")],
+        [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts"), _t(uid, "rbtn_lang")],
     ])
 
 
