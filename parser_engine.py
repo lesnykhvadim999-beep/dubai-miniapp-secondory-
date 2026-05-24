@@ -1267,11 +1267,127 @@ def _is_landmark_view_reference(text_lower: str, m: re.Match) -> bool:
     return False
 
 
+# v128 (24.05.2026): iconic Dubai landmarks которые часто упоминаются как ВИД,
+# а не как здание объекта. Если building совпал с одним из этих имён И в тексте есть
+# view/landmark маркер И НЕТ explicit "in/at/inside" — building сбрасывается в None.
+# Это спасает от parser bug где 249 листингов попали в Burj Khalifa из-за
+# "Burj Khalifa view".
+_ICONIC_LANDMARKS_VIEW_GUARD = {
+    "burj khalifa",
+    "burj al arab",
+    "palm jumeirah",
+    "atlantis",
+    "atlantis the royal",
+    "marina skyline",
+    "downtown dubai",
+    "sheikh zayed road",
+    "dubai eye",
+    "ain dubai",
+    "dubai mall",
+    "dubai frame",
+    "dubai canal",
+}
+
+_LANDMARK_VIEW_MARKER_RE = re.compile(
+    r'\b(?:view\s+(?:of|to|on|from|towards?)?\s*|views\s*(?:of)?\s*|'
+    r'facing\s+|near\s+|overlooking\s+|close\s+to\s+|next\s+to\s+|by\s+the\s+|'
+    r'walking\s+distance\s+(?:to|from)\s+|minutes?\s+(?:to|from)\s+|'
+    r'drive\s+to\s+|opposite\s+|adjacent\s+to\s+|beside\s+|'
+    r'вид\s+на\s+|с\s+видом\s+на\s+|видом\s+на\s+|рядом\s+с\s+|около\s+|'
+    r'недалеко\s+от\s+|напротив\s+)'
+    r'({names})\b'
+    r'|\b({names})\s+(?:view|views)\b',
+    re.IGNORECASE,
+)
+
+
+def _build_landmark_view_re() -> re.Pattern[str]:
+    names = "|".join(re.escape(n) for n in sorted(_ICONIC_LANDMARKS_VIEW_GUARD,
+                                                   key=len, reverse=True))
+    pat = (
+        r'\b(?:view\s+(?:of|to|on|from|towards?)?\s*|views\s*(?:of)?\s*|'
+        r'facing\s+|near\s+|overlooking\s+|close\s+to\s+|next\s+to\s+|by\s+the\s+|'
+        r'walking\s+distance\s+(?:to|from)\s+|minutes?\s+(?:to|from)\s+|'
+        r'drive\s+to\s+|opposite\s+|adjacent\s+to\s+|beside\s+|'
+        r'вид\s+на\s+|с\s+видом\s+на\s+|видом\s+на\s+|рядом\s+с\s+|около\s+|'
+        r'недалеко\s+от\s+|напротив\s+)'
+        rf'(?:{names})\b'
+        rf'|\b(?:{names})\s+(?:view|views)\b'
+    )
+    return re.compile(pat, re.IGNORECASE)
+
+
+_LANDMARK_VIEW_RE = _build_landmark_view_re()
+
+
+def _build_landmark_in_re() -> re.Pattern[str]:
+    names = "|".join(re.escape(n) for n in sorted(_ICONIC_LANDMARKS_VIEW_GUARD,
+                                                   key=len, reverse=True))
+    # explicit "in/at/inside/located in X" markers — означает что объект ВНУТРИ landmark.
+    pat = (
+        r'\b(?:in|at|inside|located\s+in|located\s+at|unit\s+in|apartment\s+in|'
+        r'apt\s+in|residence\s+in|flat\s+in|property\s+in|'
+        r'в|внутри)\s+'
+        rf'(?:{names})\b'
+    )
+    return re.compile(pat, re.IGNORECASE)
+
+
+_LANDMARK_IN_RE = _build_landmark_in_re()
+
+
+def _is_iconic_landmark_view_only(text: str, building_name: str) -> bool:
+    """v128: True если building_name — iconic landmark и в тексте упоминается ТОЛЬКО как
+    view/ориентир, без явного "in/at/inside" маркера.
+
+    Особый случай: 'Atlantis The Royal Residences' и 'FIVE Palm Jumeirah' —
+    легальные резиденции, их не блокируем.
+    """
+    if not text or not building_name:
+        return False
+    bn_lower = building_name.lower().strip()
+    # Whitelist: реальные residences с landmark-именем в названии.
+    LEGITIMATE_RESIDENCES = {
+        "atlantis the royal residences",
+        "five palm jumeirah",
+        "palm tower",
+        "the palm tower",
+        "address downtown",
+        "the address downtown",
+        "burj vista 1", "burj vista 2", "burj vista tower 1", "burj vista tower 2",
+        "burj vista",  # сам по себе — здание, не landmark
+        "burj crown",  # отдельная башня
+        "downtown views", "downtown views ii", "downtown views 2",
+    }
+    if bn_lower in LEGITIMATE_RESIDENCES:
+        return False
+    # Точное совпадение с landmark — блокировка применима.
+    if bn_lower in _ICONIC_LANDMARKS_VIEW_GUARD:
+        has_view = bool(_LANDMARK_VIEW_RE.search(text))
+        has_in = bool(_LANDMARK_IN_RE.search(text))
+        return has_view and not has_in
+    # 'Burj Khalifa And Community' и подобные мусорные расширения тоже блокируем.
+    for lm in _ICONIC_LANDMARKS_VIEW_GUARD:
+        if lm in bn_lower and bn_lower not in LEGITIMATE_RESIDENCES:
+            # Если building_name = "burj khalifa..." что-то, и в тексте только view-маркеры —
+            # это точно баг парсера.
+            has_view = bool(_LANDMARK_VIEW_RE.search(text))
+            has_in = bool(_LANDMARK_IN_RE.search(text))
+            if has_view and not has_in:
+                return True
+            break
+    return False
+
+
 def detect_building(text: str) -> tuple[Optional[str], float, Optional[str], Optional[str], Optional[str]]:
     """
     Returns (building_name, confidence, area, emirate, developer).
     If building found in DB → area and emirate come from DB (cross-validated).
     Landmark names ("Burj Khalifa", "Marina") in 'view' context are SKIPPED.
+
+    v128 (24.05.2026): добавлен финальный guard для iconic landmarks — если
+    building совпал с Burj Khalifa / Palm Jumeirah / Burj Al Arab и т.п.,
+    но в тексте только view-маркеры — building отбрасывается.
     """
     tl = text.lower()
 
@@ -1279,6 +1395,10 @@ def detect_building(text: str) -> tuple[Optional[str], float, Optional[str], Opt
     for bname_lower, bname_canonical in _BUILDINGS_LOWER.items():
         for m in re.finditer(r'\b' + re.escape(bname_lower) + r'\b', tl):
             if _is_landmark_view_reference(tl, m):
+                continue
+            # v128 guard: iconic landmarks (Burj Khalifa, Palm Jumeirah, ...)
+            # требуют explicit "in/at/inside" — иначе это вид.
+            if _is_iconic_landmark_view_only(text, bname_canonical):
                 continue
             bdata = BUILDINGS_DB[bname_canonical]
             return (bname_canonical, 0.95,
@@ -1288,6 +1408,8 @@ def detect_building(text: str) -> tuple[Optional[str], float, Optional[str], Opt
     for alias_lower, bname_canonical in _BUILDING_ALIASES.items():
         for m in re.finditer(r'\b' + re.escape(alias_lower) + r'\b', tl):
             if _is_landmark_view_reference(tl, m):
+                continue
+            if _is_iconic_landmark_view_only(text, bname_canonical):
                 continue
             bdata = BUILDINGS_DB[bname_canonical]
             return (bname_canonical, 0.90,
@@ -1307,17 +1429,21 @@ def detect_building(text: str) -> tuple[Optional[str], float, Optional[str], Opt
                 norm_lower = normalized.lower()
                 if norm_lower in _BUILDINGS_LOWER:
                     bname = _BUILDINGS_LOWER[norm_lower]
+                    if _is_iconic_landmark_view_only(text, bname):
+                        continue
                     bdata = BUILDINGS_DB[bname]
                     return (bname, 0.82,
                             bdata.get("area"), bdata.get("emirate"), bdata.get("developer"))
                 # Return normalized name without DB data
+                if _is_iconic_landmark_view_only(text, normalized):
+                    continue
                 return normalized, 0.75, None, None, None
     except Exception:
         pass
 
     # 4. Heuristic regex — typical "📍 X, Emirate" / "🏢 Project: X" / "X in Y" patterns
     heur = _extract_building_heuristic(text)
-    if heur:
+    if heur and not _is_iconic_landmark_view_only(text, heur):
         return heur, 0.60, None, None, None
 
     return None, 0.0, None, None, None
@@ -4127,6 +4253,11 @@ def parse_message(
     if prop_type == "whole_building" and bedrooms is not None:
         bedrooms = None
 
+    # v131 (24.05.2026): OFFICE / RETAIL — bedrooms нет смысла, это commercial space.
+    # Парсер часто ловит «1 B/R» из описаний «meeting rooms» / «1 cabin» / «1 storage room».
+    if prop_type in ("office", "retail") and bedrooms is not None:
+        bedrooms = None
+
     # building == area (case-insensitive) → удалить building, это area-как-building bug
     if building and area and building.strip().lower() == area.strip().lower():
         building = None
@@ -4180,6 +4311,18 @@ def parse_message(
             building_conf = 0.0
         # Plot Area / GFA / BUA phrases
         elif re.search(r'\b(?:plot\s+area|sqft\s+area|bua|gfa|total\s+apartments)\b', bl):
+            building = None
+            building_conf = 0.0
+        # Marketing-phrase patterns (24.05.2026 — found in NULL-area listings):
+        # «LAST DAY», «Act fast!», «Pricing Details», «Key Investment Details»,
+        # «Limited Opportunity», «All details», «Freeholdsforsallsnationalitie», etc.
+        elif (
+            re.search(r'\b(?:last\s+day|act\s+fast|limited\s+opportunity|hurry|promo|'
+                       r'pricing\s+details|key\s+investment|all\s+details|free\s*hold[a-z]+|'
+                       r'click\s+(?:here|now)|swipe|dm\s+(?:me|us)|whatsapp\s+(?:now|me))\b', bl)
+            or bl.endswith('!')
+            or len(bl) > 60
+        ):
             building = None
             building_conf = 0.0
         else:
