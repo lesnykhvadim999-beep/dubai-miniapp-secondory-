@@ -1070,7 +1070,8 @@ def _reset(uid):
     dd = user_states.get(uid, {}).get("default_deal")  # preserve across resets
     user_states[uid] = {"filters": {}, "results": [], "page": 0,
                         "ai_step": 0, "ai_data": {}, "waiting": None,
-                        "default_deal": dd}
+                        "default_deal": dd,
+                        "wiz_history": []}  # B045: чистим стек back-навигации
 
 # ── Telegram helpers ──────────────────────────────────────────────────────────
 def _api(method, **kw):
@@ -4053,10 +4054,157 @@ def create_alert_from_filters(cid, uid):
     _send(cid, _t(uid, "alert_created"), kb_main_reply(uid))
 
 
+# ── B045: Smooth back/forward navigation helpers ─────────────────────────────
+# Wizard history stack — позволяет «← Назад» возвращать НА ОДИН шаг (а не в главное
+# меню). Каждый раз когда мы переходим на новый wizard step, текущий wizard + копия
+# filters пушится в state["wiz_history"]. При нажатии «Назад» снимаем верх стека
+# и перерисовываем тот экран.
+WIZARD_RENDER = {}  # wizard_name -> (text_key, kb_factory)
+
+def _push_wiz(uid, step_name, filters_snapshot=None):
+    """Записать текущий wizard step в history перед переходом на следующий."""
+    s = gs(uid)
+    hist = s.setdefault("wiz_history", [])
+    snap = dict(filters_snapshot) if filters_snapshot is not None else dict(s.get("filters", {}))
+    # Не дублируем подряд одинаковые состояния (idempotent push)
+    if hist and hist[-1].get("step") == step_name:
+        return
+    hist.append({"step": step_name, "filters": snap})
+    # Защита от бесконечного роста
+    if len(hist) > 20:
+        del hist[:-20]
+
+
+def _render_wiz_step(cid, uid, step):
+    """Перерисовать UI для указанного wizard-шага. Filters уже восстановлены."""
+    s = gs(uid)
+    f = s.get("filters", {})
+    if step == "deal":
+        s["wizard"] = "deal"
+        _send(cid, _t(uid, "deal_q"), kb_reply_deal(uid))
+    elif step == "emirate":
+        s["wizard"] = "emirate"
+        _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
+    elif step == "proptype":
+        s["wizard"] = "proptype"
+        if f.get("property_type_in") and any(p in COMMERCIAL_TYPES for p in f.get("property_type_in", [])):
+            _send(cid, _t(uid, "prop_q"), kb_reply_proptype_commercial(uid))
+        else:
+            _send(cid, _t(uid, "prop_q"), kb_reply_proptype_residential(uid))
+    elif step == "bedrooms":
+        s["wizard"] = "bedrooms"
+        _send(cid, _t(uid, "br_q"), kb_reply_bedrooms(uid))
+    elif step == "budget":
+        s["wizard"] = "budget"
+        is_rent = f.get("deal_type") == "rent"
+        is_comm = bool(f.get("property_type_in"))
+        is_plot = f.get("property_type") == "plot"
+        _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
+              kb_reply_budget(uid, is_rent=is_rent, is_commercial=is_comm, is_plot=is_plot))
+    elif step == "area_input":
+        s["wizard"] = "area_input"
+        _send(cid, _t(uid, "wiz_area_q"), kb_reply_area_input(uid))
+    elif step == "building_input":
+        s["wizard"] = "building_input"
+        _send(cid, _t(uid, "wiz_bld_q"), kb_reply_building_input(uid))
+    else:
+        # Неизвестный шаг — fallback на главное меню
+        show_main(cid, uid)
+
+
+def _go_back_step(cid, uid):
+    """Pop history → restore filters → re-render previous step.
+    Returns True if a step was popped, False if history empty (caller shows main).
+    """
+    s = gs(uid)
+    hist = s.get("wiz_history") or []
+    if not hist:
+        return False
+    prev = hist.pop()
+    # Восстанавливаем filters того момента (сохраняем то что юзер выбрал ДО шага)
+    s["filters"] = dict(prev.get("filters", {}))
+    # Если previous step — это просто состояние перед текущим, нужно перерисовать его
+    _render_wiz_step(cid, uid, prev["step"])
+    return True
+
+
+def _inline_switch_category(cid, uid, rkey):
+    """B045: Юзер на результатах нажал категорию (Apt/Villa/Commercial/Plot).
+    Сохраняем deal_type, переключаем property_type filter, сразу делаем search.
+    Если переход между residential ↔ commercial/plot — reset bedrooms (несовместим).
+    Returns True если switch выполнен, False если нужен обычный wizard.
+    """
+    s = gs(uid)
+    f = s.get("filters", {})
+    deal = f.get("deal_type")
+    if not deal:
+        return False  # нет deal_type → обычный wizard
+
+    new_pt_in = None
+    new_pt = None
+    if rkey == "rbtn_apt":
+        new_pt_in = ["apartment", "studio", "penthouse", "duplex"]
+    elif rkey == "rbtn_villa":
+        new_pt_in = ["villa", "townhouse"]
+    elif rkey == "rbtn_commercial":
+        new_pt_in = COMMERCIAL_TYPES
+    elif rkey == "rbtn_plot":
+        new_pt = "plot"
+    else:
+        return False
+
+    # Сохраняем deal_type, emirate, area, building, budget — сбрасываем то что mismatch
+    preserved = {"deal_type": deal}
+    for k in ("emirate", "area", "building", "min_price", "max_price"):
+        if k in f:
+            preserved[k] = f[k]
+    # bedrooms — оставляем только при residential→residential
+    going_to_commercial = bool(new_pt_in) and any(p in COMMERCIAL_TYPES for p in new_pt_in)
+    going_to_plot = new_pt == "plot"
+    was_commercial = bool(f.get("property_type_in") and
+                          any(p in COMMERCIAL_TYPES for p in f.get("property_type_in", [])))
+    was_plot = f.get("property_type") == "plot"
+
+    if not (going_to_commercial or going_to_plot) and not (was_commercial or was_plot):
+        # residential → residential — bedrooms имеет смысл
+        if f.get("bedrooms") is not None:
+            preserved["bedrooms"] = f["bedrooms"]
+
+    if new_pt_in:
+        preserved["property_type_in"] = new_pt_in
+        s["wizard_pt_in_hint"] = new_pt_in
+        s["wizard_pt_hint"] = None
+        s["wizard_pt_not_in_hint"] = None
+    if new_pt:
+        preserved["property_type"] = new_pt
+        s["wizard_pt_hint"] = new_pt
+        s["wizard_pt_in_hint"] = None
+        s["wizard_pt_not_in_hint"] = None
+
+    s["filters"] = preserved
+    s["wizard_deal_hint"] = deal
+    s["wizard"] = None
+    s["wiz_history"] = []  # новый search — стек чистый
+    _send(cid, _t(uid, "searching"))
+    do_search(uid)
+    send_results(cid, uid)
+    return True
+
+
 def dispatch_main_button(cid, uid, rkey):
     """Dispatches a press of a bottom reply-keyboard button to the right flow.
     Each category sets the appropriate filter so search results stay within it.
-    Now uses reply keyboards (bottom bar) for emirate/proptype/bedrooms wizard steps."""
+    Now uses reply keyboards (bottom bar) for emirate/proptype/bedrooms wizard steps.
+
+    B045: если юзер сейчас на результатах (wizard=="results") и жмёт категорию —
+    делаем inline-switch вместо запуска нового wizard с нуля.
+    """
+    # B045: inline-switch категории при wizard=="results"
+    if gs(uid).get("wizard") == "results" and rkey in ("rbtn_apt", "rbtn_villa",
+                                                       "rbtn_commercial", "rbtn_plot"):
+        if _inline_switch_category(cid, uid, rkey):
+            return
+
     if rkey == "rbtn_buy":
         _reset(uid)
         gs(uid)["filters"]["deal_type"] = "sale"
@@ -4161,6 +4309,7 @@ def dispatch_wizard_button(cid, uid, text):
             filters["deal_type"] = chosen_deal
             state["wizard_deal_hint"] = chosen_deal
             if wizard == "deal":
+                _push_wiz(uid, "deal")
                 state["wizard"] = "emirate"
                 _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
             else:
@@ -4180,6 +4329,7 @@ def dispatch_wizard_button(cid, uid, text):
         if matched:
             if em:
                 filters["emirate"] = em
+            _push_wiz(uid, "emirate")
             if filters.get("property_type") == "plot":
                 state["wizard"] = "budget"
                 _send(cid, _t(uid, "budget_q"), kb_reply_budget(uid, is_plot=True))
@@ -4201,6 +4351,7 @@ def dispatch_wizard_button(cid, uid, text):
                 else:
                     filters["property_type"] = pt
                     filters.pop("property_type_in", None)
+            _push_wiz(uid, "proptype")
             is_comm = bool(filters.get("property_type_in"))
             is_plot = filters.get("property_type") == "plot"
             is_rent = filters.get("deal_type") == "rent"
@@ -4219,6 +4370,7 @@ def dispatch_wizard_button(cid, uid, text):
         if matched:
             if br is not None:
                 filters["bedrooms"] = br
+            _push_wiz(uid, "bedrooms")
             state["wizard"] = "budget"
             is_rent = filters.get("deal_type") == "rent"
             _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
@@ -4238,14 +4390,33 @@ def dispatch_wizard_button(cid, uid, text):
             create_alert_from_filters(cid, uid)
             return True
         if text in change_labels:
-            state["filters"].pop("deal_type", None)
-            state["default_deal"] = None
+            # B045: переключаем sale ↔ rent IN PLACE, сохраняя остальные filters.
+            # Если активный property_type не совместим с новым deal_type
+            # (например commercial при rent residential bucket) — оставляем,
+            # search вернёт 0, юзер увидит relax-кнопки.
+            cur_deal = filters.get("deal_type") or state.get("wizard_deal_hint") or "sale"
+            new_deal = "rent" if cur_deal == "sale" else "sale"
+            filters["deal_type"] = new_deal
+            state["wizard_deal_hint"] = new_deal
+            # При переключении на rent сбрасываем верхнюю границу price если она
+            # явно из sale-диапазона (>10M) — иначе будет нулевой результат.
+            if new_deal == "rent" and filters.get("min_price", 0) >= 100_000:
+                filters.pop("min_price", None)
+            if new_deal == "rent" and filters.get("max_price", 0) >= 1_000_000:
+                filters.pop("max_price", None)
+            if new_deal == "sale" and filters.get("max_price") and filters["max_price"] < 100_000:
+                filters.pop("max_price", None)
             state["wizard"] = None
-            show_main(cid, uid)
+            state["wiz_history"] = []
+            _send(cid, _t(uid, "searching"))
+            do_search(uid)
+            send_results(cid, uid)
             return True
         if text in back_labels:
+            # B045: возврат на один шаг назад в wizard истории, а не в главное меню.
             state["wizard"] = None
-            show_main(cid, uid)
+            if not _go_back_step(cid, uid):
+                show_main(cid, uid)
             return True
 
     # AI Assistant — goal step
@@ -5387,7 +5558,19 @@ def handle_cb(cb):
 
     elif action == "results":
         if parts[1] == "more": send_results(cid, uid)
-        elif parts[1] == "back": show_main(cid, uid, mid)
+        elif parts[1] == "back":
+            # B045: возврат из карточки объекта — НЕ в главное меню, а к
+            # списку результатов. Сами карточки уже в чате выше (юзер
+            # скроллит), мы только восстанавливаем нижнюю клавиатуру
+            # результатов + помечаем wizard="results" чтобы Back/Change deal
+            # снова работали.
+            s = gs(uid)
+            s["wizard"] = "results"
+            has_more = bool(s.get("results_has_more"))
+            back_lbl = {"en": "🔙 Back to results",
+                        "ru": "🔙 К результатам",
+                        "ar": "🔙 إلى النتائج"}.get(_get_lang(uid), "🔙 Back to results")
+            _send(cid, back_lbl, kb_reply_results(uid, has_more=has_more))
 
     # ── Favorites ─────────────────────────────────────────────────────────────
     # ── All units in this building ──────────────────────────────────────
