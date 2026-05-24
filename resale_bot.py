@@ -3249,9 +3249,12 @@ def claude_parse(text, lang="en"):
         f'Query ({lang}): "{text}"\n'
         "JSON:"
     )
-    raw = _llm_call(prompt, max_tokens=400, timeout=4)  # v131: cap hot-path LLM at 4s
+    # v140(perf): hot-path LLM cap 1.5s (was 4s). Если LLM не успел — возвращаем
+    # маркер {"_timeout": True} чтобы parse_nl мог уведомить юзера «Не все
+    # параметры понял — попробуйте уточнить» и работать с regex-only fallback.
+    raw = _llm_call(prompt, max_tokens=400, timeout=1.5)
     if not raw:
-        return {}
+        return {"_timeout": True}
     try:
         # Extract JSON object (may be wrapped in code fences / extra text)
         m = re.search(r'\{.*\}', raw, re.DOTALL)
@@ -3316,15 +3319,21 @@ def parse_nl(text, lang="en"):
 
     filters.setdefault("sort", "best_deals")
 
-    # v131(perf): LLM enrich ONLY if regex failed to extract structured fields.
-    # Hot-path target <500ms — LLM call (~3-8s) запрещён если regex уже нашёл
+    # v140(perf): LLM enrich ONLY if regex failed to extract structured fields.
+    # Hot-path target <500ms — LLM call (~1-1.5s) запрещён если regex уже нашёл
     # area/deal_type/max_price. Для сложных free-text запросов где regex даёт
-    # пусто — короткий timeout=3s и Claude fills only missing slots.
+    # пусто — короткий timeout=1.5s и Claude fills only missing slots.
+    # При LLM timeout → выставляем filters["_llm_timeout"]=True (callers могут
+    # показать notice «Не все параметры понял — попробуйте уточнить»).
     _has_structured = any(filters.get(k) for k in ("area", "deal_type", "max_price", "bedrooms", "view"))
     if (not _has_structured) and len(text.split()) >= 3 and ANTHROPIC_KEY:
         cf = claude_parse(text, lang)
-        if cf:
+        if cf.get("_timeout"):
+            filters["_llm_timeout"] = True
+        else:
             for k, v in cf.items():
+                if k == "_timeout":
+                    continue
                 if k not in filters and v is not None:
                     filters[k] = v
 
@@ -6045,6 +6054,9 @@ def handle_msg(msg):
     # Natural language search
     if len(text) > 5:
         filters = parse_nl(text, lang)
+        # v140: parse_nl may signal LLM timeout — show soft notice, but продолжаем
+        # с regex-only filters (fallback). Notice убираем перед merge.
+        _llm_timed_out = filters.pop("_llm_timeout", False) if filters else False
         if filters:
             # Merge with existing filters so prior wizard category (e.g. SALE)
             # is preserved when NL did not explicitly mention deal_type / type.
@@ -6055,6 +6067,8 @@ def handle_msg(msg):
             if "deal_type" not in existing and s.get("default_deal"):
                 existing["deal_type"] = s["default_deal"]
             s["filters"] = existing
+            if _llm_timed_out:
+                _send(cid, "Не все параметры понял — попробуйте уточнить (район, тип сделки, бюджет).")
             resp = _send(cid, _t(uid, "searching"))
             do_search(uid)
             mid = resp.get("result", {}).get("message_id")
