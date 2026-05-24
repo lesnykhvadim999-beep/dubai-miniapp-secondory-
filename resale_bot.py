@@ -3249,7 +3249,7 @@ def claude_parse(text, lang="en"):
         f'Query ({lang}): "{text}"\n'
         "JSON:"
     )
-    raw = _llm_call(prompt, max_tokens=400, timeout=15)
+    raw = _llm_call(prompt, max_tokens=400, timeout=4)  # v131: cap hot-path LLM at 4s
     if not raw:
         return {}
     try:
@@ -3316,14 +3316,14 @@ def parse_nl(text, lang="en"):
 
     filters.setdefault("sort", "best_deals")
 
-    # Always enrich via Claude for any non-trivial query (>= 3 words).
-    # Claude understands typos, slang, and complex requests like
-    # "тихий район у моря для семьи с детьми до 5М" that regex can't parse.
-    if len(text.split()) >= 3 and ANTHROPIC_KEY:
+    # v131(perf): LLM enrich ONLY if regex failed to extract structured fields.
+    # Hot-path target <500ms — LLM call (~3-8s) запрещён если regex уже нашёл
+    # area/deal_type/max_price. Для сложных free-text запросов где regex даёт
+    # пусто — короткий timeout=3s и Claude fills only missing slots.
+    _has_structured = any(filters.get(k) for k in ("area", "deal_type", "max_price", "bedrooms", "view"))
+    if (not _has_structured) and len(text.split()) >= 3 and ANTHROPIC_KEY:
         cf = claude_parse(text, lang)
         if cf:
-            # Local extraction takes priority for fields it already found;
-            # Claude fills in the gaps.
             for k, v in cf.items():
                 if k not in filters and v is not None:
                     filters[k] = v
@@ -3395,12 +3395,30 @@ def run_ai_recommend(cid, uid):
     if ai.get("min_price"): filters["min_price"] = ai["min_price"]
     if ai.get("max_price"): filters["max_price"] = ai["max_price"]
 
+    # v131(perf): parallel area search via ThreadPoolExecutor.
+    # Раньше: 5 sequential SQL roundtrips × ~80ms = ~400ms.
+    # Теперь: max(5 parallel) ≈ 80-100ms, целевой <500ms end-to-end.
+    import time as _t_perf
+    _t0 = _t_perf.perf_counter()
     best = []
-    for area in areas[:5]:
-        r, _ = search_listings({**filters, "area": area, "sort": "best_deals"}, limit=3)
-        best.extend(r)
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+        def _one(area):
+            r, _tot = search_listings({**filters, "area": area, "sort": "best_deals"}, limit=3)
+            return r
+        with ThreadPoolExecutor(max_workers=5) as _pool:
+            for r in _pool.map(_one, areas[:5]):
+                best.extend(r)
+    except Exception as _e:
+        print(f"[ai_recommend] parallel search failed: {_e} — fallback sequential", flush=True)
+        for area in areas[:5]:
+            r, _tot = search_listings({**filters, "area": area, "sort": "best_deals"}, limit=3)
+            best.extend(r)
     if not best:
-        best, _ = search_listings({**filters, "sort": "best_deals"}, limit=10)
+        best, _tot = search_listings({**filters, "sort": "best_deals"}, limit=10)
+
+    _dt_ms = int((_t_perf.perf_counter() - _t0) * 1000)
+    print(f"[LAT] ai_recommend_search: {_dt_ms}ms ({len(best)} results, {len(areas[:5])} areas)", flush=True)
 
     s["results"] = best; s["total"] = len(best); s["page"] = 0
     header = _t(uid, "ai_result") + summary_text
