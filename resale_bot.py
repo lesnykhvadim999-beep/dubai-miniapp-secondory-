@@ -166,11 +166,16 @@ T = {
     # Bottom reply-keyboard (persistent main menu) — by deal_type categories
     "rbtn_buy":         "🏠 Buy",
     "rbtn_rent":        "🔑 Rent",
+    "rbtn_apt":         "🏢 Apartments",
+    "rbtn_villa":       "🏖 Villa / Townhouse",
     "rbtn_commercial":  "🏢 Commercial",
     "rbtn_plot":        "🌱 Land",
     "rbtn_hot":         "🔥 Hot Deals",
     "rbtn_new":         "🆕 New",
     "rbtn_ai":          "✦ AI Assistant",
+    "deal_q":           "Choose transaction type:",
+    "deal_buy_btn":     "🏠 Buy",
+    "deal_rent_btn":    "🔑 Rent",
     "rbtn_add":         "➕ List Property",
     "rbtn_lang":        "🌐 Language",
     "rbtn_home":        "🏠 Main Menu",
@@ -419,11 +424,16 @@ T = {
     # Bottom reply-keyboard (persistent main menu) — by deal_type categories
     "rbtn_buy":         "🏠 Купить",
     "rbtn_rent":        "🔑 Снять",
+    "rbtn_apt":         "🏢 Апартаменты",
+    "rbtn_villa":       "🏖 Вилла / Таунхаус",
     "rbtn_commercial":  "🏢 Коммерция",
     "rbtn_plot":        "🌱 Земля",
     "rbtn_hot":         "🔥 Горячие",
     "rbtn_new":         "🆕 Новые",
     "rbtn_ai":          "✦ AI Помощник",
+    "deal_q":           "Что вас интересует?",
+    "deal_buy_btn":     "🏠 Купить",
+    "deal_rent_btn":    "🔑 Аренда",
     "rbtn_add":         "➕ Разместить",
     "rbtn_lang":        "🌐 Язык",
     "rbtn_home":        "🏠 Главное меню",
@@ -691,7 +701,12 @@ T = {
     # Bottom reply-keyboard (persistent main menu) — by deal_type categories
     "rbtn_buy":         "🏠 شراء",
     "rbtn_rent":        "🔑 إيجار",
+    "rbtn_apt":         "🏢 شقق",
+    "rbtn_villa":       "🏖 فيلا / تاون هاوس",
     "rbtn_commercial":  "🏢 تجاري",
+    "deal_q":           "اختر نوع المعاملة:",
+    "deal_buy_btn":     "🏠 شراء",
+    "deal_rent_btn":    "🔑 إيجار",
     "rbtn_plot":        "🌱 أرض",
     "rbtn_hot":         "🔥 صفقات",
     "rbtn_new":         "🆕 جديد",
@@ -1160,11 +1175,21 @@ def kb_main_reply(uid):
     Hot/New объединены в одну строку с AI — это quick-access shortcuts.
     Хендлеры на rbtn_add / rbtn_lang сохранены для обратной совместимости.
     """
+    # B035: убрали Buy/Rent с главного — теперь deal_type выбирается ВНУТРИ
+    # каждой категории (Apt/Villa/Commercial/Plot/Hot/New).
     return _reply_kb([
-        [_t(uid, "rbtn_buy"),        _t(uid, "rbtn_rent")],
+        [_t(uid, "rbtn_apt"),        _t(uid, "rbtn_villa")],
         [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
         [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new"),   _t(uid, "rbtn_ai")],
         [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts")],
+    ])
+
+
+def kb_reply_deal(uid):
+    """B035: промежуточный экран «Купить / Аренда» после выбора категории."""
+    return _reply_kb([
+        [_t(uid, "deal_buy_btn"),  _t(uid, "deal_rent_btn")],
+        [_t(uid, "rbtn_home")],
     ])
 
 
@@ -1677,7 +1702,8 @@ def is_main_menu_text(text: str):
     rbtn_create_alert) ИСКЛЮЧЕНЫ — они обрабатываются dispatch_wizard_button."""
     if not text: return None
     MAIN_MENU_KEYS = {
-        "rbtn_buy", "rbtn_rent", "rbtn_commercial", "rbtn_plot",
+        "rbtn_buy", "rbtn_rent", "rbtn_apt", "rbtn_villa",
+        "rbtn_commercial", "rbtn_plot",
         "rbtn_hot", "rbtn_new", "rbtn_ai", "rbtn_add",
         "rbtn_favs", "rbtn_alerts", "rbtn_lang", "rbtn_home",
     }
@@ -4042,35 +4068,45 @@ def dispatch_main_button(cid, uid, rkey):
         gs(uid)["wizard_pt_not_in_hint"] = COMMERCIAL_TYPES + LAND_TYPES
         gs(uid)["wizard"] = "emirate"
         _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
+    # B035: новые категории Apartment / Villa — сначала промежуточный
+    # экран «Купить / Аренда», затем emirate wizard.
+    elif rkey == "rbtn_apt":
+        _reset(uid)
+        gs(uid)["filters"]["property_type_in"] = ["apartment", "studio", "penthouse", "duplex"]
+        gs(uid)["wizard_pt_in_hint"] = ["apartment", "studio", "penthouse", "duplex"]
+        gs(uid)["wizard"] = "deal"  # next reply expected = Buy/Rent
+        _send(cid, _t(uid, "deal_q"), kb_reply_deal(uid))
+    elif rkey == "rbtn_villa":
+        _reset(uid)
+        gs(uid)["filters"]["property_type_in"] = ["villa", "townhouse"]
+        gs(uid)["wizard_pt_in_hint"] = ["villa", "townhouse"]
+        gs(uid)["wizard"] = "deal"
+        _send(cid, _t(uid, "deal_q"), kb_reply_deal(uid))
     elif rkey == "rbtn_commercial":
         _reset(uid)
         gs(uid)["filters"]["property_type_in"] = COMMERCIAL_TYPES
         gs(uid)["wizard_pt_in_hint"] = COMMERCIAL_TYPES
-        gs(uid)["wizard"] = "emirate"
-        _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
+        gs(uid)["wizard"] = "deal"   # B035: deal_type сначала
+        _send(cid, _t(uid, "deal_q"), kb_reply_deal(uid))
     elif rkey == "rbtn_plot":
         _reset(uid)
         gs(uid)["filters"]["property_type"] = "plot"
         gs(uid)["wizard_pt_hint"] = "plot"
-        gs(uid)["wizard"] = "emirate"
-        _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
+        gs(uid)["wizard"] = "deal"   # B035: deal_type сначала
+        _send(cid, _t(uid, "deal_q"), kb_reply_deal(uid))
     elif rkey == "rbtn_hot":
-        # Сохраняем существующие фильтры (если пользователь уже выбрал Аренда —
-        # покажем горячие аренды). Иначе — по умолчанию SALE.
-        existing = dict(gs(uid).get("filters", {}))
-        existing["hot_only"] = True
-        existing["sort"] = "best_deals"
-        if "deal_type" not in existing:
-            existing["deal_type"] = "sale"
-        gs(uid)["filters"] = existing
-        _send(cid, _t(uid, "searching")); do_search(uid); send_results(cid, uid)
+        # B035: спрашиваем deal_type, затем search hot.
+        _reset(uid)
+        gs(uid)["filters"]["hot_only"] = True
+        gs(uid)["filters"]["sort"] = "best_deals"
+        gs(uid)["wizard"] = "deal_hot"
+        _send(cid, _t(uid, "deal_q"), kb_reply_deal(uid))
     elif rkey == "rbtn_new":
-        existing = dict(gs(uid).get("filters", {}))
-        existing["sort"] = "newest"
-        if "deal_type" not in existing:
-            existing["deal_type"] = "sale"
-        gs(uid)["filters"] = existing
-        _send(cid, _t(uid, "searching")); do_search(uid); send_results(cid, uid)
+        # B035: спрашиваем deal_type, затем search newest.
+        _reset(uid)
+        gs(uid)["filters"]["sort"] = "newest"
+        gs(uid)["wizard"] = "deal_new"
+        _send(cid, _t(uid, "deal_q"), kb_reply_deal(uid))
     elif rkey == "rbtn_ai":
         show_ai_start(cid, uid)
     elif rkey == "rbtn_add":
@@ -4098,6 +4134,36 @@ def dispatch_wizard_button(cid, uid, text):
     # would never be written back if state["filters"] was missing — leading to
     # silently lost deal_type/property_type filters in the wizard flow.
     filters = state.setdefault("filters", {})
+
+    # B035: Deal-type step (Buy/Rent) — после клика на категорию.
+    # Используется тремя wizard-режимами: "deal" (категория → emirate),
+    # "deal_hot" (категория hot → search), "deal_new" (категория new → search).
+    if wizard in ("deal", "deal_hot", "deal_new"):
+        # Match by canonical key against all 3 languages
+        chosen_deal = None
+        for k in ("deal_buy_btn", "deal_rent_btn"):
+            for lang_strings in T.values():
+                if lang_strings.get(k) == text:
+                    chosen_deal = "sale" if k == "deal_buy_btn" else "rent"
+                    break
+            if chosen_deal:
+                break
+        if chosen_deal:
+            filters["deal_type"] = chosen_deal
+            state["wizard_deal_hint"] = chosen_deal
+            if wizard == "deal":
+                state["wizard"] = "emirate"
+                _send(cid, _t(uid, "emirate_q"), kb_reply_emirate(uid))
+            else:
+                # deal_hot / deal_new: сразу искать
+                state["wizard"] = None
+                _send(cid, _t(uid, "searching"))
+                do_search(uid)
+                send_results(cid, uid)
+            return True
+        # text не распознан — повторить вопрос (без сброса state)
+        _send(cid, _t(uid, "deal_q"), kb_reply_deal(uid))
+        return True
 
     # Emirate step
     if wizard == "emirate":
