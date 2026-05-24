@@ -4731,6 +4731,24 @@ def parse_message(
         except Exception:
             pass
 
+    # B039: если профиль района подсветил rare property_type — LLM verify.
+    # Если LLM подтверждает mis-parse → is_audit=TRUE; если LLM скорректировал
+    # тип — применяем и перевалидируем (новый тип может быть OK для района).
+    try:
+        if any(r.startswith("property_type_rare_for_area_") for r in audit_reasons):
+            data, prof_action = _profile_llm_verify(data, text)
+            if prof_action == "corrected":
+                audit_reasons = _validate_listing_strict(data)
+            elif prof_action == "confirmed_misparse":
+                data["is_audit"] = True
+                if "property_type_misparse_confirmed" not in audit_reasons:
+                    audit_reasons.append("property_type_misparse_confirmed")
+    except Exception as _pe:
+        try:
+            print(f"[profile] verify err: {_pe}")
+        except Exception:
+            pass
+
     if audit_reasons:
         data["needs_manual_review"] = True
         data["review_reason"] = "; ".join(audit_reasons)
@@ -4742,7 +4760,8 @@ def parse_message(
         _critical_reason_prefixes = ("sale_absurd_low", "sale_too_low",
                                      "sale_psf_absurd", "rent_absurd_low",
                                      "rent_psf_absurd",
-                                     "bench_misparse_confirmed")
+                                     "bench_misparse_confirmed",
+                                     "property_type_misparse_confirmed")
         for r in audit_reasons:
             if any(r.startswith(p) for p in _critical_reason_prefixes):
                 data["is_audit"] = True
@@ -5037,6 +5056,173 @@ def _check_area_benchmark(data: dict) -> Optional[str]:
         return None
 
 
+# ── B039: area × property_type profile gate ──────────────────────────────────
+_PROFILE_CACHE: dict = {}  # (area_lc, pt_lc) -> (share_pct, total_in_area)
+_PROFILE_AREA_TOTALS: dict = {}  # area_lc -> total_in_area (across all types)
+_PROFILE_LOADED = False
+_PROFILE_MIN_SHARE = 5.0   # доля типа < 5% в районе ⇒ suspicious
+_PROFILE_MIN_TOTAL = 20    # < 20 tx в районе ⇒ слишком мало данных, skip
+_PROFILE_GATED_TYPES = ("apartment", "villa", "plot", "commercial")
+
+
+def _profile_load_all() -> None:
+    """Eager-load area_property_profile into in-memory dict. Called once."""
+    global _PROFILE_LOADED
+    if _PROFILE_LOADED:
+        return
+    dsn = os.environ.get("DATABASE_URL", "")
+    if not dsn:
+        _PROFILE_LOADED = True
+        return
+    try:
+        import psycopg2 as _pg
+        conn = _pg.connect(dsn, connect_timeout=5)
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT area, property_type, share_pct, total_in_area
+               FROM area_property_profile"""
+        )
+        n = 0
+        for area, pt, share, total in cur.fetchall():
+            try:
+                share_f = float(share) if share is not None else 0.0
+                total_i = int(total or 0)
+            except Exception:
+                continue
+            area_lc = str(area).strip().lower()
+            pt_lc = str(pt).strip().lower()
+            _PROFILE_CACHE[(area_lc, pt_lc)] = (share_f, total_i)
+            # area total — одинаков для всех строк района
+            _PROFILE_AREA_TOTALS[area_lc] = total_i
+            n += 1
+        cur.close(); conn.close()
+        print(f"[profile] loaded {n} area×type rows into cache")
+    except Exception as _e:
+        print(f"[profile] load error: {_e}")
+    _PROFILE_LOADED = True
+
+
+def _check_area_profile(data: dict) -> Optional[str]:
+    """B039: Return reason if property_type rare for this area.
+
+    - Если total_in_area < 20 → None (мало данных, fallback).
+    - Если property_type не в gated list (apartment/villa/plot/commercial) →
+      None (townhouse/penthouse/studio/duplex в DLD идут как Flat,
+      не можем достоверно отделить).
+    - Если share_pct < 5% (или вообще нет записи в районе) → suspicious.
+    Fail-safe: любые exceptions → None.
+    """
+    try:
+        _profile_load_all()
+        if not _PROFILE_CACHE:
+            return None
+        area_lc = _bench_norm_area(data.get("area"))
+        if not area_lc:
+            return None
+        pt = (data.get("property_type") or "").strip().lower()
+        if pt not in _PROFILE_GATED_TYPES:
+            return None
+        total = _PROFILE_AREA_TOTALS.get(area_lc, 0)
+        if total < _PROFILE_MIN_TOTAL:
+            return None  # мало tx — статистика ненадёжна
+        row = _PROFILE_CACHE.get((area_lc, pt))
+        if row:
+            share, _ = row
+            if share < _PROFILE_MIN_SHARE:
+                return f"property_type_rare_for_area_{share:.1f}pct"
+            return None
+        # район известен (total>=20), но типа в нём вообще нет → 0% share
+        return "property_type_rare_for_area_0pct"
+    except Exception as _e:
+        try:
+            print(f"[profile] check err: {_e}")
+        except Exception:
+            pass
+        return None
+
+
+def _profile_llm_verify(data: dict, full_text: str, timeout: int = 15) -> tuple[dict, str]:
+    """B039: LLM cross-check after area × property_type profile flag.
+
+    Returns (data, action) where action ∈
+      'confirmed_misparse' — LLM thinks parser misclassified property_type
+      'corrected'          — LLM gave new property_type, applied to data
+      'noop'               — LLM agrees / no opinion / unavailable
+    """
+    if not full_text or len(full_text) < 50:
+        return data, "noop"
+    try:
+        from llm_chain import llm_call as _chain_llm_call
+    except Exception:
+        return data, "noop"
+
+    snippet = full_text[:1500].strip()
+    pt = data.get("property_type") or "apartment"
+    area = data.get("area")
+    br = data.get("bedrooms")
+
+    prompt = (
+        "You are a Dubai real-estate parser auditor. Our parser may have "
+        "mis-classified the property_type. Some districts almost never have "
+        "certain types (e.g. Downtown Dubai has no villas; Emirates Hills / "
+        "Al Barari have no apartments).\n\n"
+        f"PARSED: property_type={pt}, area={area!r}, bedrooms={br}\n\n"
+        "ORIGINAL TEXT:\n```\n" + snippet + "\n```\n\n"
+        "Allowed property_type values: apartment, villa, townhouse, penthouse, "
+        "studio, duplex, plot, commercial.\n"
+        "Return JSON ONLY with keys:\n"
+        '  "correct_type": string|null — the real property_type if parser is '
+        'wrong, else null if parser is correct\n'
+        '  "is_misparse": bool         — true if parser clearly misread the type\n'
+        '  "confidence": 0-100\n'
+        "Rules:\n"
+        "- If text clearly says villa/townhouse/penthouse, use that\n"
+        "- If unsure, set is_misparse=false and correct_type=null\n"
+        "- Never invent a type not implied by the text\n"
+        "Return ONLY the JSON object, no markdown."
+    )
+    try:
+        resp = _chain_llm_call(prompt, max_tokens=180, timeout=timeout)
+    except Exception:
+        return data, "noop"
+    if not resp:
+        return data, "noop"
+
+    import re as _re
+    import json as _json
+    m = _re.search(r"\{.*\}", resp, _re.S)
+    if not m:
+        return data, "noop"
+    try:
+        obj = _json.loads(m.group(0))
+    except Exception:
+        return data, "noop"
+    if not isinstance(obj, dict):
+        return data, "noop"
+
+    try:
+        conf = int(obj.get("confidence") or 0)
+    except Exception:
+        conf = 0
+    is_mis = bool(obj.get("is_misparse"))
+    new_type = obj.get("correct_type")
+
+    valid_types = {"apartment", "villa", "townhouse", "penthouse",
+                   "studio", "duplex", "plot", "commercial"}
+    if (isinstance(new_type, str) and new_type.strip().lower() in valid_types
+            and conf >= 75):
+        new_type_lc = new_type.strip().lower()
+        if new_type_lc != (pt or "").strip().lower():
+            data["property_type"] = new_type_lc
+            data["property_type_source"] = "llm_profile_verify"
+            return data, "corrected"
+
+    if is_mis and conf >= 70:
+        return data, "confirmed_misparse"
+
+    return data, "noop"
+
+
 def _bench_llm_verify(data: dict, full_text: str, timeout: int = 15) -> tuple[dict, str]:
     """B038: LLM cross-check after off-median benchmark flag.
 
@@ -5212,6 +5398,15 @@ def _validate_listing_strict(data: dict) -> list:
         bench_reason = _check_area_benchmark(data)
         if bench_reason:
             reasons.append(bench_reason)
+    except Exception:
+        pass
+
+    # B039: area × property_type profile gate. Если parsed property_type имеет
+    # долю <5% в районе по DLD за 36 мес — suspicious, отдадим LLM на верификацию.
+    try:
+        profile_reason = _check_area_profile(data)
+        if profile_reason:
+            reasons.append(profile_reason)
     except Exception:
         pass
 
