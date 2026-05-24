@@ -4116,6 +4116,9 @@ def dispatch_main_button(cid, uid, rkey):
         _send(cid, "🌐  Select your language / Выберите язык / اختر لغتك",
               kb_lang_reply())
     elif rkey == "rbtn_home":
+        # B036: clear any wizard/filter state so stray text after Home
+        # doesn't accidentally re-enter a half-finished wizard step.
+        _reset(uid)
         show_main(cid, uid)
     elif rkey == "rbtn_favs":
         show_favorites(cid, uid)
