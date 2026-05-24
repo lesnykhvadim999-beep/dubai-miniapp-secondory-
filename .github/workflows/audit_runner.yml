@@ -1,0 +1,56 @@
+name: One-off audit runner
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'Audit script filename'
+        required: true
+        type: choice
+        options:
+          - _llm_health_check.py
+          - _v131_apt_audit.py
+          - _v131_villa_audit.py
+          - _v131_rent_audit.py
+          - _v131_audit_plot_comm_wb.py
+          - _v128_burj_audit.py
+          - _v128_llm_reextract.py
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          pip install psycopg2-binary requests anthropic
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Run audit script
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ANALYTICS_DATABASE_URL: ${{ secrets.ANALYTICS_DATABASE_URL }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          GITHUB_MODELS_TOKEN: ${{ secrets.GITHUB_MODELS_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CF_WORKER_PROXY: ${{ secrets.CF_WORKER_PROXY }}
+        run: python ${{ inputs.script }}
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-logs-${{ github.run_id }}
+          path: |
+            *.log
+            *.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
