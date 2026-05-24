@@ -4712,8 +4712,18 @@ def parse_message(
     if audit_reasons:
         data["needs_manual_review"] = True
         data["review_reason"] = "; ".join(audit_reasons)
-        # Не отправляем сразу в audit (is_audit=TRUE) — это сделает flag_audit cron.
-        # Но помечаем review_reason для админ-обзора.
+        # B037 fix: критичные ценовые аномалии — СРАЗУ в is_audit=TRUE.
+        # Раньше: только needs_manual_review=TRUE, флаг ставил flag_audit cron позже —
+        # листинги успевали показаться юзеру с rent ценой в sale категории
+        # (Creek Rise 195K за 2BR, Chorisia Al Barari 1.65M 5BR, и т.д.).
+        # Теперь любой sale_absurd_low/sale_too_low/sale_psf_absurd → immediate hide.
+        _critical_reason_prefixes = ("sale_absurd_low", "sale_too_low",
+                                     "sale_psf_absurd", "rent_absurd_low",
+                                     "rent_psf_absurd")
+        for r in audit_reasons:
+            if any(r.startswith(p) for p in _critical_reason_prefixes):
+                data["is_audit"] = True
+                break
 
     data["listing_key"] = make_listing_key(data)
 
@@ -4928,11 +4938,11 @@ def _validate_listing_strict(data: dict) -> list:
 
     # АБСОЛЮТНЫЕ полы независимо от bedrooms (защита от мусора):
     # - rent < 15000 AED/год = невозможно (минимум в UAE ~25k)
-    # - sale < 200000 AED = невозможно (минимум в UAE ~350k)
+    # - sale < 350000 AED = невозможно (B037: было 200K — пропускало 195K Creek Rise rent)
     if price and pt in residential:
         if deal == "rent" and price < 15000:
             reasons.append(f"rent_absurd_low_{price}")
-        elif deal == "sale" and price < 200000:
+        elif deal == "sale" and price < 350000:
             reasons.append(f"sale_absurd_low_{price}")
 
     # Контекстные полы (с учётом bedrooms)
@@ -4943,8 +4953,19 @@ def _validate_listing_strict(data: dict) -> list:
                 reasons.append(f"rent_too_low_{price}")
         elif deal == "sale":
             min_sale = {1:500000,2:900000,3:1500000,4:2500000}.get(br, 350000)
-            if price < min_sale * 0.4:
+            # B037: 0.4 → 0.55 (2BR порог: 900K*0.55=495K. Creek Rise 195K провалится)
+            if price < min_sale * 0.55:
                 reasons.append(f"sale_too_low_{price}")
+
+    # B037: villa/townhouse в премиум-районах Дубая — минимум 5M AED.
+    # Любая villa < 5M в (District One/Al Barari/Emirates Hills/Palm Jumeirah/Tilal Al Ghaf)
+    # = либо ошибка парсинга price, либо rent.
+    PREMIUM_VILLA_AREAS = ("district one","al barari","emirates hills",
+                           "palm jumeirah","tilal al ghaf","jumeirah golf estates")
+    if price and pt in ("villa","townhouse") and deal == "sale":
+        area_lc = (area or "").lower()
+        if any(p in area_lc for p in PREMIUM_VILLA_AREAS) and price < 5_000_000:
+            reasons.append(f"sale_psf_absurd_premium_villa_{price}")
 
     # Sqft-based plausibility for rent: < 8 AED/sqft/year = почти точно битая цена
     if price and sqft and sqft > 200 and deal == "rent" and pt in residential:
