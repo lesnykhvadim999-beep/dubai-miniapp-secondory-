@@ -914,6 +914,14 @@ try:
 except Exception:
     _err_logger = None
 
+# B031: auto-incident response
+os.environ.setdefault("BOT_NAME", "resale")
+try:
+    import error_watchdog as _ewd
+except Exception as _ewd_err:
+    print(f"[B031] error_watchdog import failed: {_ewd_err}", flush=True)
+    _ewd = None
+
 # Investment engine + PDF integration
 try:
     from investment_engine import compute_investment_score, build_conclusion_text
@@ -6098,33 +6106,66 @@ def run_bot():
             if not data.get("ok"): time.sleep(5); continue
             for upd in data.get("result", []):
                 offset = upd["update_id"] + 1
+                _b031_uid = None
+                _b031_handler = "update_loop"
+                _b031_payload = ""
                 try:
-                    if "callback_query" in upd: handle_cb(upd["callback_query"])
-                    elif "message" in upd:       handle_msg(upd["message"])
+                    if "callback_query" in upd:
+                        _b031_uid = upd["callback_query"]["from"]["id"]
+                        _b031_handler = "handle_cb"
+                        _b031_payload = upd["callback_query"].get("data", "")[:200]
+                        handle_cb(upd["callback_query"])
+                    elif "message" in upd:
+                        _b031_uid = upd["message"]["from"]["id"]
+                        _b031_handler = "handle_msg"
+                        _b031_payload = (upd["message"].get("text") or "")[:200]
+                        handle_msg(upd["message"])
+                    # B031: success — let watchdog know
+                    if _ewd:
+                        try: _ewd.record_success(_b031_uid)
+                        except Exception: pass
                 except Exception as e:
                     print(f"[bot] Update error: {e}")
                     # v53: log to bot_error_events для watchdog
                     if _err_logger:
                         try:
                             import traceback as _tb
-                            uid = None
                             ctx = {}
                             if "callback_query" in upd:
-                                uid = upd["callback_query"]["from"]["id"]
-                                ctx["data"] = upd["callback_query"].get("data", "")[:200]
-                                handler = "handle_cb"
+                                ctx["data"] = _b031_payload
                             elif "message" in upd:
-                                uid = upd["message"]["from"]["id"]
-                                ctx["text"] = (upd["message"].get("text") or "")[:200]
-                                handler = "handle_msg"
-                            else:
-                                handler = "update_loop"
-                            _err_logger.log_error("resale", handler, str(e),
+                                ctx["text"] = _b031_payload
+                            _err_logger.log_error("resale", _b031_handler, str(e),
                                                     error_class=type(e).__name__,
-                                                    user_id=uid, context=ctx,
+                                                    user_id=_b031_uid, context=ctx,
                                                     tb=_tb.format_exc()[-1500:])
                         except Exception:
                             pass
+                    # B031: maintenance mode + admin alert + reply to user
+                    if _ewd:
+                        try:
+                            import traceback as _tb2
+                            _ewd.sync_log_error(
+                                _b031_uid, type(e).__name__, str(e),
+                                _tb2.format_exc(), _b031_handler, _b031_payload,
+                            )
+                            # Send maintenance message to user via raw API
+                            if _b031_uid:
+                                try:
+                                    requests.post(
+                                        f"{API}/sendMessage",
+                                        json={
+                                            "chat_id": _b031_uid,
+                                            "text": _ewd.get_maintenance_message("ru"),
+                                            "parse_mode": "Markdown",
+                                        },
+                                        timeout=5,
+                                    )
+                                    _ewd.track_user_notified(_b031_uid)
+                                except Exception:
+                                    pass
+                        except Exception as _ewd_err2:
+                            print(f"[B031] watchdog fail: {_ewd_err2}")
         except requests.RequestException as e:
             print(f"[bot] Net: {e}"); time.sleep(5)
         except Exception as e:
