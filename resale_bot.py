@@ -3822,10 +3822,24 @@ def show_deal_type_menu(cid, uid, mid=None):
 
 def show_main(cid, uid, mid=None):
     """Always sends a fresh message with persistent bottom keyboard.
-    If an old inline-menu message is given, delete it to keep the chat clean."""
+    If an old inline-menu message is given, delete it to keep the chat clean.
+
+    B019 fix: persistent=True wizard reply-keyboards не всегда заменяются новой
+    persistent reply-keyboard (Telegram-баг, особенно iOS). Сначала шлём transient
+    "✓" с remove_keyboard, удаляем его — это сбрасывает текущую wizard-клавиатуру
+    на клиенте — потом отправляем main menu с правильной клавиатурой.
+    Pattern из channel-bot v132.7 (commit fc6b0ee)."""
     if mid:
         try: _api("deleteMessage", chat_id=cid, message_id=mid)
         except: pass
+    try:
+        tmp = _api("sendMessage", chat_id=cid, text="✓",
+                   reply_markup={"remove_keyboard": True})
+        tmp_mid = ((tmp or {}).get("result") or {}).get("message_id")
+        if tmp_mid:
+            _api("deleteMessage", chat_id=cid, message_id=tmp_mid)
+    except Exception as _e:
+        print(f"[resale_bot] B019 main-menu reply-kb clear failed: {_e}", flush=True)
     _send(cid, _t(uid, "main_menu"), kb_main_reply(uid))
 
 
