@@ -5733,6 +5733,15 @@ def handle_msg(msg):
                     print(f"[resale] /start cbj log err: {_e}", flush=True)
             send_welcome_with_logo(cid, uid)
         elif cmd == "menu":  show_main(cid, uid)
+        elif cmd == "cancel":
+            # v134 UX: /cancel — отмена wizard + главное меню. Сбрасывает state
+            # (фильтры, add-listing wizard, alert wizard) и возвращает к /menu.
+            _reset(uid)
+            gs(uid).pop("add_state", None)
+            gs(uid).pop("alert_state", None)
+            cancelled_txt = _t(uid, "add_cancelled") if _t(uid, "add_cancelled") else "Cancelled."
+            _send(cid, "❌ " + cancelled_txt, {"remove_keyboard": True})
+            show_main(cid, uid)
         elif cmd == "stats": show_stats(cid, uid)
         elif cmd == "parse":
             if uid != ADMIN_ID:
