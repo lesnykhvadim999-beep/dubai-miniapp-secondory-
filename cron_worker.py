@@ -560,6 +560,22 @@ def watchlist_weekly_loop():
         time.sleep(30 * 60)
 
 
+# ── 7. Parser-quality monitor (task #127) ──────────────────────────────────────
+def parser_quality_monitor_loop():
+    """Каждые 3 часа: sample 100 listings → LLM audit → log в parser_quality_log.
+    Цель — держать ≥95% чистоты подряд 3 дня (24 чека)."""
+    interval = int(os.environ.get("QPM_INTERVAL", str(3 * 3600)))
+    while True:
+        try:
+            import parser_quality_monitor as pqm
+            res = pqm.run_once()
+            print(f"[cron] parser-quality: {res}", flush=True)
+        except Exception as e:
+            print(f"[cron] parser-quality err: {e}", flush=True)
+            traceback.print_exc()
+        time.sleep(interval)
+
+
 # ── Entry point ────────────────────────────────────────────────────────────────
 def start_all():
     threading.Thread(target=alerts_loop, daemon=True).start()
@@ -569,8 +585,9 @@ def start_all():
     threading.Thread(target=buildings_backfill_loop, daemon=True).start()
     threading.Thread(target=watchlist_daily_loop, daemon=True).start()
     threading.Thread(target=watchlist_weekly_loop, daemon=True).start()
+    threading.Thread(target=parser_quality_monitor_loop, daemon=True).start()
     start_health_server(port=int(os.environ.get("PORT", "8080")))
-    print("[cron] All workers started (including v55 watchlist).")
+    print("[cron] All workers started (including v55 watchlist + parser-quality).")
 
 
 if __name__ == "__main__":
