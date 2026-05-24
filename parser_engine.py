@@ -941,8 +941,93 @@ def _deal_type_by_price(price: Optional[int], bedrooms: Optional[int] = None) ->
     return "sale"  # 500K-1M boundary → sale
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# v133 (2026-05-24) HIERARCHY HELPERS — based on apt/villa/rent audit summaries
+# Root causes addressed:
+#   • detect_deal_type: 299 sale_misclass + 372 price_sale_total in rent audit
+#     (rent ads with "rental yield" mention in actually SALE ads → wrong)
+#   • rent_period: 301 period_wrong (yearly vs monthly confusion)
+#   • property_type: 287 apt wrong + 156 rent wrong + 70 villa wrong
+#   • DCH/Downtown hallucinations: 37 + 34 areas set without text mention
+# ═════════════════════════════════════════════════════════════════════════════
+
+_SALE_HARD_RE = re.compile(
+    r'\b(?:for\s+sale|selling\s+price|asking\s+price|sale\s+price|'
+    r'sp\s*[:\-]\s*price|sp\s*[:\-]\s*\d|op\s*[:\-]\s*price|op\s*[:\-]\s*\d|'
+    r'original\s+price|on\s+sale|sale\s+listing|sale\s+contract|'
+    r'продажа|продаю|продаётся|sale[\s:]*aed)\b',
+    re.IGNORECASE,
+)
+
+_RENT_HARD_RE = re.compile(
+    r'\b(?:for\s+rent|to\s+let|rental\s+listing|rental\s+opportunity|'
+    r'yearly\s+rent|monthly\s+rent|per\s+(?:annum|year|month)|'
+    r'/year|/yr|/month|/mo|\d+\s+cheques?|cheques?\s*:\s*\d+|'
+    r'аренда|сдаю|сдается|сдаётся|сдам|снять|'
+    r'long[\s-]?term\s+rent|short[\s-]?term\s+rent)\b',
+    re.IGNORECASE,
+)
+
+
+def detect_deal_type_v133(text: str, default: str = "sale") -> tuple[str, float]:
+    """v133 hierarchy: strong sale → strong rent → default.
+
+    Returns (deal_type, confidence). Used as a high-priority pre-check before
+    the legacy keyword-score logic. Specifically:
+      1. SALE_HARD wins → "sale", 0.95 (overrides "rental yield" in sale ads)
+      2. RENT_HARD wins → "rent", 0.90
+      3. Ambiguous → (default, 0.50)
+    """
+    t = (text or "").lower()
+    if _SALE_HARD_RE.search(t):
+        return "sale", 0.95
+    if _RENT_HARD_RE.search(t):
+        return "rent", 0.90
+    return default, 0.50
+
+
+def detect_rent_period(text: str, price: Optional[int] = None) -> str:
+    """v133: Returns 'yearly' / 'monthly' / 'daily' / 'unknown'.
+
+    Priority:
+      1. Explicit period keywords (monthly/daily/yearly)
+      2. Dubai default = yearly (most rent contracts annual with 1-4 cheques)
+      3. Price-based sanity: <30k → monthly; >500k → yearly
+    """
+    t = (text or "").lower()
+    if re.search(
+        r'\b(?:monthly|per\s+month|/month|/mo|в\s+месяц|месячная|monthly\s+rent)\b',
+        t,
+    ):
+        return "monthly"
+    if re.search(
+        r'\b(?:daily|nightly|per\s+night|/night|сутки|посуточно|short[\s-]?term)\b',
+        t,
+    ):
+        return "daily"
+    if re.search(
+        r'\b(?:yearly|per\s+(?:annum|year)|/year|/yr|в\s+год|годовая|annual(?:ly)?)\b',
+        t,
+    ):
+        return "yearly"
+    # Price sanity fallback
+    if price:
+        if price < 30_000:
+            return "monthly"
+        if price > 500_000:
+            return "yearly"
+    return "unknown"
+
+
 def detect_deal_type(text: str, price: Optional[int] = None,
                      bedrooms: Optional[int] = None) -> str:
+    # v133: hierarchy pre-check — strong sale beats strong rent which beats default.
+    # This fixes the "rental yield" false-positive cascade (299 sale_misclass in rent audit).
+    v133_dt, v133_conf = detect_deal_type_v133(text, default="")
+    if v133_conf >= 0.90 and v133_dt:
+        # high-confidence verdict; skip legacy scoring
+        return v133_dt
+
     tl = text.lower()
 
     # Comprehensive rent signals
@@ -1207,6 +1292,13 @@ def detect_area(text: str, known_emirate: Optional[str] = None) -> tuple[Optiona
                 if is_ambiguous:
                     return area_name, 0.60, None, possible
                 conf = 0.95 if area_name.lower() in tl else 0.85
+                # v133: hallucination guard — DCH / Downtown / Marina top false-positives.
+                # Require the canonical area name to actually appear in original text
+                # (not just an alias collision). If alias triggered but neither full
+                # name nor a strong alias is in the unmodified text → lower confidence.
+                _orig_l = (text or "").lower()
+                if area_name.lower() not in _orig_l and name not in _orig_l:
+                    conf = min(conf, 0.45)
                 return area_name, conf, area_emirate, []
 
     # Fallback: emirate-only mention (e.g. "Layla Residences, Sharjah" with no recognized district)
@@ -1444,6 +1536,22 @@ def detect_building(text: str) -> tuple[Optional[str], float, Optional[str], Opt
     # 4. Heuristic regex — typical "📍 X, Emirate" / "🏢 Project: X" / "X in Y" patterns
     heur = _extract_building_heuristic(text)
     if heur and not _is_iconic_landmark_view_only(text, heur):
+        # v133: dedup — reject area-template buildings like
+        # "Dubai Marina Apartment", "Downtown Apartment", "JVC Apartment".
+        # These are not buildings, they are area + property-type concat strings.
+        _h_low = heur.lower().strip()
+        _AREA_TEMPLATE_PATTERNS = (
+            r'\b(?:apartment|apt|flat|villa|townhouse|studio|penthouse|duplex|'
+            r'unit|property|residence)\b'
+        )
+        if re.search(_AREA_TEMPLATE_PATTERNS, _h_low):
+            # Check if heur matches an area name followed by property type
+            for _area in AREAS:
+                if _area.lower() in _h_low and re.search(
+                    r'\b(?:apartment|apt|flat|villa|townhouse|studio|penthouse)\b',
+                    _h_low,
+                ):
+                    return None, 0.0, None, None, None
         return heur, 0.60, None, None, None
 
     return None, 0.0, None, None, None
@@ -3233,10 +3341,61 @@ def extract_property_type(text: str, bedrooms: Optional[int] = None) -> str:
         if not has_townhouse_dimensions:  # townhouse override уже есть
             return "plot"
 
-    # Pass 1: check first listing block (most reliable)
+    # ─── v133 HIERARCHY (2026-05-24) ──────────────────────────────────────
+    # Based on apt/villa/rent audits: 287+156+70 property_type mistakes.
+    # Order: studio → villa/TH/penthouse/duplex → office-building guard → commercial → apartment.
+    #
+    # 1. Studio (bedrooms==0 OR explicit "studio" / "студия")
+    if bedrooms == 0 or re.search(r'\b(?:studio|студия)\b', head_stripped, re.I):
+        # but not if it's clearly a villa/townhouse studio annex (rare)
+        if not re.search(r'\b(?:villa|townhouse|penthouse)\b', head_stripped[:200], re.I):
+            return "studio"
+
+    # 2. Villa (explicit, not "apartment in villa community")
+    if re.search(r'\b(?:villa|вилла|виллы|detached\s+villa|independent\s+villa)\b',
+                 head_stripped, re.I):
+        # guard: "apartment in <area> villa community" — это apartment
+        if not re.search(
+            r'\b(?:apartment|apt|flat|unit|residence)\b[^.\n]{0,40}\bvilla\s+(?:community|complex|compound)\b',
+            head_stripped, re.I,
+        ):
+            return "villa"
+
+    # 3. Townhouse / TH
+    if re.search(r'\b(?:townhouse|town\s+house|townhome|таунхаус|\bth\b)\b',
+                 head_stripped, re.I):
+        return "townhouse"
+
+    # 4. Penthouse
+    if re.search(r'\b(?:penthouse|pent\s+house|пентхаус)\b', head_stripped, re.I):
+        return "penthouse"
+
+    # 5. Duplex (already pre-stripped "duplex views" → safe to keyword-match)
+    if re.search(r'\b(?:duplex|дуплекс)\b', head_stripped, re.I):
+        return "duplex"
+
+    # 6. Office TOWER guard: building name contains "tower" / "office tower" but
+    # listing is for an apartment/BR unit inside → apartment, NOT office.
+    if re.search(r'\boffice\s+tower\b', head_stripped, re.I) and \
+       re.search(r'\b(?:\d+\s*(?:br|bhk|bedroom|спал)|studio|apartment|apt|flat)\b',
+                 head_stripped, re.I):
+        return "apartment"
+
+    # 7. Explicit commercial: office for sale/rent, office space, commercial unit
+    if re.search(
+        r'\b(?:office\s+for\s+(?:sale|rent|lease)|office\s+space|commercial\s+unit|'
+        r'fitted\s+office|shell\s+(?:and|&)\s+core|business\s+centre)\b',
+        head_stripped, re.I,
+    ):
+        return "office"
+
+    # Pass 1: check first listing block (most reliable) — legacy fallback
     for ptype, keywords in PROP_TYPE_MAP.items():
         # Skip "plot" if the first block has townhouse-style dimensions
         if ptype == "plot" and has_townhouse_dimensions:
+            continue
+        # Skip types we already handled in v133 hierarchy
+        if ptype in ("studio", "villa", "townhouse", "penthouse", "duplex", "office"):
             continue
         for kw in keywords:
             pat = kw if kw.endswith('\\b') else r'\b' + re.escape(kw) + r'\b'
