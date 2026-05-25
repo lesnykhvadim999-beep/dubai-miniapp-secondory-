@@ -201,6 +201,118 @@ AREA_ABBR = {
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 2b. AREA CANONICAL NAMES — normalize messy / alias names to one canonical
+#     Applied as final step in extract_listing() after DLD normalization.
+#     Key = lower-stripped alias, value = canonical name stored in DB.
+# ══════════════════════════════════════════════════════════════════════════════
+_AREA_CANON: dict = {
+    # JVC variants
+    "jvc":                              "Jumeirah Village Circle",
+    "jumeirah village circle (jvc)":    "Jumeirah Village Circle",
+    "jvc district 12":                  "Jumeirah Village Circle",
+    "al barsha south fourth":           "Jumeirah Village Circle",
+    # Marina
+    "marina":                           "Dubai Marina",
+    "marsa dubai":                      "Dubai Marina",
+    # Downtown
+    "downtown":                         "Downtown Dubai",
+    "dubai downtown":                   "Downtown Dubai",
+    "burj khalifa district":            "Downtown Dubai",
+    # Business Bay
+    "business bay":                     "Business Bay",
+    # Al Jaddaf
+    "al jadaf":                         "Al Jaddaf",
+    "jaddaf":                           "Al Jaddaf",
+    # Dubai Creek Harbour
+    "creek harbour":                    "Dubai Creek Harbour",
+    "dubai creek":                      "Dubai Creek Harbour",
+    "creek":                            "Dubai Creek Harbour",
+    "the creek":                        "Dubai Creek Harbour",
+    "the creek dubai":                  "Dubai Creek Harbour",
+    # JBR
+    "jbr":                              "Jumeirah Beach Residence",
+    "jumeirah beach residences":        "Jumeirah Beach Residence",
+    # JLT
+    "jlt":                              "Jumeirah Lake Towers",
+    "jumeirah lakes towers":            "Jumeirah Lake Towers",
+    "jlt / dmcc":                       "Jumeirah Lake Towers",
+    # DAMAC Lagoons
+    "damac lagoons":                    "DAMAC Lagoons",
+    "damac lagoon":                     "DAMAC Lagoons",
+    # DAMAC Hills
+    "damac hills":                      "DAMAC Hills",
+    # DAMAC Hills 2
+    "damac hills 2":                    "DAMAC Hills 2",
+    # DAMAC Islands
+    "damac islands":                    "DAMAC Islands",
+    # MBR City
+    "mbr":                              "MBR City",
+    "mohammed bin rashid city":         "MBR City",
+    "mohammed bin rashid al maktoum city": "MBR City",
+    "mbrc":                             "MBR City",
+    # Arjan
+    "arjan":                            "Arjan",
+    "arjaan":                           "Arjan",
+    # Emaar Beachfront
+    "emaar beachfront":                 "Emaar Beachfront",
+    "emaar beach front":                "Emaar Beachfront",
+    "beachfront":                       "Emaar Beachfront",
+    "beach front":                      "Emaar Beachfront",
+    # Dubai Islands
+    "dubai island":                     "Dubai Islands",
+    "palm deira":                       "Dubai Islands",
+    # JVT
+    "jvt":                              "Jumeirah Village Triangle",
+    # Sports City
+    "dubai sports city":                "Sports City",
+    "sport city":                       "Sports City",
+    # Silicon Oasis
+    "dubai silicon oasis":              "Silicon Oasis",
+    # Studio City
+    "dubai studio city":                "Studio City",
+    # Arabian Ranches
+    "arabian ranchers":                 "Arabian Ranches",
+    "arabian ranches 1":                "Arabian Ranches",
+    "the ranches":                      "Arabian Ranches",
+    "ranches 1":                        "Arabian Ranches",
+    # Arabian Ranches 3
+    "arabian ranches iii":              "Arabian Ranches 3",
+    # Bluewaters Island
+    "bluewaters":                       "Bluewaters Island",
+    # Dubai Investment Park
+    "dip":                              "Dubai Investment Park",
+    "dubai investment park first":      "Dubai Investment Park",
+    "dubai investment park 2":          "Dubai Investment Park",
+    # Jumeirah Golf Estates
+    "jumeirah golf estate":             "Jumeirah Golf Estates",
+    # Dubailand
+    "dubai land":                       "Dubailand",
+    "dubailand":                        "Dubailand",
+    # Nad Al Sheba
+    "nad al shiba":                     "Nad Al Sheba",
+    "nad al shiba first":               "Nad Al Sheba",
+    "nad al sheba":                     "Nad Al Sheba",
+    # Town Square
+    "townsquare":                       "Town Square",
+    # Barsha Heights
+    "al barsha heights":                "Barsha Heights",
+    # Madinat Jumeirah
+    "madinat jumeira living":           "Madinat Jumeirah",
+    "madinat jumeirah living":          "Madinat Jumeirah",
+}
+
+
+def normalize_area_name(area: str) -> str:
+    """Normalize messy/alias area names to canonical DB values.
+    Called as final step after DLD normalization in extract_listing().
+    """
+    if not area:
+        return area
+    key = area.strip().lower()
+    return _AREA_CANON.get(key, area)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 3. BUILDINGS DATABASE
 # building_name → {area, emirate, developer, aliases}
 # This is the SOURCE OF TRUTH — if building found here,
@@ -2638,6 +2750,14 @@ def extract_price(text: str) -> dict:
             r'\b(?:selling\s+price|sp|sale\s+price)\s*[:\-]?\s*[\d,. ]+\s*(?:aed|k|m)?',
             ' ', text, flags=re.I)
 
+    # ── Strip "top up" / "top-up" amounts — это доплата, не полная цена.
+    text = re.sub(
+        r'[\d.,]+\s*[km]?\s*(?:aed\s+)?top[\s\-]?up\b[^.]{0,40}',
+        ' ', text, flags=re.I)
+    text = re.sub(
+        r'\btop[\s\-]?up\s*(?:only\s+)?(?:(?:aed|usd)\s*)?[\d.,]+\s*[km]?\s*(?:aed)?[^.]{0,30}',
+        ' ', text, flags=re.I)
+
     # ── Strip payment-plan portions: "50k on handover", "X on transfer",
     # "X to the owner / X to developer". Это куски сплит-платежа, не цена.
     text = re.sub(
@@ -2769,6 +2889,12 @@ def extract_price(text: str) -> dict:
         r'\b(\d{1,3}),(\d{3})\.(\d{3})\b',
         lambda m: f"{m.group(1)}{m.group(2)}{m.group(3)}",
         text)
+    # ── Comma-space mixed thousands: "1,125 000" / "2,500 000" → "1125000"
+    text = re.sub(
+        r'\b(\d{1,3}),(\d{3})\s+(\d{3})\b',
+        lambda m: f"{m.group(1)}{m.group(2)}{m.group(3)}",
+        text)
+
     # ── Normalise space-separated numbers ("560 000" → "560000") ────────
     # Также ловим двойные пробелы: "1 500  000" → "1500000"
     text = re.sub(
@@ -4659,6 +4785,10 @@ def parse_message(
         data["building"] = canon_bld
     if canon_area and canon_area != data.get("area"):
         data["area"] = canon_area
+
+    # ── Area alias normalization (after DLD) ────────────────────────────
+    if data.get("area"):
+        data["area"] = normalize_area_name(data["area"])
 
     # ── Building → area cross-check ─────────────────────────────────────
     # Если есть building, проверяем что area совпадает с тем где building
