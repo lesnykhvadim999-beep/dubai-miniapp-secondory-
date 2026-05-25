@@ -186,7 +186,11 @@ async def parse_channel(client, channel: str, backfill: bool = False,
             # Incremental: берём реальный максимум из БД (не из sync_log!)
             real_last = get_real_last_message_id(channel)
             sync_last = get_last_parsed_message_id(channel) or 0
-            # Берём максимум из обоих источников для надёжности
+            # B053 v2: санитизируем sync_last — аномальные ID > 10M (от retro-parser)
+            # игнорируем, чтобы они не перебивали корректный real_last из listings
+            if sync_last > 10_000_000:
+                print(f"[telethon] sync_log ID {sync_last} аномальный (>10M) — игнорируем, используем db_max={real_last}")
+                sync_last = 0
             min_id = max(real_last, sync_last)
             offset_date = None
             if min_id > 0:
