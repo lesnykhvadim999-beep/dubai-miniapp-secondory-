@@ -5925,6 +5925,20 @@ def handle_msg(msg):
         _send(cid, _t(uid, "main_menu"), kb_main_reply(uid))
         return
 
+    # B052: When wizard is active, wizard buttons take priority over main-menu
+    # buttons. Without this, labels that exist in BOTH sets (e.g. "🏢 Апартаменты"
+    # is both rbtn_apt and pt_apt_btn) get swallowed by dispatch_main_button,
+    # which resets the wizard — causing an infinite deal→emirate→proptype loop.
+    # Exception: "🏠 Главное меню" (rbtn_home) always escapes any wizard.
+    _active_wiz = gs(uid).get("wizard")
+    if _active_wiz and _active_wiz != "results":
+        _rkey_tmp = is_main_menu_text(text)
+        if _rkey_tmp == "rbtn_home":
+            dispatch_main_button(cid, uid, _rkey_tmp)
+            return
+        if dispatch_wizard_button(cid, uid, text):
+            return
+
     # Bottom reply-keyboard buttons → dispatch to handlers
     rkey = is_main_menu_text(text)
     if rkey:
