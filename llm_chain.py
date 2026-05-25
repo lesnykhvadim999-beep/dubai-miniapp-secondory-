@@ -1,6 +1,6 @@
-"""Universal LLM chain v130 — multi-key rotation + token-bucket + Postgres cache.
+"""Universal LLM chain v132 — multi-key rotation + token-bucket + Postgres cache.
 
-Goal: guarantee >=5 working providers at any moment by combining:
+Goal: guarantee >=4 working providers at any moment by combining:
   1) Multi-key rotation INSIDE each provider (CEREBRAS_API_KEY_2, _3 etc.)
   2) Proactive token-bucket rate limiter per key (avoid hitting 429 at all)
   3) Postgres LLM cache (7-day TTL) — repeat prompts skip the API entirely
@@ -8,6 +8,7 @@ Goal: guarantee >=5 working providers at any moment by combining:
   5) Ollama self-hosted fallback on Railway private network (unlimited)
   6) Per-key hourly cap (500 req/hour) to stay below provider thresholds
   7) Anthropic last-resort with $2/day cap (existing)
+  8) Background health watchdog: alerts when < LLM_MIN_PROVIDERS available
 
 Providers (priority order):
   1.  Cerebras       — 1M tok/day, Qwen-3 235B (CF proxy, multi-key)
@@ -16,10 +17,12 @@ Providers (priority order):
   4.  Mistral        — free 1 RPS, mistral-small-latest (multi-key)
   5.  OpenRouter     — free models ~200 req/day (multi-key)
   6.  Gemini         — 1500 RPD, Gemini 2.0 Flash (multi-key)
-  8.  GitHub Models  — ~150 req/day, GPT-4o-mini (multi-key)
-  9.  Cohere         — 1000 req/month, command-r (multi-key)
-  10. Ollama self    — UNLIMITED, llama3.2:3b, Railway internal
-  11. Anthropic      — LAST-RESORT, $2/day hard cap
+  7.  GitHub Models  — ~150 req/day, GPT-4o-mini (multi-key)
+  8.  HuggingFace    — free inference API, Qwen2.5-72B (multi-key)
+  9.  NVIDIA NIM     — 1000 req/month free, Llama-3.1-70B (multi-key)
+  10. Cohere         — 1000 req/month, command-r (multi-key)
+  11. Ollama self    — UNLIMITED, llama3.2:1b, Railway internal
+  12. Anthropic      — LAST-RESORT, $2/day hard cap
 
 Usage:
     from llm_chain import llm_call
@@ -152,6 +155,27 @@ PROVIDERS = [
         "rpm":    10,
     },
     {
+        # 8. HuggingFace Serverless Inference API — free with HF_TOKEN.
+        #    Sign up at huggingface.co (free). Rate limit ~100 req/day per model.
+        #    Env: HF_TOKEN, HF_TOKEN_2, HF_TOKEN_3
+        "name":   "huggingface",
+        "env_keys": ["HF_TOKEN", "HF_TOKEN_2", "HF_TOKEN_3"],
+        "url":    "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-72B-Instruct/v1/chat/completions",
+        "model":  "Qwen/Qwen2.5-72B-Instruct",
+        "format": "openai",
+        "rpm":    5,    # conservative — free tier cold starts
+    },
+    {
+        # 9. NVIDIA NIM — free 1000 calls/month. Sign up at build.nvidia.com.
+        #    Env: NVIDIA_API_KEY, NVIDIA_API_KEY_2
+        "name":   "nvidia_nim",
+        "env_keys": ["NVIDIA_API_KEY", "NVIDIA_API_KEY_2"],
+        "url":    "https://integrate.api.nvidia.com/v1/chat/completions",
+        "model":  "meta/llama-3.1-70b-instruct",
+        "format": "openai",
+        "rpm":    10,
+    },
+    {
         "name":   "cohere",
         "env_keys": ["COHERE_API_KEY", "COHERE_API_KEY_2", "COHERE_API_KEY_3"],
         "url":    "https://api.cohere.com/v2/chat",
@@ -160,12 +184,13 @@ PROVIDERS = [
         "rpm":    20,
     },
     {
-        # 10. Ollama self-hosted on Railway private network (unlimited).
+        # 11. Ollama self-hosted on Railway private network (unlimited).
         #     URL via env OLLAMA_URL (default Railway internal hostname).
+        #     Run: railway run --service ollama ollama pull llama3.2:1b
         "name":   "ollama_self",
         "env_keys": [],            # no auth
         "url":    os.getenv("OLLAMA_URL", "http://ollama.railway.internal:11434/api/chat"),
-        "model":  os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
+        "model":  os.getenv("OLLAMA_MODEL", "llama3.2:1b"),
         "format": "ollama",
         "rpm":    600,             # effectively unlimited
         "unlimited": True,
@@ -952,13 +977,125 @@ def health_check_all(timeout: int = 10) -> dict:
     return out
 
 
+# ── Minimum-provider health watchdog ────────────────────────────────────
+_MIN_PROVIDERS     = int(os.getenv("LLM_MIN_PROVIDERS", "4"))
+_WATCHDOG_INTERVAL = int(os.getenv("LLM_HEALTH_INTERVAL", "7200"))  # 2h default
+_ALERT_CHAT_ID     = os.getenv("LLM_ADMIN_CHAT_ID")    # Telegram user ID for alerts
+_ALERT_BOT_TOKEN   = os.getenv("LLM_ALERT_BOT_TOKEN")  # bot token for sending alerts
+
+# Set of provider names that are "paid" or limited (don't count toward free guarantee)
+_PAID_PROVIDERS = {"anthropic"}
+
+
+def _count_free_providers() -> int:
+    """Fast in-memory count of free providers with at least one live key."""
+    count = 0
+    for p in PROVIDERS:
+        name = p["name"]
+        if name in _PAID_PROVIDERS:
+            continue
+        if p.get("unlimited"):
+            # Ollama: count only if not in cooldown
+            if not _key_cooled(name, 0):
+                count += 1
+            continue
+        for idx, env_name in enumerate(p.get("env_keys", [])):
+            if os.environ.get(env_name) and not _key_cooled(name, idx) and not _key_over_hourly_cap(name, idx):
+                count += 1
+                break
+    return count
+
+
+def _send_tg_alert(text: str):
+    """Send Telegram message to admin if LLM_ADMIN_CHAT_ID + LLM_ALERT_BOT_TOKEN set."""
+    if not _ALERT_CHAT_ID or not _ALERT_BOT_TOKEN:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{_ALERT_BOT_TOKEN}/sendMessage",
+            json={"chat_id": _ALERT_CHAT_ID, "text": text, "parse_mode": "HTML"},
+            timeout=5,
+        )
+    except Exception:
+        pass
+
+
+def _watchdog_loop():
+    """Daemon thread: every WATCHDOG_INTERVAL seconds check provider count.
+    Logs WARNING + optional Telegram alert when < MIN_PROVIDERS are healthy."""
+    time.sleep(120)  # startup grace period
+    last_alert_time = 0.0
+
+    while True:
+        try:
+            fast_count = _count_free_providers()
+
+            if fast_count < _MIN_PROVIDERS:
+                # Confirm with live health check (avoids false alarms from stale cooldowns)
+                live = health_check_all(timeout=8)
+                free_working = [
+                    k for k, v in live.items()
+                    if not k.startswith("_")
+                    and v.get("status") == "ok"
+                    and k not in _PAID_PROVIDERS
+                ]
+                n = len(free_working)
+
+                msg = (
+                    f"⚠️ LLM ALERT: {n}/{_MIN_PROVIDERS} free providers working!\n"
+                    f"OK: {', '.join(free_working) or 'NONE'}\n"
+                    f"Action needed: check Railway env vars or add new API keys."
+                )
+                print(f"[llm_chain] {msg}")
+
+                # Rate-limit alerts to 1 per 3 hours
+                now = time.time()
+                if now - last_alert_time > 10800:
+                    _send_tg_alert(msg)
+                    last_alert_time = now
+            else:
+                print(f"[llm_chain] watchdog OK: {fast_count} free providers available ✓")
+
+        except Exception as e:
+            print(f"[llm_chain] watchdog err: {e}")
+
+        time.sleep(_WATCHDOG_INTERVAL)
+
+
+_watchdog_started = False
+_watchdog_lock = threading.Lock()
+
+
+def start_health_watchdog():
+    """Start background provider health monitor (idempotent, daemon thread)."""
+    global _watchdog_started
+    with _watchdog_lock:
+        if _watchdog_started:
+            return
+        _watchdog_started = True
+    t = threading.Thread(target=_watchdog_loop, name="llm_health_watchdog", daemon=True)
+    t.start()
+    print(f"[llm_chain] health watchdog started "
+          f"(min_free={_MIN_PROVIDERS}, interval={_WATCHDOG_INTERVAL}s)")
+
+
+# Auto-start watchdog unless explicitly disabled
+if os.getenv("LLM_HEALTH_WATCHDOG", "1") == "1":
+    start_health_watchdog()
+
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == "health":
         result = health_check_all()
         print(json.dumps(result, indent=2))
-        working = sum(1 for v in result.values() if v.get("status") == "ok")
-        print(f"\n*** {working} working providers ***")
+        working = [k for k, v in result.items()
+                   if not k.startswith("_") and v.get("status") == "ok"]
+        free = [k for k in working if k not in _PAID_PROVIDERS]
+        paid = [k for k in working if k in _PAID_PROVIDERS]
+        print(f"\n*** {len(working)} total working  |  {len(free)} FREE: {free}  |  {len(paid)} paid: {paid} ***")
+        if len(free) < _MIN_PROVIDERS:
+            print(f"⚠️  WARNING: only {len(free)} free providers — need {_MIN_PROVIDERS}!")
     elif len(sys.argv) > 1 and sys.argv[1] == "status":
         print(json.dumps(status(), indent=2, default=str))
     else:
