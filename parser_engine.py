@@ -1643,6 +1643,9 @@ _BUILDING_HEUR_STOPWORDS = {
     "full burj view", "full palm view", "full marina view",
     "creek tower", "burj tower", "marina tower view",
     "full view", "partial view", "clear view",
+    # ── B047-2: more single-word non-buildings found in DB ────────────────────
+    "type", "size", "floor", "view", "views", "block", "phase", "wing",
+    "gate", "zone", "sector", "plot", "level", "row", "bay",
 }
 
 
@@ -1680,8 +1683,9 @@ def _is_building_stopword(s: str) -> bool:
         r'duplex|unit|property|home|land|building|tower|hotel)\s+'
         r'(?:for\s+)?(?:sale|rent|lease|exchange)$', sl):
         return True
-    # B047: anything ending in "view" or "views" is a view description, not a building
-    if re.search(r'\bviews?\s*$', sl):
+    # B047: SHORT generic "X view" phrases are view descriptions, not buildings
+    # (but "Address Sky View", "Fountain Views" etc. ARE real building names — don't block)
+    if re.match(r'^(?:burj|sea|full|partial|clear|golf|pool|street|lagoon|canal|creek\s+tower)\s+views?$', sl):
         return True
     # B047: single common English word (non-proper-noun) can't be a building name
     if re.match(r'^[a-z]{2,6}$', sl) and sl in {
