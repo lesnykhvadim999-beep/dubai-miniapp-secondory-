@@ -84,9 +84,11 @@ def get_real_last_message_id(channel: str) -> int:
         from db_schema import get_conn
         conn = get_conn()
         with conn.cursor() as cur:
+            # B053: исключаем аномальные message_id > 10M (фейковые ID от retro-parser)
             cur.execute(
                 "SELECT COALESCE(MAX(telegram_message_id), 0) as mid "
-                "FROM listings WHERE telegram_chat_id = %s",
+                "FROM listings WHERE telegram_chat_id = %s "
+                "AND (telegram_message_id IS NULL OR telegram_message_id < 10000000)",
                 (chat_id,)
             )
             row = cur.fetchone()
