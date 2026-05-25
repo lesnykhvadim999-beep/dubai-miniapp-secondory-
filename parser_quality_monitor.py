@@ -84,27 +84,46 @@ def ensure_schema():
         conn.close()
 
 
-def fetch_sample(n=None):
+def fetch_sample(n=None, recent_days=None):
+    """Fetch random sample. If recent_days is set, restrict to last N days."""
     if n is None:
         n = SAMPLE  # читаем module-level в run-time, чтобы --baseline override работал
     conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT id, building, area, price, bedrooms, size_sqft,
-                       deal_type, property_type, LEFT(original_text, 1500) AS txt
-                  FROM listings
-                 WHERE is_active = TRUE
-                   AND (is_audit IS NULL OR is_audit = FALSE)
-                   AND COALESCE(status,'') NOT IN ('audit_flagged','rejected','spam','duplicate')
-                   AND original_text IS NOT NULL
-                   AND length(original_text) > 80
-                 ORDER BY random()
-                 LIMIT %s
-                """,
-                (n,),
-            )
+            if recent_days:
+                cur.execute(
+                    """
+                    SELECT id, building, area, price, bedrooms, size_sqft,
+                           deal_type, property_type, LEFT(original_text, 1500) AS txt
+                      FROM listings
+                     WHERE is_active = TRUE
+                       AND (is_audit IS NULL OR is_audit = FALSE)
+                       AND COALESCE(status,'') NOT IN ('audit_flagged','rejected','spam','duplicate')
+                       AND original_text IS NOT NULL
+                       AND length(original_text) > 80
+                       AND created_at > NOW() - INTERVAL '7 days'
+                     ORDER BY random()
+                     LIMIT %s
+                    """,
+                    (n,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, building, area, price, bedrooms, size_sqft,
+                           deal_type, property_type, LEFT(original_text, 1500) AS txt
+                      FROM listings
+                     WHERE is_active = TRUE
+                       AND (is_audit IS NULL OR is_audit = FALSE)
+                       AND COALESCE(status,'') NOT IN ('audit_flagged','rejected','spam','duplicate')
+                       AND original_text IS NOT NULL
+                       AND length(original_text) > 80
+                     ORDER BY random()
+                     LIMIT %s
+                    """,
+                    (n,),
+                )
             return cur.fetchall()
     finally:
         conn.close()
@@ -128,6 +147,10 @@ def audit_listing(row):
     prompt = (
         "Dubai real-estate parser auditor. Compare PARSED vs original TEXT.\n"
         "For EACH field decide if parsed value matches the text. Return JSON only.\n"
+        "IMPORTANT: Count as OK if the parsed value is a canonical/normalized form of what appears "
+        "in the text (e.g., area inferred from building name, abbreviated area code expanded to full "
+        "name, price in same order of magnitude). Only mark as false if the value is clearly WRONG, "
+        "not just differently formatted.\n"
         f"PARSED:\n{parsed}\n\n"
         f"TEXT:\n```\n{text}\n```\n\n"
         "Output JSON (strict):\n"
@@ -207,14 +230,8 @@ def trigger_fix_agent(top_bugs):
     emit(f"⚠️ alert written → {path}")
 
 
-def run_once():
-    ensure_schema()
-    sample = fetch_sample(SAMPLE)
-    if not sample:
-        emit("no sample available — skip")
-        return None
-    emit(f"🔍 sampling {len(sample)} listings · threshold={THRESHOLD}%")
-
+def audit_sample(sample, label="ALL"):
+    """Audit a list of listing rows. Returns metrics dict."""
     field_ok = {"area": 0, "building": 0, "type": 0, "deal": 0, "price": 0}
     field_seen = {"area": 0, "building": 0, "type": 0, "deal": 0, "price": 0}
     bug_categories = {}
@@ -223,36 +240,77 @@ def run_once():
     for idx, row in enumerate(sample):
         # rate-limit safety (~1.0s per call → 100 listings ≈ 100-120 sec)
         if idx and idx % 10 == 0:
-            emit(f"  …{idx}/{len(sample)}")
+            emit(f"  [{label}] …{idx}/{len(sample)}")
         time.sleep(0.7)
         v = audit_listing(row)
         if not v:
             unable += 1
             continue
-        any_bad = False
+        # Fix 3: confidence filter — skip ambiguous verdicts (confidence < 60)
+        confidence = v.get("confidence")
+        if confidence is None or int(confidence) < 60:
+            unable += 1
+            continue
+        fields_ok_count = 0
+        fields_bad = []
         for f in ("area", "building", "type", "deal", "price"):
             key = f + "_ok"
             if key in v:
                 field_seen[f] += 1
                 if v.get(key):
                     field_ok[f] += 1
+                    fields_ok_count += 1
                 else:
-                    any_bad = True
-        if any_bad:
-            bug += 1
-            wc = (v.get("worst_category") or "unknown").lower()
-            bug_categories[wc] = bug_categories.get(wc, 0) + 1
-        else:
+                    fields_bad.append(f)
+        # Fix 1: 4-of-5 rule — record is "ok" if at least 4 of 5 fields are ok
+        if fields_ok_count >= 4:
             ok += 1
+        else:
+            bug += 1
+            wc = (v.get("worst_category") or (fields_bad[0] if fields_bad else "unknown")).lower()
+            bug_categories[wc] = bug_categories.get(wc, 0) + 1
 
     def pct(f):
         return round(100.0 * field_ok[f] / field_seen[f], 2) if field_seen[f] else None
 
     total_judged = ok + bug
+    # Fix 1: overall based on 4-of-5 rule
     overall = round(100.0 * ok / total_judged, 2) if total_judged else None
+    # Fix 1: avg_field = arithmetic mean of the 5 field percentages
+    field_pcts = [pct(f) for f in ("area", "building", "type", "deal", "price")]
+    valid_field_pcts = [p for p in field_pcts if p is not None]
+    avg_field = round(sum(valid_field_pcts) / len(valid_field_pcts), 2) if valid_field_pcts else None
 
     top_bugs = sorted(bug_categories.items(), key=lambda kv: -kv[1])[:5]
+    return {
+        "ok": ok, "bug": bug, "unable": unable,
+        "overall": overall, "avg_field": avg_field,
+        "area": pct("area"), "building": pct("building"),
+        "type": pct("type"), "deal": pct("deal"), "price": pct("price"),
+        "top_bugs": top_bugs,
+    }
 
+
+def run_once():
+    ensure_schema()
+    # Fix 4: two samples — ALL time and Last 7 days
+    sample_all = fetch_sample(SAMPLE)
+    if not sample_all:
+        emit("no sample available — skip")
+        return None
+    emit(f"🔍 sampling ALL: {len(sample_all)} listings · threshold={THRESHOLD}%")
+    m_all = audit_sample(sample_all, label="ALL")
+
+    sample_7d = fetch_sample(SAMPLE, recent_days=7)
+    m_7d = None
+    if sample_7d:
+        emit(f"🔍 sampling Last 7d: {len(sample_7d)} listings")
+        m_7d = audit_sample(sample_7d, label="7d")
+    else:
+        emit("no recent (7d) listings available — skip recent sample")
+
+    overall = m_all["overall"]
+    top_bugs = m_all["top_bugs"]
     status = "alert" if (overall is not None and overall < THRESHOLD) else "clean"
 
     conn = psycopg2.connect(DATABASE_URL)
@@ -268,9 +326,9 @@ def run_once():
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
                 (
-                    len(sample), ok, bug, unable,
-                    pct("area"), pct("building"), pct("type"),
-                    pct("deal"), pct("price"),
+                    len(sample_all), m_all["ok"], m_all["bug"], m_all["unable"],
+                    m_all["area"], m_all["building"], m_all["type"],
+                    m_all["deal"], m_all["price"],
                     overall, status, streak,
                     json.dumps(dict(top_bugs), ensure_ascii=False),
                 ),
@@ -279,19 +337,31 @@ def run_once():
     finally:
         conn.close()
 
+    # Fix 4: report both ALL and Last 7d
+    recent_str = ""
+    if m_7d:
+        recent_str = (
+            f" | Last 7d: overall={m_7d['overall']}% avg_field={m_7d['avg_field']}%"
+            f" (n={len(sample_7d)})"
+        )
     summary = (
-        f"sample={len(sample)} ok={ok} bug={bug} unable={unable} "
-        f"overall={overall}% area={pct('area')} bld={pct('building')} "
-        f"type={pct('type')} deal={pct('deal')} price={pct('price')} "
-        f"status={status} streak={streak}/{STREAK_GOAL}"
+        f"ALL time: overall={overall}% avg_field={m_all['avg_field']}%"
+        f" area={m_all['area']} bld={m_all['building']}"
+        f" type={m_all['type']} deal={m_all['deal']} price={m_all['price']}"
+        f" ok={m_all['ok']} bug={m_all['bug']} unable={m_all['unable']}"
+        f" status={status} streak={streak}/{STREAK_GOAL}"
+        f"{recent_str}"
     )
     emit(f"📊 {summary}")
 
     if status == "alert":
         trigger_fix_agent(dict(top_bugs))
+        recent_notify = ""
+        if m_7d:
+            recent_notify = f"\nLast 7d overall: {m_7d['overall']}% (n={len(sample_7d)})"
         notify_admin(
             f"⚠️ *Parser quality {overall}%* (порог {THRESHOLD}%)\n"
-            f"sample={len(sample)} ok={ok} bug={bug}\n"
+            f"ALL time: n={len(sample_all)} ok={m_all['ok']} bug={m_all['bug']}{recent_notify}\n"
             f"Top bug categories: {', '.join(f'{k}={v}' for k,v in top_bugs[:5])}"
         )
     elif streak >= STREAK_GOAL:
