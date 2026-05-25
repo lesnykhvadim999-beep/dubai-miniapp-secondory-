@@ -42,7 +42,7 @@ SESSION_STRING    = os.environ.get("SESSION_STRING", "")
 # The parser will resolve chat_id at runtime if not in CHANNEL_CHAT_IDS.
 # TO ADD A CHANNEL: just paste its @username below. Restart bot.
 CHANNELS = [
-    "flipluxproperty",
+    # "flipluxproperty" — убрано: это наш маркетинговый канал, не источник листингов
     "dubairealestatedirectorydubilook",
     "secondary_dubai",
     # Add more channels here:
@@ -53,7 +53,7 @@ CHANNELS = [
 # chat_id → channel name mapping (для get_real_last_message_id).
 # New channels — chat_id will be resolved at runtime, missing entries are fine.
 CHANNEL_CHAT_IDS = {
-    "flipluxproperty":                     "1781686176",
+    # "flipluxproperty": "1781686176" — убрано (наш собственный канал)
     "dubairealestatedirectorydubilook":    "1125918023",
     "secondary_dubai":                     "2187754007",
 }
