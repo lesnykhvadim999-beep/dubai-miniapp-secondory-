@@ -894,7 +894,9 @@ def validate_deal_type_by_price(
     # If rent > 1M and text contains explicit sale signals → flip to sale.
     if deal_type == "rent" and price > 1_000_000 and text:
         tl = text.lower()
-        if re.search(r'\b(?:for\s+sale|sales?\s*price|selling\s*price|sale\s*price|asking\s*price|sp\s*[:\-]|payment\s+plan|handover|distress\s+deal|below\s+(?:market|op)|off[\s\-]?plan|developer\s*:|aed\s*[\d.,]+\s*(?:m\b|mln|million))\b', tl):
+        # B047: sp\s*[:\-] не ловится \b если за : идёт пробел ("SP: AED")
+        if re.search(r'\b(?:for\s+sale|sales?\s*price|selling\s*price|sale\s*price|asking\s*price|payment\s+plan|handover|distress\s+deal|below\s+(?:market|op)|off[\s\-]?plan|developer\s*:|aed\s*[\d.,]+\s*(?:m\b|mln|million))\b', tl) \
+           or re.search(r'\bsp\s*[:\-]', tl):
             return "sale"
 
     # ── 5: market floor/ceiling (original logic) ─────────────────────────
@@ -1632,6 +1634,15 @@ _BUILDING_HEUR_STOPWORDS = {
     "q1 2026", "q2 2026", "q3 2026", "q4 2026",
     "q1 2027", "q2 2027", "q3 2027", "q4 2027",
     "q1 2028", "q2 2028", "q3 2028", "q4 2028",
+    # ── B047: single-word non-building descriptors (floor/feature words) ──────
+    "high", "low", "mid", "built", "plan", "full", "new", "old",
+    "corner", "end", "middle", "inner", "outer", "main", "prime",
+    "key", "good", "best", "top", "great", "clean", "ready",
+    # View descriptions frequently mis-parsed as building name
+    "full creek tower", "full creek tower view", "creek tower view",
+    "full burj view", "full palm view", "full marina view",
+    "creek tower", "burj tower", "marina tower view",
+    "full view", "partial view", "clear view",
 }
 
 
@@ -1668,6 +1679,17 @@ def _is_building_stopword(s: str) -> bool:
         r'^(?:office|retail|plot|villa|apartment|townhouse|penthouse|studio|'
         r'duplex|unit|property|home|land|building|tower|hotel)\s+'
         r'(?:for\s+)?(?:sale|rent|lease|exchange)$', sl):
+        return True
+    # B047: anything ending in "view" or "views" is a view description, not a building
+    if re.search(r'\bviews?\s*$', sl):
+        return True
+    # B047: single common English word (non-proper-noun) can't be a building name
+    if re.match(r'^[a-z]{2,6}$', sl) and sl in {
+        "high","low","mid","built","plan","full","new","old","corner","end",
+        "middle","inner","outer","main","prime","key","good","best","top",
+        "great","clean","ready","paid","free","due","hot","big","top","fit",
+        "long","wide","open","near","next","back","side","left","right",
+    }:
         return True
     # Pure property type word alone
     if sl in {'villa','apartment','townhouse','penthouse','studio','duplex',
