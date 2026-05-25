@@ -560,6 +560,27 @@ def watchlist_weekly_loop():
         time.sleep(30 * 60)
 
 
+# ── 8. Hourly ecosystem report ────────────────────────────────────────────────
+def hourly_report_loop():
+    """Каждый час (в :00) шлёт Вадиму полный отчёт об экосистеме."""
+    last_run_hour = None
+    while True:
+        try:
+            now = datetime.utcnow()
+            hour_key = (now.date(), now.hour)
+            if last_run_hour != hour_key:
+                # Запускаем на :00 каждого часа (ждём до :02 чтобы sync_log успел записаться)
+                if now.minute >= 2:
+                    from hourly_report import send_hourly_report
+                    send_hourly_report(period_hours=1)
+                    print(f"[cron] hourly ecosystem report sent", flush=True)
+                    last_run_hour = hour_key
+        except Exception as e:
+            print(f"[cron] hourly report error: {e}", flush=True)
+            traceback.print_exc()
+        time.sleep(5 * 60)   # проверяем каждые 5 мин
+
+
 # ── 7. Parser-quality monitor (task #127) ──────────────────────────────────────
 def parser_quality_monitor_loop():
     """Каждые 3 часа: sample 100 listings → LLM audit → log в parser_quality_log.
@@ -586,8 +607,9 @@ def start_all():
     threading.Thread(target=watchlist_daily_loop, daemon=True).start()
     threading.Thread(target=watchlist_weekly_loop, daemon=True).start()
     threading.Thread(target=parser_quality_monitor_loop, daemon=True).start()
+    threading.Thread(target=hourly_report_loop, daemon=True).start()
     start_health_server(port=int(os.environ.get("PORT", "8080")))
-    print("[cron] All workers started (including v55 watchlist + parser-quality).")
+    print("[cron] All workers started (including v55 watchlist + parser-quality + hourly-report).")
 
 
 if __name__ == "__main__":
