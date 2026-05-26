@@ -1,9 +1,9 @@
-"""Universal LLM chain v132 — multi-key rotation + token-bucket + Postgres cache.
+﻿"""Universal LLM chain v132 вЂ” multi-key rotation + token-bucket + Postgres cache.
 
 Goal: guarantee >=4 working providers at any moment by combining:
   1) Multi-key rotation INSIDE each provider (CEREBRAS_API_KEY_2, _3 etc.)
   2) Proactive token-bucket rate limiter per key (avoid hitting 429 at all)
-  3) Postgres LLM cache (7-day TTL) — repeat prompts skip the API entirely
+  3) Postgres LLM cache (7-day TTL) вЂ” repeat prompts skip the API entirely
   4) Cloudflare Worker proxy rotation (CF_WORKER_PROXY[_2,_3])
   5) Ollama self-hosted fallback on Railway private network (unlimited)
   6) Per-key hourly cap (500 req/hour) to stay below provider thresholds
@@ -11,18 +11,18 @@ Goal: guarantee >=4 working providers at any moment by combining:
   8) Background health watchdog: alerts when < LLM_MIN_PROVIDERS available
 
 Providers (priority order):
-  1.  Cerebras       — 1M tok/day, Qwen-3 235B (CF proxy, multi-key)
-  2.  Groq           — 100K tok/day, Llama 3.3 70B (CF proxy, multi-key)
-  3.  SambaNova      — ~1000 req/day, Llama 3.3 70B (multi-key)
-  4.  Mistral        — free 1 RPS, mistral-small-latest (multi-key)
-  5.  OpenRouter     — free models ~200 req/day (multi-key)
-  6.  Gemini         — 1500 RPD, Gemini 2.0 Flash (multi-key)
-  7.  GitHub Models  — ~150 req/day, GPT-4o-mini (multi-key)
-  8.  HuggingFace    — free inference API, Qwen2.5-72B (multi-key)
-  9.  NVIDIA NIM     — 1000 req/month free, Llama-3.1-70B (multi-key)
-  10. Cohere         — 1000 req/month, command-r (multi-key)
-  11. Ollama self    — UNLIMITED, llama3.2:1b, Railway internal
-  12. Anthropic      — LAST-RESORT, $2/day hard cap
+  1.  Cerebras       вЂ” 1M tok/day, Qwen-3 235B (CF proxy, multi-key)
+  2.  Groq           вЂ” 100K tok/day, Llama 3.3 70B (CF proxy, multi-key)
+  3.  SambaNova      вЂ” ~1000 req/day, Llama 3.3 70B (multi-key)
+  4.  Mistral        вЂ” free 1 RPS, mistral-small-latest (multi-key)
+  5.  OpenRouter     вЂ” free models ~200 req/day (multi-key)
+  6.  Gemini         вЂ” 1500 RPD, Gemini 2.0 Flash (multi-key)
+  7.  GitHub Models  вЂ” ~150 req/day, GPT-4o-mini (multi-key)
+  8.  HuggingFace    вЂ” free inference API, Qwen2.5-72B (multi-key)
+  9.  NVIDIA NIM     вЂ” 1000 req/month free, Llama-3.1-70B (multi-key)
+  10. Cohere         вЂ” 1000 req/month, command-r (multi-key)
+  11. Ollama self    вЂ” UNLIMITED, llama3.2:1b, Railway internal
+  12. Anthropic      вЂ” LAST-RESORT, $2/day hard cap
 
 Usage:
     from llm_chain import llm_call
@@ -43,7 +43,7 @@ from typing import Optional, List
 # v131 anti-block: curl_cffi TLS fingerprint masking (Chrome impersonation).
 # Standard Python TLS stack is easily detected by Cloudflare via JA3 fingerprint.
 # curl_cffi mimics a real Chrome TLS handshake, bypassing CF 1010 / JA3 bans.
-# Optional dependency — if not installed we silently fall back to `requests`.
+# Optional dependency вЂ” if not installed we silently fall back to `requests`.
 try:
     from curl_cffi import requests as _cffi_requests  # type: ignore
     _HAS_CURL_CFFI = True
@@ -86,24 +86,15 @@ def _post(url: str, *, headers=None, json_body=None, timeout: int = 15):
             return _ResponseLike(r.status_code, r.text)
         except Exception as e:
             print(f"[llm_chain] curl_cffi err ({type(e).__name__}: {e}); falling back to requests")
-    # Fallback path — vanilla requests (Python TLS stack).
+    # Fallback path вЂ” vanilla requests (Python TLS stack).
     r = requests.post(url, headers=headers or {}, json=json_body, timeout=timeout)
     return _ResponseLike(r.status_code, r.text)
 
 
-# ── Provider configs ─────────────────────────────────────────────────────
+# в”Ђв”Ђ Provider configs в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 # env_keys: list of env-var NAMES to try as keys for this provider.
 # rpm: requests-per-minute target (used to compute token-bucket refill).
 PROVIDERS = [
-    {
-        "name":   "cerebras",
-        "env_keys": ["CEREBRAS_API_KEY", "CEREBRAS_API_KEY_2", "CEREBRAS_API_KEY_3"],
-        "url":    "https://api.cerebras.ai/v1/chat/completions",
-        "model":  "qwen-3-235b-a22b-instruct-2507",
-        "format": "openai",
-        "proxy_via_cf": True,
-        "rpm":    14,
-    },
     {
         "name":   "groq",
         "env_keys": ["GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3"],
@@ -112,6 +103,15 @@ PROVIDERS = [
         "format": "openai",
         "proxy_via_cf": True,
         "rpm":    30,
+    },
+    {
+        "name":   "cerebras",
+        "env_keys": ["CEREBRAS_API_KEY", "CEREBRAS_API_KEY_2", "CEREBRAS_API_KEY_3"],
+        "url":    "https://api.cerebras.ai/v1/chat/completions",
+        "model":  "qwen-3-235b-a22b-instruct-2507",
+        "format": "openai",
+        "proxy_via_cf": True,
+        "rpm":    14,
     },
     {
         "name":   "sambanova",
@@ -138,6 +138,15 @@ PROVIDERS = [
         "rpm":    20,
     },
     {
+        # DeepSeek вЂ” cheap/free tier. Env: DEEPSEEK_API_KEY
+        "name":   "deepseek",
+        "env_keys": ["DEEPSEEK_API_KEY"],
+        "url":    "https://api.deepseek.com/v1/chat/completions",
+        "model":  "deepseek-chat",
+        "format": "openai",
+        "rpm":    20,
+    },
+    {
         "name":   "gemini",
         "env_keys": ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3"],
         "url":    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
@@ -149,24 +158,25 @@ PROVIDERS = [
         "name":   "github_models",
         "env_keys": ["GITHUB_TOKEN", "GITHUB_TOKEN_2", "GITHUB_TOKEN_3",
                      "GITHUB_MODELS_TOKEN"],
-        "url":    "https://models.github.ai/inference/chat/completions",
-        "model":  "openai/gpt-4o-mini",
+        "url":    "https://models.inference.ai.azure.com/chat/completions",
+        "model":  "Llama-3.3-70B-Instruct",
         "format": "openai",
         "rpm":    10,
     },
     {
-        # 8. HuggingFace Serverless Inference API — free with HF_TOKEN.
+        # 8. HuggingFace Serverless Inference API вЂ” free with HF_TOKEN.
         #    Sign up at huggingface.co (free). Rate limit ~100 req/day per model.
         #    Env: HF_TOKEN, HF_TOKEN_2, HF_TOKEN_3
         "name":   "huggingface",
+        "disabled": True,  # HF removed free serverless for large models
         "env_keys": ["HF_TOKEN", "HF_TOKEN_2", "HF_TOKEN_3"],
         "url":    "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-72B-Instruct/v1/chat/completions",
         "model":  "Qwen/Qwen2.5-72B-Instruct",
         "format": "openai",
-        "rpm":    5,    # conservative — free tier cold starts
+        "rpm":    5,    # conservative вЂ” free tier cold starts
     },
     {
-        # 9. NVIDIA NIM — free 1000 calls/month. Sign up at build.nvidia.com.
+        # 9. NVIDIA NIM вЂ” free 1000 calls/month. Sign up at build.nvidia.com.
         #    Env: NVIDIA_API_KEY, NVIDIA_API_KEY_2
         "name":   "nvidia_nim",
         "env_keys": ["NVIDIA_API_KEY", "NVIDIA_API_KEY_2"],
@@ -188,6 +198,7 @@ PROVIDERS = [
         #     URL via env OLLAMA_URL (default Railway internal hostname).
         #     Run: railway run --service ollama ollama pull llama3.2:1b
         "name":   "ollama_self",
+        "disabled": not bool(os.getenv("OLLAMA_URL")),  # skip if no explicit URL set
         "env_keys": [],            # no auth
         "url":    os.getenv("OLLAMA_URL", "http://ollama.railway.internal:11434/api/chat"),
         "model":  os.getenv("OLLAMA_MODEL", "llama3.2:1b"),
@@ -202,16 +213,34 @@ PROVIDERS = [
         "model":  "claude-haiku-4-5",
         "format": "anthropic",
         "paid":   True,
-        "rpm":    50,
+        "rpm":    3,
     },
 ]
 
 
-# ── Per-key cool-down (when 429 hit on a specific key) ───────────────────
+# в”Ђв”Ђ Provider filter: per-service isolation (prevents rate-limit sharing) в”Ђ
+# LLM_SKIP_PROVIDERS=groq,cerebras,sambanova  в†’ СЌС‚Рё РїСЂРѕРІР°Р№РґРµСЂС‹ РїСЂРѕРїСѓСЃРєР°СЋС‚СЃСЏ
+# LLM_ONLY_PROVIDERS=mistral,gemini,openrouter в†’ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ РўРћР›Р¬РљРћ СЌС‚Рё
+# РќР°Р·РЅР°С‡РµРЅРёРµ РїРѕ СЃРµСЂРІРёСЃР°Рј (Р·Р°РґР°С‘С‚СЃСЏ РІ Railway env):
+#   resale-bot (real-time):  РЅРµ СЃС‚Р°РІРёС‚СЊ РЅРёС‡РµРіРѕ вЂ” РёСЃРїРѕР»СЊР·СѓРµС‚ РІСЃРµ Р±С‹СЃС‚СЂС‹Рµ
+#   staging-processor (С„РѕРЅ): LLM_SKIP_PROVIDERS=groq,cerebras,sambanova
+#   audit-queue-processor:   LLM_SKIP_PROVIDERS=groq,cerebras,sambanova
+#   reelly-enrichment:       LLM_SKIP_PROVIDERS=groq,cerebras,sambanova
+_raw_skip = os.getenv("LLM_SKIP_PROVIDERS", "")
+_SKIP_PROVIDERS: set = {s.strip().lower() for s in _raw_skip.split(",") if s.strip()}
+_raw_only = os.getenv("LLM_ONLY_PROVIDERS", "")
+_ONLY_PROVIDERS: set = {s.strip().lower() for s in _raw_only.split(",") if s.strip()}
+if _SKIP_PROVIDERS:
+    print(f"[llm_chain] LLM_SKIP_PROVIDERS={_SKIP_PROVIDERS}", flush=True)
+if _ONLY_PROVIDERS:
+    print(f"[llm_chain] LLM_ONLY_PROVIDERS={_ONLY_PROVIDERS}", flush=True)
+
+
+# в”Ђв”Ђ Per-key cool-down (when 429 hit on a specific key) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 # state key: (provider_name, key_idx) -> cooldown_until_epoch
 _KEY_COOLDOWN: dict = {}
 _KEY_COOLDOWN_LOCK = threading.Lock()
-_COOLDOWN_SEC = 60   # short — we have other keys
+_COOLDOWN_SEC = 60   # short вЂ” we have other keys
 _LONG_COOLDOWN = 86400
 
 
@@ -227,7 +256,7 @@ def _mark_key_cooldown(provider_name: str, key_idx: int,
         _KEY_COOLDOWN[(provider_name, key_idx)] = time.time() + seconds
 
 
-# ── Per-key hourly cap (500 req/hour) ────────────────────────────────────
+# в”Ђв”Ђ Per-key hourly cap (500 req/hour) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 _KEY_HOURLY: dict = {}   # (name, idx) -> list[epoch] of recent calls
 _KEY_HOURLY_LOCK = threading.Lock()
 _HOURLY_CAP = int(os.getenv("LLM_KEY_HOURLY_CAP", "500"))
@@ -255,7 +284,7 @@ def _key_over_hourly_cap(provider_name: str, key_idx: int) -> bool:
     return recent >= _HOURLY_CAP
 
 
-# ── Token bucket (per-key) ───────────────────────────────────────────────
+# в”Ђв”Ђ Token bucket (per-key) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 class TokenBucket:
     __slots__ = ("capacity", "tokens", "refill", "last_refill", "lock")
 
@@ -307,7 +336,7 @@ def _get_bucket(provider: dict, key_idx: int) -> TokenBucket:
         return b
 
 
-# ── Key selection ────────────────────────────────────────────────────────
+# в”Ђв”Ђ Key selection в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 _RR_INDEX: dict = {}   # provider_name -> next start idx (round-robin)
 _RR_LOCK = threading.Lock()
 
@@ -341,7 +370,7 @@ def _pick_key(provider: dict):
     return keys[start % len(keys)]
 
 
-# ── CF Worker proxy rotation ─────────────────────────────────────────────
+# в”Ђв”Ђ CF Worker proxy rotation в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 def _cf_workers() -> List[str]:
     return [u.rstrip("/") for u in [
         os.getenv("CF_WORKER_PROXY"),
@@ -362,7 +391,7 @@ def _maybe_proxy_url(provider: dict) -> str:
     return f"{worker}/?u={quote(base, safe='')}"
 
 
-# ── Anthropic spend tracker (hard cap $2/day) ────────────────────────────
+# в”Ђв”Ђ Anthropic spend tracker (hard cap $2/day) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 _ANTHROPIC_SPEND_FILE = os.environ.get(
     "ANTHROPIC_SPEND_FILE",
     os.path.join(os.environ.get("TMPDIR") or os.environ.get("TEMP") or "/tmp",
@@ -415,7 +444,7 @@ def _anthropic_add_usage(input_tokens: int, output_tokens: int):
     _save_spend(data)
 
 
-# ── Postgres LLM cache (7-day TTL) ───────────────────────────────────────
+# в”Ђв”Ђ Postgres LLM cache (7-day TTL) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 _PG_CACHE_INIT = False
 _PG_CACHE_LOCK = threading.Lock()
 _PG_CACHE_DISABLED = False
@@ -489,7 +518,7 @@ def _hash_prompt(model: str, prompt: str) -> str:
 
 
 def _cache_lookup(prompt: str) -> Optional[str]:
-    """Try every (provider, model) hash variant — but since we hash by
+    """Try every (provider, model) hash variant вЂ” but since we hash by
     (model+prompt), we lookup by content-only hash. To keep this simple:
     we hash with model='*' so any provider's cached answer matches."""
     if os.getenv("LLM_CACHE_DISABLE") == "1":
@@ -560,7 +589,7 @@ def _cache_store(prompt: str, response: str, provider: str, model: str,
             pass
 
 
-# ── Common request headers (anti-ban) ────────────────────────────────────
+# в”Ђв”Ђ Common request headers (anti-ban) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 _UA_POOL = [
     "openai-python/1.54.0",
     "Python/3.11 anthropic-sdk-python/0.34.0",
@@ -573,7 +602,7 @@ def _common_headers() -> dict:
     return {"User-Agent": random.choice(_UA_POOL)}
 
 
-# ── Provider call functions ──────────────────────────────────────────────
+# в”Ђв”Ђ Provider call functions в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 def _call_openai_compat(provider: dict, key_idx: int, key: str, prompt: str,
                         max_tokens: int, timeout: int) -> Optional[str]:
     try:
@@ -602,7 +631,14 @@ def _call_openai_compat(provider: dict, key_idx: int, key: str, prompt: str,
         elif r.status_code >= 400:
             print(f"[llm_chain] {provider['name']}#{key_idx} {r.status_code}: {r.text[:120]}")
     except Exception as e:
-        print(f"[llm_chain] {provider['name']}#{key_idx} err: {e}")
+        msg = str(e).lower()
+        if any(x in msg for x in ("failed to resolve", "name or service not known",
+                                   "no address associated", "errno -5", "errno 8",
+                                   "getaddrinfo failed", "nodename nor servname")):
+            _mark_key_cooldown(provider["name"], key_idx, _LONG_COOLDOWN)
+            print(f"[llm_chain] {provider['name']}#{key_idx} DNS fail -> 24h skip")
+        else:
+            print(f"[llm_chain] {provider['name']}#{key_idx} err: {e}")
     return None
 
 
@@ -751,7 +787,7 @@ def _call_ollama(provider: dict, key_idx: int, key: str, prompt: str,
         elif r.status_code >= 400:
             print(f"[llm_chain] ollama_self {r.status_code}: {r.text[:120]}")
     except Exception as e:
-        # Ollama unreachable is expected outside Railway — quiet but mark cooldown
+        # Ollama unreachable is expected outside Railway вЂ” quiet but mark cooldown
         _mark_key_cooldown(provider["name"], key_idx, 300)
         print(f"[llm_chain] ollama_self err: {e}")
     return None
@@ -766,7 +802,7 @@ _DISPATCH = {
 }
 
 
-# ── Public API ───────────────────────────────────────────────────────────
+# в”Ђв”Ђ Public API в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 def llm_call(prompt: str, max_tokens: int = 600,
              timeout: int = 15, use_cache: bool = True) -> Optional[str]:
     """Universal LLM call with multi-key + token-bucket + Postgres cache.
@@ -780,9 +816,17 @@ def llm_call(prompt: str, max_tokens: int = 600,
             return cached
 
     for provider in PROVIDERS:
+        if provider.get("disabled"):
+            continue
+        pname = provider["name"]
+        # Per-service provider isolation вЂ” prevents rate-limit sharing between services
+        if _SKIP_PROVIDERS and pname in _SKIP_PROVIDERS:
+            continue
+        if _ONLY_PROVIDERS and pname not in _ONLY_PROVIDERS:
+            continue
         fmt = provider.get("format", "openai")
 
-        # ollama_self has no env keys — use synthetic single "key"
+        # ollama_self has no env keys вЂ” use synthetic single "key"
         if not provider.get("env_keys"):
             # only if URL is reachable (we let the call fail and cooldown)
             key_idx = 0
@@ -815,7 +859,7 @@ def llm_call(prompt: str, max_tokens: int = 600,
         for key_idx, key in ordered:
             bucket = _get_bucket(provider, key_idx)
             if not bucket.acquire(1, blocking=True, max_wait=2.0):
-                # bucket empty even after wait — try next key
+                # bucket empty even after wait вЂ” try next key
                 continue
             _record_key_call(provider["name"], key_idx)
             func = _DISPATCH.get(fmt)
@@ -826,8 +870,8 @@ def llm_call(prompt: str, max_tokens: int = 600,
                 if use_cache:
                     _cache_store(prompt, result, provider["name"], provider["model"])
                 return result
-            # this key failed — move to next key in same provider
-        # all keys for this provider failed → next provider
+            # this key failed вЂ” move to next key in same provider
+        # all keys for this provider failed в†’ next provider
     return None
 
 
@@ -977,7 +1021,7 @@ def health_check_all(timeout: int = 10) -> dict:
     return out
 
 
-# ── Minimum-provider health watchdog ────────────────────────────────────
+# в”Ђв”Ђ Minimum-provider health watchdog в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 _MIN_PROVIDERS     = int(os.getenv("LLM_MIN_PROVIDERS", "4"))
 _WATCHDOG_INTERVAL = int(os.getenv("LLM_HEALTH_INTERVAL", "7200"))  # 2h default
 _ALERT_CHAT_ID     = os.getenv("LLM_ADMIN_CHAT_ID")    # Telegram user ID for alerts
@@ -1042,7 +1086,7 @@ def _watchdog_loop():
                 n = len(free_working)
 
                 msg = (
-                    f"⚠️ LLM ALERT: {n}/{_MIN_PROVIDERS} free providers working!\n"
+                    f"вљ пёЏ LLM ALERT: {n}/{_MIN_PROVIDERS} free providers working!\n"
                     f"OK: {', '.join(free_working) or 'NONE'}\n"
                     f"Action needed: check Railway env vars or add new API keys."
                 )
@@ -1054,7 +1098,7 @@ def _watchdog_loop():
                     _send_tg_alert(msg)
                     last_alert_time = now
             else:
-                print(f"[llm_chain] watchdog OK: {fast_count} free providers available ✓")
+                print(f"[llm_chain] watchdog OK: {fast_count} free providers available вњ“")
 
         except Exception as e:
             print(f"[llm_chain] watchdog err: {e}")
@@ -1095,7 +1139,7 @@ if __name__ == "__main__":
         paid = [k for k in working if k in _PAID_PROVIDERS]
         print(f"\n*** {len(working)} total working  |  {len(free)} FREE: {free}  |  {len(paid)} paid: {paid} ***")
         if len(free) < _MIN_PROVIDERS:
-            print(f"⚠️  WARNING: only {len(free)} free providers — need {_MIN_PROVIDERS}!")
+            print(f"вљ пёЏ  WARNING: only {len(free)} free providers вЂ” need {_MIN_PROVIDERS}!")
     elif len(sys.argv) > 1 and sys.argv[1] == "status":
         print(json.dumps(status(), indent=2, default=str))
     else:
@@ -1104,3 +1148,4 @@ if __name__ == "__main__":
         print("--- Test call ---")
         resp = llm_call("Say 'hello world' in one word.", max_tokens=10)
         print(f"Response: {resp!r}")
+
