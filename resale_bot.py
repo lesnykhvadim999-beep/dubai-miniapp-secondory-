@@ -348,6 +348,7 @@ T = {
     "btn_watch_rem": "⭐ Stop watching",
     "rbtn_favs":     "❤️ Saved",
     "rbtn_alerts":   "🔔 Alerts",
+    "rbtn_heatmap":  "🗺 Heatmap",
     "rbtn_conf_off": "🎯 Verified only",
     "rbtn_conf_on":  "🎯 Verified ✓",
     "rbtn_top_off":  "🏆 Only A+/A",
@@ -376,6 +377,9 @@ T = {
     "alert_created": "✅ Alert created. We'll notify you about new matches.",
     "alert_deleted": "Alert removed.",
     "rbtn_create_alert": "🔔 Create alert",
+    "rbtn_map_all":      "🗺 Show all on map",
+    "map_caption":       "🗺 *Map of properties*",
+    "map_no_coords":     "📍 No coordinates saved for these listings yet.\nGeocoding is in progress — try again after the next parser run.",
     "compare_empty": "Cart is empty. Tap ⚖️ on listings to compare.",
     "compare_added": "✅ Added to compare ({n}/3).",
     "compare_full":  "⚠ Compare cart full (3). Open ⚖️ Compare to clear.",
@@ -623,6 +627,7 @@ T = {
     "btn_watch_rem": "⭐ Не следить",
     "rbtn_favs":     "❤️ Избранное",
     "rbtn_alerts":   "🔔 Уведомления",
+    "rbtn_heatmap":  "🗺 Heatmap районов",
     "rbtn_conf_off": "🎯 Только проверенные",
     "rbtn_conf_on":  "🎯 Проверенные ✓",
     "rbtn_top_off":  "🏆 Только A+/A",
@@ -917,6 +922,7 @@ T = {
     "btn_watch_rem": "⭐ إلغاء المتابعة",
     "rbtn_favs":     "❤️ المحفوظة",
     "rbtn_alerts":   "🔔 التنبيهات",
+    "rbtn_heatmap":  "🗺 خريطة المناطق",
     "rbtn_conf_off": "🎯 الموثوقة فقط",
     "rbtn_conf_on":  "🎯 الموثوقة ✓",
     "rbtn_top_off":  "🏆 +A/A فقط",
@@ -1328,12 +1334,15 @@ def kb_main_reply(uid):
     # Confidence toggle: показываем label по состоянию gs(uid)["confidence_filter"].
     conf_on = bool(user_states.get(uid, {}).get("confidence_filter"))
     conf_btn = _t(uid, "rbtn_conf_on" if conf_on else "rbtn_conf_off")
+    top_on  = bool(user_states.get(uid, {}).get("top_filter"))
+    top_btn = _t(uid, "rbtn_top_on" if top_on else "rbtn_top_off")
     return _reply_kb([
         [_t(uid, "rbtn_apt"),        _t(uid, "rbtn_villa")],
         [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
         [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new"),   _t(uid, "rbtn_ai")],
-        [_t(uid, "rbtn_voice"),      conf_btn],
-        [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts"), _t(uid, "rbtn_lang")],
+        [_t(uid, "rbtn_voice"),      conf_btn,              top_btn],
+        [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts"), _t(uid, "rbtn_heatmap")],
+        [_t(uid, "rbtn_lang")],
         [_t(uid, "rbtn_compare_bld")],
     ])
 
@@ -5375,6 +5384,13 @@ def dispatch_main_button(cid, uid, rkey):
         s["confidence_filter"] = new_val
         msg_key = "conf_filter_on_msg" if new_val else "conf_filter_off_msg"
         _send(cid, _t(uid, msg_key), kb_main_reply(uid))
+    elif rkey in ("rbtn_top_on", "rbtn_top_off"):
+        # Toggle Investment Score 2.0 top-rated filter (A+ / A, score >= 80).
+        s = gs(uid)
+        new_val = not bool(s.get("top_filter"))
+        s["top_filter"] = new_val
+        msg_key = "top_filter_on_msg" if new_val else "top_filter_off_msg"
+        _send(cid, _t(uid, msg_key), kb_main_reply(uid))
 
 
 def dispatch_wizard_button(cid, uid, text):
@@ -6651,6 +6667,40 @@ def handle_cb(cb):
         if listing:
             text = format_card(dict(listing), uid)
             _send(cid, text)
+
+    elif action == "tr":
+        # Auto-translate description switcher: tr|<lang>|<lid>
+        try:
+            tlang = (parts[1] or "").lower() if len(parts) > 1 else "en"
+            lid   = int(parts[2]) if len(parts) > 2 else 0
+        except Exception:
+            return
+        _col = {"ru": "text_ru", "en": "text_en",
+                "ar": "text_ar", "zh": "text_zh"}.get(tlang)
+        if not _col or not lid:
+            return
+        _row = None
+        try:
+            with get_conn() as _c:
+                with _c.cursor() as _cur:
+                    _cur.execute(
+                        f"SELECT {_col} FROM listing_translations WHERE listing_id=%s",
+                        (lid,),
+                    )
+                    _row = _cur.fetchone()
+        except Exception as _e:
+            print(f"[tr] db err lid={lid}: {_e}", flush=True)
+        if not _row or not _row[0]:
+            _no_msg = {
+                "ru": "Перевод ещё не готов. Попробуйте позже.",
+                "en": "Translation not ready yet. Try later.",
+                "ar": "الترجمة غير جاهزة بعد. حاول لاحقًا.",
+                "zh": "翻译尚未准备就绪。请稍后再试。",
+            }.get(tlang, "Translation not ready yet.")
+            _send(cid, _no_msg)
+        else:
+            _flag = {"ru": "RU", "en": "EN", "ar": "AR", "zh": "CN"}.get(tlang, "")
+            _send(cid, f"{_flag} *Description*\n\n{_row[0]}")
 
     elif action == "pdf":
         if not _gate(uid, "pdf"):
