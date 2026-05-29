@@ -217,15 +217,30 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ── Leads ─────────────────────────────────────────────────────────────────────
+-- ON DELETE CASCADE: лиды без listing не имеют смысла (контекст утерян).
 CREATE TABLE IF NOT EXISTS leads (
     id              SERIAL PRIMARY KEY,
     telegram_id     BIGINT,
     username        VARCHAR(200),
-    listing_id      INT REFERENCES listings(id),
+    listing_id      INT REFERENCES listings(id) ON DELETE CASCADE,
     action          VARCHAR(50),   -- view/book/contact/save
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     notes           TEXT
 );
+
+-- Migration: ensure leads.listing_id has ON DELETE CASCADE on existing DBs.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.referential_constraints
+        WHERE constraint_name='leads_listing_id_fkey'
+          AND delete_rule <> 'CASCADE'
+    ) THEN
+        ALTER TABLE leads DROP CONSTRAINT leads_listing_id_fkey;
+        ALTER TABLE leads ADD CONSTRAINT leads_listing_id_fkey
+            FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE CASCADE;
+    END IF;
+END $$;
 
 -- ── Pending Listings (user-submitted, awaiting moderation) ────────────────────
 CREATE TABLE IF NOT EXISTS pending_listings (
@@ -277,6 +292,66 @@ CREATE TABLE IF NOT EXISTS price_alerts (
 );
 CREATE INDEX IF NOT EXISTS idx_alerts_uid ON price_alerts(uid);
 CREATE INDEX IF NOT EXISTS idx_alerts_active ON price_alerts(is_active);
+
+-- ── Audit Queue (LLM background bug-fix worker) ──────────────────────────────
+-- Cron worker (db_cleanup_cron + audit_worker) складывает сюда подозрительные
+-- листинги (mismatched price, missing fields, junk building). LLM решает что
+-- делать. После починки status='resolved'.
+CREATE TABLE IF NOT EXISTS audit_queue (
+    id                    BIGSERIAL PRIMARY KEY,
+    listing_id            BIGINT REFERENCES listings(id) ON DELETE CASCADE,
+    bug_category          TEXT,
+    bug_description       TEXT,
+    original_text         TEXT,
+    current_db_state      JSONB,
+    expected_state        JSONB,
+    source                TEXT,
+    reference_screenshot  TEXT,
+    priority              INT DEFAULT 5,
+    status                TEXT DEFAULT 'pending',
+    llm_response          JSONB,
+    attempts              INT DEFAULT 0,
+    created_at            TIMESTAMPTZ DEFAULT NOW(),
+    processed_at          TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_aq_listing ON audit_queue(listing_id);
+CREATE INDEX IF NOT EXISTS idx_aq_category ON audit_queue(bug_category);
+CREATE INDEX IF NOT EXISTS idx_aq_source ON audit_queue(source);
+CREATE INDEX IF NOT EXISTS idx_aq_status_priority ON audit_queue(status, priority, created_at);
+
+-- ── Media Uploads (Telegram file_id → CDN upload queue) ──────────────────────
+-- Когда листинг promoted в основную таблицу, media uploader забирает file_id
+-- из Telegram и кладёт картинку на CDN. status: pending/uploaded/failed.
+CREATE TABLE IF NOT EXISTS media_uploads (
+    id          SERIAL PRIMARY KEY,
+    listing_id  INT REFERENCES listings(id) ON DELETE CASCADE,
+    file_id     TEXT UNIQUE NOT NULL,
+    cdn_url     TEXT,
+    size_bytes  BIGINT,
+    status      TEXT NOT NULL,
+    error       TEXT,
+    uploaded_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_media_uploads_listing ON media_uploads(listing_id);
+CREATE INDEX IF NOT EXISTS idx_media_uploads_status ON media_uploads(status);
+
+-- Migration: ensure media_uploads.listing_id has ON DELETE CASCADE
+-- (раньше было SET NULL → orphans копились).
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.referential_constraints
+        WHERE constraint_name='media_uploads_listing_id_fkey'
+          AND delete_rule <> 'CASCADE'
+    ) THEN
+        ALTER TABLE media_uploads DROP CONSTRAINT media_uploads_listing_id_fkey;
+        ALTER TABLE media_uploads ADD CONSTRAINT media_uploads_listing_id_fkey
+            FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE CASCADE;
+    END IF;
+END $$;
+
+-- NB: pending_image_uploads.listing_id НЕ имеет FK намеренно — туда кладутся
+-- ID из listings_staging (BIGSERIAL) до promotion. FK сломал бы retry-cron.
 
 -- ── New listing columns (additive — safe re-run) ─────────────────────────────
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_off_plan BOOLEAN DEFAULT FALSE;
@@ -539,6 +614,24 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                 not data.get("is_audit")
             )
             if not is_complete:
+                # v134: dedup staging — same listing_key or same TG message already queued
+                key = data.get("listing_key")
+                if key:
+                    cur.execute(
+                        "SELECT id FROM listings_staging WHERE listing_key=%s LIMIT 1",
+                        (key,)
+                    )
+                    if cur.fetchone():
+                        return None, False  # already queued — skip
+                chat_id = data.get("telegram_chat_id")
+                msg_id = data.get("telegram_message_id")
+                if chat_id and msg_id:
+                    cur.execute(
+                        "SELECT id FROM listings_staging WHERE telegram_chat_id=%s AND telegram_message_id=%s LIMIT 1",
+                        (chat_id, msg_id)
+                    )
+                    if cur.fetchone():
+                        return None, False  # same message already in staging
                 # Insert into staging instead
                 return _insert_to_staging(cur, conn, data), True
 
@@ -1110,11 +1203,13 @@ def get_price_history(listing_id: int) -> list:
 
 
 def get_last_parsed_message_id(channel: str) -> int | None:
+    """B053 v3: берём последнюю строку по id (не MAX) — иначе старые аномальные
+    значения от retro-parser перебивают актуальные."""
     conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT MAX(last_message_id) as mid FROM sync_log WHERE channel=%s",
+                "SELECT last_message_id as mid FROM sync_log WHERE channel=%s ORDER BY id DESC LIMIT 1",
                 (channel,)
             )
             row = cur.fetchone()
