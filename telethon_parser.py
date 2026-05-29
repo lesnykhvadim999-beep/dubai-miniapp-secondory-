@@ -580,6 +580,13 @@ def start_scheduler():
         return get_real_last_message_id(channel) == 0
 
     def _scheduler():
+        # Kill-switch: if TELETHON_PARSER_ENABLED=false → scheduler exits
+        # immediately and the bot keeps running without parsing new messages.
+        # Used during v2 backfill to avoid mixing old/new parser output.
+        if os.environ.get("TELETHON_PARSER_ENABLED", "true").lower() == "false":
+            print("[telethon] DISABLED via TELETHON_PARSER_ENABLED=false — "
+                  "scheduler exiting.")
+            return
         # Startup delay чтобы старый Railway-контейнер успел отключиться от Telegram
         # перед тем как новый подключится. Без задержки → конфликт сессий
         # → AuthKeyDuplicated и бан ключа.
