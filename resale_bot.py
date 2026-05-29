@@ -6451,6 +6451,47 @@ def handle_cb(cb):
     parts  = data.split("|")
     action = parts[0]
 
+    # ── AI Consultant callbacks (#52) ────────────────────────────────
+    if action == "aic":
+        sub = parts[1] if len(parts) > 1 else ""
+        if sub == "fb":
+            satisfied = (parts[2] == "1") if len(parts) > 2 else False
+            ai_consultant_finish(cid, uid, satisfied)
+            return
+        if sub == "refine":
+            st = ai_consult_states.get(uid)
+            if st:
+                st["active"] = True
+            lang_x = user_lang.get(uid, "en")
+            msg = {
+                "ru": "✏️ Напиши что поменять (бюджет / район / больше спален и т.п.).",
+                "en": "✏️ Tell me what to change (budget / area / more bedrooms…).",
+                "ar": "✏️ أخبرني بما تريد تغييره.",
+            }.get(lang_x, "✏️ Tell me what to change.")
+            _send(cid, msg)
+            return
+        if sub == "compare":
+            st = ai_consult_states.get(uid) or {}
+            ids = st.get("results") or []
+            if not ids:
+                _send(cid, "⚠️ No results to compare.")
+                return
+            try:
+                cart = gs(uid).setdefault("compare", [])
+                for lid in ids[:3]:
+                    if lid not in cart:
+                        cart.append(lid)
+                show_compare(cid, uid)
+            except Exception as _e:
+                print(f"[ai_consult] compare push err: {_e}", flush=True)
+                _send(cid, "⚠️ Compare unavailable.")
+            return
+        if sub == "home":
+            ai_consult_states.pop(uid, None)
+            show_main(cid, uid)
+            return
+        return
+
     # ── Add listing callbacks ─────────────────────────────────────────────────
     if action == "add":
         sub = parts[1] if len(parts) > 1 else ""
