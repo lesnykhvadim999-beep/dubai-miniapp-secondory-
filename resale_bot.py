@@ -615,8 +615,12 @@ T = {
     "rbtn_alerts":   "🔔 Уведомления",
     "rbtn_conf_off": "🎯 Только проверенные",
     "rbtn_conf_on":  "🎯 Проверенные ✓",
+    "rbtn_top_off":  "🏆 Только A+/A",
+    "rbtn_top_on":   "🏆 A+/A ✓",
     "conf_filter_on_msg":  "✅ Включён фильтр уверенности — показываю только записи с точностью ≥85%.",
     "conf_filter_off_msg": "❌ Фильтр выключен — показываю все активные записи.",
+    "top_filter_on_msg":   "🏆 Топ-фильтр включён — показываю только A+ и A (score ≥ 80).",
+    "top_filter_off_msg":  "❌ Топ-фильтр выключен — показываю все рейтинги.",
     "watch_added":     "⭐ Добавлено в watchlist. /watch — список подписок.",
     "watch_removed":   "Удалено из watchlist.",
     "watch_empty":     "Watchlist пуст. Нажмите ⭐ на карточке, чтобы начать следить.",
@@ -896,8 +900,12 @@ T = {
     "rbtn_alerts":   "🔔 التنبيهات",
     "rbtn_conf_off": "🎯 الموثوقة فقط",
     "rbtn_conf_on":  "🎯 الموثوقة ✓",
+    "rbtn_top_off":  "🏆 +A/A فقط",
+    "rbtn_top_on":   "🏆 +A/A ✓",
     "conf_filter_on_msg":  "✅ تم تفعيل فلتر الموثوقية — عرض الإعلانات بدقة ≥85% فقط.",
     "conf_filter_off_msg": "❌ تم إيقاف الفلتر — عرض جميع الإعلانات النشطة.",
+    "top_filter_on_msg":   "🏆 تم تفعيل فلتر النخبة — عرض A+ و A فقط (التقييم ≥ 80).",
+    "top_filter_off_msg":  "❌ تم إيقاف فلتر النخبة — عرض جميع التقييمات.",
     "watch_added":     "⭐ تمت الإضافة إلى قائمة المتابعة. /watch — عرض القائمة.",
     "watch_removed":   "تمت إزالته من قائمة المتابعة.",
     "watch_empty":     "قائمة المتابعة فارغة. اضغط ⭐ على أي إعلان لبدء المتابعة.",
@@ -2568,7 +2576,34 @@ def format_card(listing, uid, rank=None):
     if roi and deal_type == "sale" and roi < 30:    # ROI > 30%/yr тоже мусор
         analytics.append(f"📈 {_t(uid, 'card_roi')} {roi}%{_t(uid, 'card_per_year_short')}")
     if score:
-        analytics.append(f"⭐ {score}/10  ·  {_t(uid, 'card_score')}")
+        # Investment Score 2.0 is 0..100; legacy was 0..10. Detect by magnitude.
+        if score > 10:
+            _rating_lbl = None
+            _bd = None
+            try:
+                from investment_score_v2 import compute_score as _cs2, _rating as _rating_fn
+                _rating_lbl = _rating_fn(float(score))
+                from dxb_stats_client import _conn as _intel_conn  # type: ignore
+                _res = _cs2(listing, dld_conn=None, intel_conn=_intel_conn())
+                _bd = _res.get("breakdown")
+                _rating_lbl = _res.get("rating", _rating_lbl)
+            except Exception:
+                pass
+            analytics.append(
+                f"📊 {_t(uid, 'card_score')}: {int(score)}/100"
+                + (f"  ({_rating_lbl})" if _rating_lbl else "")
+            )
+            if _bd:
+                analytics.append(f"   • Price {int(_bd['price'])}/25"
+                                 + ("  ✅" if _bd['price']  >= 20 else ""))
+                analytics.append(f"   • Growth {int(_bd['growth'])}/25"
+                                 + ("  ✅" if _bd['growth'] >= 20 else ""))
+                analytics.append(f"   • Yield {int(_bd['yield'])}/25"
+                                 + ("  ✅" if _bd['yield']  >= 20 else ""))
+                analytics.append(f"   • Risk {int(_bd['risk'])}/25"
+                                 + ("  ✅" if _bd['risk']   >= 20 else ""))
+        else:
+            analytics.append(f"⭐ {score}/10  ·  {_t(uid, 'card_score')}")
     # v107: sравнение с премиум-сегментом района из read-model
     try:
         _lp = listing.get("price") or 0
@@ -3353,6 +3388,15 @@ def send_results(cid, uid, mid=None):
         if has_building:
             kb_rows.append([_btn(_t(uid, "btn_all_in_bld"), f"allbld|{lid}")])
         kb_rows.append([_btn(_t(uid, "btn_similar"),  f"similar|{lid}"), _btn(_t(uid, "btn_send"),   f"send|{lid}")])
+        # Description language switcher (auto-translate RU/EN/AR/CN).
+        # `tr|<lang>|<lid>` callback short-circuits with a friendly toast if
+        # no translation row exists yet for this listing.
+        kb_rows.append([
+            _btn("🇷🇺 RU", f"tr|ru|{lid}"),
+            _btn("🇬🇧 EN", f"tr|en|{lid}"),
+            _btn("🇸🇦 AR", f"tr|ar|{lid}"),
+            _btn("🇨🇳 CN", f"tr|zh|{lid}"),
+        ])
         if PDF_OK:
             pdf_lbl = {"en":"📄 Investment PDF","ru":"📄 Инвест-отчёт PDF",
                        "ar":"📄 تقرير PDF"}.get(_get_lang(uid), "📄 Investment PDF")

@@ -369,6 +369,15 @@ CREATE INDEX IF NOT EXISTS idx_listings_frozen ON listings(is_frozen) WHERE is_f
 CREATE INDEX IF NOT EXISTS idx_listings_phash ON listings(photo_phash);
 CREATE INDEX IF NOT EXISTS idx_listings_offplan ON listings(is_off_plan);
 
+-- ── Geo coordinates (#54 — map view) ─────────────────────────────────────────
+-- latitude/longitude per listing, used by /map command + «🗺 Show on map» button.
+-- NULL allowed: many parsed listings have no exact coords yet (geocoding TBD).
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS latitude  DOUBLE PRECISION;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+CREATE INDEX IF NOT EXISTS idx_listings_latlon
+    ON listings(latitude, longitude)
+    WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+
 -- ── Watchlists (v55) ─────────────────────────────────────────────────────────
 -- Универсальные подписки: на район/здание/девелопера/ценовой диапазон/listing.
 -- Cron worker раз в день шлёт дайджест matches, раз в неделю — AI digest.
@@ -404,6 +413,42 @@ CREATE TABLE IF NOT EXISTS cross_bot_jumps (
 CREATE INDEX IF NOT EXISTS idx_cbj_to_bot ON cross_bot_jumps(to_bot, jumped_at DESC);
 CREATE INDEX IF NOT EXISTS idx_cbj_from_bot ON cross_bot_jumps(from_bot, jumped_at DESC);
 CREATE INDEX IF NOT EXISTS idx_cbj_user ON cross_bot_jumps(user_id, jumped_at DESC);
+
+-- ── Saved Searches (#48) ──────────────────────────────────────────────────────
+-- Именованные сохранённые фильтры с почасовыми alerts о новых listings.
+-- Отличие от price_alerts (legacy): JSONB filters + name + last_seen_max_id
+-- → cron шлёт «N новых объектов по «{name}»» с дельтой через listings.id.
+CREATE TABLE IF NOT EXISTS saved_searches (
+    id                BIGSERIAL PRIMARY KEY,
+    user_id           BIGINT NOT NULL,
+    name              VARCHAR(100),
+    filters           JSONB NOT NULL DEFAULT '{}'::jsonb,
+    last_seen_max_id  BIGINT DEFAULT 0,
+    last_alert_at     TIMESTAMPTZ,
+    is_active         BOOLEAN DEFAULT TRUE,
+    created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ss_user_active ON saved_searches(user_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_ss_active ON saved_searches(is_active) WHERE is_active = TRUE;
+
+-- ── Listing Price Drop Alerts (#48) ───────────────────────────────────────────
+-- Подписка на конкретный listing: cron каждые 6h проверяет price_history,
+-- если price упал на target_drop_percent от baseline_price → отсылаем alert.
+CREATE TABLE IF NOT EXISTS listing_price_alerts (
+    id                  BIGSERIAL PRIMARY KEY,
+    user_id             BIGINT NOT NULL,
+    listing_id          INT REFERENCES listings(id) ON DELETE CASCADE,
+    baseline_price      BIGINT NOT NULL,
+    target_drop_percent FLOAT DEFAULT 5.0,
+    last_alerted_at     TIMESTAMPTZ,
+    last_alerted_price  BIGINT,
+    is_active           BOOLEAN DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, listing_id)
+);
+CREATE INDEX IF NOT EXISTS idx_lpa_user_active ON listing_price_alerts(user_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_lpa_listing ON listing_price_alerts(listing_id);
+CREATE INDEX IF NOT EXISTS idx_lpa_active ON listing_price_alerts(is_active) WHERE is_active = TRUE;
 """
 
 SEED_SQL = """
@@ -1158,6 +1203,13 @@ def search_listings(filters: dict, limit: int = 10, offset: int = 0) -> tuple[li
                 where.append("(confidence_score IS NOT NULL AND confidence_score >= %s)")
                 params.append(float(filters["confidence_min"]))
 
+            # Investment Score 2.0 filter (UI toggle "🏆 Only A+/A").
+            # score_min in [0..100] (legacy 0..10 scores will be filtered out — by
+            # design: the toggle promises v2 ratings only).
+            if filters.get("score_min") is not None:
+                where.append("(investment_score IS NOT NULL AND investment_score >= %s)")
+                params.append(float(filters["score_min"]))
+
             where_sql = " AND ".join(where)
 
             # Count
@@ -1365,6 +1417,233 @@ def update_alert_last_notified(alert_id: int, listing_id: int):
             cur.execute(
                 "UPDATE price_alerts SET last_notified=NOW(), last_listing_id=%s WHERE id=%s",
                 (listing_id, alert_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ── Saved Searches (#48) ─────────────────────────────────────────────────────
+def _build_search_name(filters: dict) -> str:
+    """Auto-generate human-readable name из filters если name пуст.
+    Пример: 'sale Marina 3BR ≤5M'."""
+    parts = []
+    if filters.get("deal_type"):
+        parts.append(filters["deal_type"].upper())
+    if filters.get("property_type"):
+        parts.append(filters["property_type"])
+    if filters.get("area"):
+        parts.append(filters["area"])
+    elif filters.get("emirate"):
+        parts.append(filters["emirate"])
+    if filters.get("building"):
+        parts.append(filters["building"][:30])
+    br = filters.get("bedrooms")
+    if br is not None:
+        parts.append(f"{br}BR" if br > 0 else "Studio")
+    mn = filters.get("min_price") or filters.get("price_min")
+    mx = filters.get("max_price") or filters.get("price_max")
+    def _fmt(p):
+        if p >= 1_000_000:
+            return f"{p/1_000_000:.1f}M"
+        if p >= 1_000:
+            return f"{p//1_000}k"
+        return str(p)
+    if mn and mx:
+        parts.append(f"{_fmt(mn)}–{_fmt(mx)}")
+    elif mx:
+        parts.append(f"≤{_fmt(mx)}")
+    elif mn:
+        parts.append(f"≥{_fmt(mn)}")
+    return " ".join(parts)[:100] or "Any"
+
+
+def add_saved_search(user_id: int, filters: dict, name: str | None = None) -> int:
+    """Создать saved_search. name auto-generated если None.
+    last_seen_max_id = current MAX(listings.id) → юзер не получит alert на
+    listings которые уже существовали в БД на момент подписки."""
+    import json as _json
+    if not name:
+        name = _build_search_name(filters or {})
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COALESCE(MAX(id),0) AS m FROM listings")
+            cur_max = cur.fetchone()["m"] or 0
+            cur.execute("""
+                INSERT INTO saved_searches
+                    (user_id, name, filters, last_seen_max_id)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+            """, (user_id, name, _json.dumps(filters or {}), cur_max))
+            new_id = cur.fetchone()["id"]
+        conn.commit()
+        return new_id
+    finally:
+        conn.close()
+
+
+def get_user_saved_searches(user_id: int, only_active: bool = False) -> list:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            if only_active:
+                cur.execute("""
+                    SELECT * FROM saved_searches
+                     WHERE user_id=%s AND is_active=TRUE
+                     ORDER BY created_at DESC
+                """, (user_id,))
+            else:
+                cur.execute("""
+                    SELECT * FROM saved_searches
+                     WHERE user_id=%s
+                     ORDER BY is_active DESC, created_at DESC
+                """, (user_id,))
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+def delete_saved_search(user_id: int, ss_id: int) -> bool:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM saved_searches WHERE id=%s AND user_id=%s",
+                        (ss_id, user_id))
+            ok = cur.rowcount > 0
+        conn.commit()
+        return ok
+    finally:
+        conn.close()
+
+
+def toggle_saved_search(user_id: int, ss_id: int) -> bool | None:
+    """Flip is_active. Returns новое значение или None если не найдено."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE saved_searches SET is_active = NOT is_active
+                 WHERE id=%s AND user_id=%s
+                 RETURNING is_active
+            """, (ss_id, user_id))
+            row = cur.fetchone()
+        conn.commit()
+        return bool(row["is_active"]) if row else None
+    finally:
+        conn.close()
+
+
+def get_all_active_saved_searches() -> list:
+    """Для cron: ALL active saved searches across users."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM saved_searches WHERE is_active=TRUE")
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+def update_saved_search_seen(ss_id: int, last_seen_max_id: int):
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE saved_searches
+                   SET last_seen_max_id=%s, last_alert_at=NOW()
+                 WHERE id=%s
+            """, (last_seen_max_id, ss_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ── Listing Price Drop Alerts (#48) ──────────────────────────────────────────
+def add_listing_price_alert(user_id: int, listing_id: int,
+                            target_drop_percent: float = 5.0) -> int | None:
+    """Подписаться на price drop конкретного listing'а.
+    baseline_price берётся из текущего listings.price.
+    Если listing не найден / нет цены — возвращает None.
+    Если уже подписан — re-activate и обновить baseline."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT price FROM listings WHERE id=%s", (listing_id,))
+            row = cur.fetchone()
+            if not row or not row.get("price"):
+                return None
+            baseline = row["price"]
+            cur.execute("""
+                INSERT INTO listing_price_alerts
+                    (user_id, listing_id, baseline_price, target_drop_percent, is_active)
+                VALUES (%s, %s, %s, %s, TRUE)
+                ON CONFLICT (user_id, listing_id) DO UPDATE
+                  SET baseline_price=EXCLUDED.baseline_price,
+                      target_drop_percent=EXCLUDED.target_drop_percent,
+                      is_active=TRUE
+                RETURNING id
+            """, (user_id, listing_id, baseline, target_drop_percent))
+            new_id = cur.fetchone()["id"]
+        conn.commit()
+        return new_id
+    finally:
+        conn.close()
+
+
+def remove_listing_price_alert(user_id: int, listing_id: int) -> bool:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE listing_price_alerts SET is_active=FALSE
+                 WHERE user_id=%s AND listing_id=%s
+            """, (user_id, listing_id))
+            ok = cur.rowcount > 0
+        conn.commit()
+        return ok
+    finally:
+        conn.close()
+
+
+def is_listing_price_alerted(user_id: int, listing_id: int) -> bool:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT 1 FROM listing_price_alerts
+                 WHERE user_id=%s AND listing_id=%s AND is_active=TRUE LIMIT 1
+            """, (user_id, listing_id))
+            return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def get_all_active_listing_price_alerts() -> list:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT lpa.*, l.price AS current_price, l.area, l.building,
+                       l.bedrooms, l.deal_type
+                  FROM listing_price_alerts lpa
+                  JOIN listings l ON l.id = lpa.listing_id
+                 WHERE lpa.is_active=TRUE AND l.is_active=TRUE
+            """)
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+def update_listing_price_alert_notified(alert_id: int, current_price: int):
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE listing_price_alerts
+                   SET last_alerted_at=NOW(), last_alerted_price=%s,
+                       baseline_price=%s
+                 WHERE id=%s
+            """, (current_price, current_price, alert_id))
         conn.commit()
     finally:
         conn.close()
