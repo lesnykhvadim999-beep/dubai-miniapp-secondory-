@@ -349,8 +349,12 @@ T = {
     "rbtn_alerts":   "🔔 Alerts",
     "rbtn_conf_off": "🎯 Verified only",
     "rbtn_conf_on":  "🎯 Verified ✓",
+    "rbtn_top_off":  "🏆 Only A+/A",
+    "rbtn_top_on":   "🏆 A+/A ✓",
     "conf_filter_on_msg":  "✅ Confidence filter ON — showing only listings with ≥85% accuracy.",
     "conf_filter_off_msg": "❌ Confidence filter OFF — showing all active listings.",
+    "top_filter_on_msg":   "🏆 Top-rated filter ON — showing only A+ and A (score ≥ 80).",
+    "top_filter_off_msg":  "❌ Top-rated filter OFF — showing all ratings.",
     "watch_added":     "⭐ Added to your watchlist. /watch — view list.",
     "watch_removed":   "Removed from watchlist.",
     "watch_empty":     "Your watchlist is empty. Tap ⭐ on any listing to start watching.",
@@ -997,6 +1001,8 @@ user_lang   = {}
 add_states  = {}
 # Admin panel state
 admin_states = {}   # uid → {queue, idx, edits, edit_field, edit_qid}
+# AI consultant FSM state (#52): uid → {active, history, filters, consult_id, results}
+ai_consult_states = {}
 
 import threading
 # v53: централизованный error logger → push в intel DB
@@ -3181,6 +3187,103 @@ def do_search(uid, extra=None):
     return results
 
 
+MAPBOX_TOKEN = os.environ.get("MAPBOX_TOKEN", "").strip()
+
+
+def _fmt_price_short(price) -> str:
+    """3_200_000 -> '3.2M', 850_000 -> '850K'."""
+    try:
+        p = float(price or 0)
+    except (TypeError, ValueError):
+        return "—"
+    if p >= 1_000_000:
+        return f"{p / 1_000_000:.1f}M".replace(".0M", "M")
+    if p >= 1_000:
+        return f"{p / 1_000:.0f}K"
+    return f"{int(p)}"
+
+
+def _build_static_map_url(pins: list, width: int = 600, height: int = 400,
+                          zoom: int = 11) -> str:
+    """Mapbox first (with MAPBOX_TOKEN); OSM staticmap.openstreetmap.de fallback."""
+    if not pins:
+        return ""
+    avg_lat = sum(lat for lat, _lon, _c in pins) / len(pins)
+    avg_lon = sum(lon for _lat, lon, _c in pins) / len(pins)
+    if MAPBOX_TOKEN:
+        marker_parts = [f"pin-s+{c}({lon:.5f},{lat:.5f})"
+                        for lat, lon, c in pins[:30]]
+        markers = ",".join(marker_parts)
+        return (f"https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/"
+                f"{markers}/{avg_lon:.5f},{avg_lat:.5f},{zoom}/"
+                f"{width}x{height}?access_token={MAPBOX_TOKEN}")
+    marker_parts = []
+    for lat, lon, color in pins[:30]:
+        icon = "lightblues" if color.lower() in ("0000ff", "3366ff") else "ol-marker"
+        marker_parts.append(f"{lat:.5f},{lon:.5f},{icon}")
+    markers = "|".join(marker_parts)
+    return (f"https://staticmap.openstreetmap.de/staticmap.php"
+            f"?center={avg_lat:.5f},{avg_lon:.5f}&zoom={zoom}"
+            f"&size={width}x{height}&maptype=mapnik&markers={markers}")
+
+
+def send_results_map(cid, uid):
+    """Render the user's current search results as a static map PNG."""
+    s = gs(uid)
+    results = s.get("results") or []
+    if not results:
+        _send(cid, _t(uid, "no_results"))
+        return
+    top, rest = results[:5], results[5:10]
+    pins: list = []
+    caption_lines: list = []
+    rank = 0
+    for lst in top:
+        lat, lon = lst.get("latitude"), lst.get("longitude")
+        rank += 1
+        if lat is None or lon is None:
+            continue
+        try:
+            lat_f, lon_f = float(lat), float(lon)
+        except (TypeError, ValueError):
+            continue
+        pins.append((lat_f, lon_f, "ff0000"))
+        title = (lst.get("building") or lst.get("area")
+                 or lst.get("property_type") or "Property")
+        caption_lines.append(f"{rank}. {title} — {_fmt_price_short(lst.get('price'))}")
+    for lst in rest:
+        lat, lon = lst.get("latitude"), lst.get("longitude")
+        if lat is None or lon is None:
+            continue
+        try:
+            pins.append((float(lat), float(lon), "3366ff"))
+        except (TypeError, ValueError):
+            continue
+    if not pins:
+        _send(cid, _t(uid, "map_no_coords"))
+        return
+    url = _build_static_map_url(pins, width=600, height=400, zoom=11)
+    try:
+        r = requests.get(url, timeout=15)
+        if r.status_code != 200 or not r.content:
+            print(f"[map] HTTP {r.status_code} url={url[:120]}", flush=True)
+            _send(cid, _t(uid, "map_no_coords"))
+            return
+        caption = _t(uid, "map_caption")
+        if caption_lines:
+            caption = caption + "\n\n" + "\n".join(caption_lines)
+        requests.post(
+            f"{API}/sendPhoto",
+            data={"chat_id": cid, "caption": caption[:1024],
+                  "parse_mode": "Markdown"},
+            files={"photo": ("map.png", r.content, "image/png")},
+            timeout=20,
+        )
+    except Exception as e:
+        print(f"[map] send failed: {e}", flush=True)
+        _send(cid, _t(uid, "map_no_coords"))
+
+
 def send_results(cid, uid, mid=None):
     s       = gs(uid)
     results = s.get("results", [])
@@ -5354,6 +5457,14 @@ def handle_cb(cb):
     mid  = cb["message"]["message_id"]
     uid  = cb["from"]["id"]
     data = cb.get("data", "")
+    # Rate limiter (callbacks: 60/min)
+    try:
+        from rate_limiter import check_rate as _check_rate_cb
+        if not _check_rate_cb(uid, max_per_minute=60):
+            _answer(cbid, "⚠️ Слишком быстро, подожди…")
+            return
+    except Exception:
+        pass
     # FSST: drop duplicate callback clicks (double-tap protection)
     if _cb_dedup.is_dup_raw(cb):
         _answer(cbid)
@@ -6201,6 +6312,18 @@ def handle_msg(msg):
     uname = msg["from"].get("username", "")
     fname = msg["from"].get("first_name", "")
     _lang_code = msg["from"].get("language_code", "")
+    # Rate limiter (per-user, 30/min by default)
+    try:
+        from rate_limiter import check_rate as _check_rate
+        if not _check_rate(uid):
+            try:
+                _api("sendMessage", chat_id=cid,
+                     text="⚠️ Слишком быстро, подожди немного…")
+            except Exception:
+                pass
+            return
+    except Exception:
+        pass
     # v112 централизованный user tracking → bot_users (resale-DB)
     try:
         from bot_user_tracker import track_user_async
@@ -6342,6 +6465,9 @@ def handle_msg(msg):
             return
         if cmd == "compare":
             show_compare(cid, uid); return
+        if cmd == "map":
+            # /map — render last search results as a static map PNG.
+            send_results_map(cid, uid); return
         if cmd == "compare_clear":
             gs(uid)["compare"] = []
             _send(cid, "🗑 Compare cart cleared.", kb_main_reply(uid))
@@ -6589,6 +6715,7 @@ def handle_msg(msg):
             _send(cid,
                 "/start — Welcome\n"
                 "/menu — Main menu\n"
+                "/map — Map of last search results\n"
                 "/add — List your property\n"
                 "/stats — Statistics (admin)\n"
                 "/parse — Trigger incremental parse (admin)\n"
