@@ -1152,6 +1152,12 @@ def search_listings(filters: dict, limit: int = 10, offset: int = 0) -> tuple[li
             elif filters.get("is_off_plan") is False:
                 where.append("(is_off_plan IS NULL OR is_off_plan = FALSE)")
 
+            # High-confidence filter (UI toggle "🎯 Verified only").
+            # confidence_min in [0..1]. Listings без confidence_score не проходят.
+            if filters.get("confidence_min") is not None:
+                where.append("(confidence_score IS NOT NULL AND confidence_score >= %s)")
+                params.append(float(filters["confidence_min"]))
+
             where_sql = " AND ".join(where)
 
             # Count

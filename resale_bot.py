@@ -347,6 +347,10 @@ T = {
     "btn_watch_rem": "⭐ Stop watching",
     "rbtn_favs":     "❤️ Saved",
     "rbtn_alerts":   "🔔 Alerts",
+    "rbtn_conf_off": "🎯 Verified only",
+    "rbtn_conf_on":  "🎯 Verified ✓",
+    "conf_filter_on_msg":  "✅ Confidence filter ON — showing only listings with ≥85% accuracy.",
+    "conf_filter_off_msg": "❌ Confidence filter OFF — showing all active listings.",
     "watch_added":     "⭐ Added to your watchlist. /watch — view list.",
     "watch_removed":   "Removed from watchlist.",
     "watch_empty":     "Your watchlist is empty. Tap ⭐ on any listing to start watching.",
@@ -605,6 +609,10 @@ T = {
     "btn_watch_rem": "⭐ Не следить",
     "rbtn_favs":     "❤️ Избранное",
     "rbtn_alerts":   "🔔 Уведомления",
+    "rbtn_conf_off": "🎯 Только проверенные",
+    "rbtn_conf_on":  "🎯 Проверенные ✓",
+    "conf_filter_on_msg":  "✅ Включён фильтр уверенности — показываю только записи с точностью ≥85%.",
+    "conf_filter_off_msg": "❌ Фильтр выключен — показываю все активные записи.",
     "watch_added":     "⭐ Добавлено в watchlist. /watch — список подписок.",
     "watch_removed":   "Удалено из watchlist.",
     "watch_empty":     "Watchlist пуст. Нажмите ⭐ на карточке, чтобы начать следить.",
@@ -882,6 +890,10 @@ T = {
     "btn_watch_rem": "⭐ إلغاء المتابعة",
     "rbtn_favs":     "❤️ المحفوظة",
     "rbtn_alerts":   "🔔 التنبيهات",
+    "rbtn_conf_off": "🎯 الموثوقة فقط",
+    "rbtn_conf_on":  "🎯 الموثوقة ✓",
+    "conf_filter_on_msg":  "✅ تم تفعيل فلتر الموثوقية — عرض الإعلانات بدقة ≥85% فقط.",
+    "conf_filter_off_msg": "❌ تم إيقاف الفلتر — عرض جميع الإعلانات النشطة.",
     "watch_added":     "⭐ تمت الإضافة إلى قائمة المتابعة. /watch — عرض القائمة.",
     "watch_removed":   "تمت إزالته من قائمة المتابعة.",
     "watch_empty":     "قائمة المتابعة فارغة. اضغط ⭐ على أي إعلان لبدء المتابعة.",
@@ -1272,10 +1284,14 @@ def kb_main_reply(uid):
     """
     # B035: убрали Buy/Rent с главного — теперь deal_type выбирается ВНУТРИ
     # каждой категории (Apt/Villa/Commercial/Plot/Hot/New).
+    # Confidence toggle: показываем label по состоянию gs(uid)["confidence_filter"].
+    conf_on = bool(user_states.get(uid, {}).get("confidence_filter"))
+    conf_btn = _t(uid, "rbtn_conf_on" if conf_on else "rbtn_conf_off")
     return _reply_kb([
         [_t(uid, "rbtn_apt"),        _t(uid, "rbtn_villa")],
         [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
         [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new"),   _t(uid, "rbtn_ai")],
+        [conf_btn],
         [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts"), _t(uid, "rbtn_lang")],
     ])
 
@@ -1801,6 +1817,7 @@ def is_main_menu_text(text: str):
         "rbtn_commercial", "rbtn_plot",
         "rbtn_hot", "rbtn_new", "rbtn_ai", "rbtn_add",
         "rbtn_favs", "rbtn_alerts", "rbtn_lang", "rbtn_home",
+        "rbtn_conf_on", "rbtn_conf_off",
     }
     for lang_code, strings in T.items():
         for k, v in strings.items():
@@ -3152,6 +3169,9 @@ def do_search(uid, extra=None):
     if wiz_pt and "property_type" not in filters \
        and "property_type_in" not in filters:
         filters["property_type"] = wiz_pt
+    # UI toggle "🎯 Verified only" — фильтр уверенности ≥ 0.85.
+    if s.get("confidence_filter") and "confidence_min" not in filters:
+        filters["confidence_min"] = 0.85
     results, total = search_listings(filters, limit=PER_PAGE * 5)
     s["results"] = results
     s["total"]   = total
@@ -4373,6 +4393,13 @@ def dispatch_main_button(cid, uid, rkey):
         show_favorites(cid, uid)
     elif rkey == "rbtn_alerts":
         show_alerts(cid, uid)
+    elif rkey in ("rbtn_conf_on", "rbtn_conf_off"):
+        # Toggle high-confidence filter (≥0.85). Persists in user_states.
+        s = gs(uid)
+        new_val = not bool(s.get("confidence_filter"))
+        s["confidence_filter"] = new_val
+        msg_key = "conf_filter_on_msg" if new_val else "conf_filter_off_msg"
+        _send(cid, _t(uid, msg_key), kb_main_reply(uid))
 
 
 def dispatch_wizard_button(cid, uid, text):
