@@ -361,6 +361,14 @@ T = {
     "watch_empty":     "Your watchlist is empty. Tap ⭐ on any listing to start watching.",
     "watch_title":     "──── ⭐ YOUR WATCHLIST ────",
     "rbtn_compare":  "⚖️ Compare ({n})",
+    "rbtn_compare_bld":  "🆚 Compare buildings",
+    "cmpbld_ask_1":      "🆚 *Compare buildings*\n\nEnter the *first* building name (e.g. Burj Crown):",
+    "cmpbld_ask_2":      "Now enter the *second* building name (e.g. Address Opera):",
+    "cmpbld_searching":  "🔎 Looking up DLD data…",
+    "cmpbld_not_found":  "❌ Couldn\'t find «{q}» in DLD archive.\n\nSimilar names:\n{hints}\n\nTry again with /compare.",
+    "cmpbld_no_data":    "❌ Not enough DLD data for one of the buildings.\nTry well-known towers (Burj Khalifa, Opera Grand, …).",
+    "cmpbld_cancel_btn": "❌ Cancel",
+    "cmpbld_cancelled":  "Comparison cancelled.",
     "favs_empty":    "No saved properties yet. Tap ❤️ on any listing.",
     "favs_title":    "──── ❤️ SAVED PROPERTIES ────",
     "alerts_empty":  "No active alerts.\nRun a search → tap «Create alert» on results.",
@@ -628,6 +636,14 @@ T = {
     "watch_empty":     "Watchlist пуст. Нажмите ⭐ на карточке, чтобы начать следить.",
     "watch_title":     "──── ⭐ ВАШ WATCHLIST ────",
     "rbtn_compare":  "⚖️ Сравнить ({n})",
+    "rbtn_compare_bld":  "🆚 Сравнить здания",
+    "cmpbld_ask_1":      "🆚 *Сравнение зданий*\n\nВведите название *первого* здания (например, Burj Crown):",
+    "cmpbld_ask_2":      "Теперь введите *второе* здание (например, Address Opera):",
+    "cmpbld_searching":  "🔎 Ищу в DLD-архиве…",
+    "cmpbld_not_found":  "❌ Не нашёл «{q}» в DLD-архиве.\n\nПохожие названия:\n{hints}\n\nПопробуйте снова: /compare.",
+    "cmpbld_no_data":    "❌ Недостаточно DLD-данных по одному из зданий.\nПопробуйте известные башни (Burj Khalifa, Opera Grand…).",
+    "cmpbld_cancel_btn": "❌ Отмена",
+    "cmpbld_cancelled":  "Сравнение отменено.",
     "favs_empty":    "Список избранного пуст. Нажмите ❤️ на любом объявлении.",
     "favs_title":    "──── ❤️ ИЗБРАННОЕ ────",
     "alerts_empty":  "Активных уведомлений нет.\nЗапустите поиск → нажмите «Создать уведомление».",
@@ -914,6 +930,14 @@ T = {
     "watch_empty":     "قائمة المتابعة فارغة. اضغط ⭐ على أي إعلان لبدء المتابعة.",
     "watch_title":     "──── ⭐ قائمة المتابعة ────",
     "rbtn_compare":  "⚖️ مقارنة ({n})",
+    "rbtn_compare_bld":  "🆚 مقارنة المباني",
+    "cmpbld_ask_1":      "🆚 *مقارنة المباني*\n\nأدخل اسم *المبنى الأول* (مثال: Burj Crown):",
+    "cmpbld_ask_2":      "الآن أدخل *المبنى الثاني* (مثال: Address Opera):",
+    "cmpbld_searching":  "🔎 جاري البحث في أرشيف DLD…",
+    "cmpbld_not_found":  "❌ لم أجد «{q}» في أرشيف DLD.\n\nأسماء مشابهة:\n{hints}\n\nأعد المحاولة: /compare.",
+    "cmpbld_no_data":    "❌ بيانات DLD غير كافية لأحد المباني.\nجرب أبراجاً معروفة (Burj Khalifa, Opera Grand…).",
+    "cmpbld_cancel_btn": "❌ إلغاء",
+    "cmpbld_cancelled":  "تم إلغاء المقارنة.",
     "favs_empty":    "لا توجد عقارات محفوظة. اضغط ❤️ على أي إعلان.",
     "favs_title":    "──── ❤️ المحفوظة ────",
     "alerts_empty":  "لا توجد تنبيهات نشطة.\nشغّل بحثاً ثم اضغط «إنشاء تنبيه».",
@@ -1310,6 +1334,7 @@ def kb_main_reply(uid):
         [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new"),   _t(uid, "rbtn_ai")],
         [_t(uid, "rbtn_voice"),      conf_btn],
         [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts"), _t(uid, "rbtn_lang")],
+        [_t(uid, "rbtn_compare_bld")],
     ])
 
 
@@ -1378,7 +1403,7 @@ def kb_reply_results(uid, has_more=False):
     rows = []
     if has_more:
         rows.append([_t(uid, "rbtn_more")])
-    rows.append([_t(uid, "rbtn_create_alert")])
+    rows.append([_t(uid, "rbtn_map_all"), _t(uid, "rbtn_create_alert")])
     rows.append([_t(uid, "rbtn_change_deal"), _t(uid, "rbtn_back")])
     rows.append([_t(uid, "rbtn_home")])
     return _reply_kb(rows)
@@ -1834,6 +1859,7 @@ def is_main_menu_text(text: str):
         "rbtn_commercial", "rbtn_plot",
         "rbtn_hot", "rbtn_new", "rbtn_ai", "rbtn_add",
         "rbtn_favs", "rbtn_alerts", "rbtn_lang", "rbtn_home",
+        "rbtn_compare_bld",
         "rbtn_conf_on", "rbtn_conf_off",
         "rbtn_top_on", "rbtn_top_off",
         "rbtn_heatmap",
@@ -4694,6 +4720,366 @@ def show_alerts(cid, uid):
     _send(cid, text, kb_main_reply(uid))
 
 
+
+# +===========================================================================
+# /compare buildings -- DLD side-by-side comparison (v51, issue #51)
+# +===========================================================================
+#
+# Uses intelligence DB (building_period_comparison + building_roi_summary)
+# and BUILDING_ALIASES from building_search.py to normalize user input
+# ("burj k" -> "Burj Khalifa").
+#
+# UX:
+#   /compare Burj Crown vs Address Opera   -- instant comparison
+#   /compare                                -- 2-step wizard via FSM-state
+#                                              gs(uid)["waiting"] = "compare_b1"/"compare_b2"
+# +===========================================================================
+
+_INTEL_DSN = (
+    os.environ.get("INTELLIGENCE_DATABASE_URL")
+    or "postgresql://postgres:REDACTED_INTELLIGENCE_DB_PASSWORD"
+       "@autorack.proxy.rlwy.net:25004/railway"
+)
+_INTEL_LOCAL = threading.local()
+
+
+def _intel_conn():
+    """Thread-local psycopg2 connection to intelligence DB (DLD aggregates)."""
+    import psycopg2 as _psy
+    c = getattr(_INTEL_LOCAL, "conn", None)
+    last = getattr(_INTEL_LOCAL, "ping", 0.0)
+    now = time.time()
+    if c is not None:
+        if (now - last) < 60:
+            return c
+        try:
+            with c.cursor() as cur:
+                cur.execute("SELECT 1")
+            _INTEL_LOCAL.ping = now
+            return c
+        except Exception:
+            try: c.close()
+            except Exception: pass
+            _INTEL_LOCAL.conn = None
+    c = _psy.connect(_INTEL_DSN, connect_timeout=6,
+                     application_name="resale_bot.compare")
+    c.autocommit = True
+    with c.cursor() as cur:
+        cur.execute("SET statement_timeout = 5000")
+    _INTEL_LOCAL.conn = c
+    _INTEL_LOCAL.ping = now
+    return c
+
+
+def _intel_resolve_building(query):
+    """BUILDING_ALIASES + 4-step cascade lookup. Returns (name, area) or (None, [hints])."""
+    try:
+        from building_search import BUILDING_ALIASES
+    except Exception:
+        BUILDING_ALIASES = {}
+    q = (query or "").strip()
+    if not q:
+        return None, []
+    q_low = q.lower()
+    candidates = []
+    if q_low in BUILDING_ALIASES:
+        for v in BUILDING_ALIASES[q_low]:
+            if v not in candidates:
+                candidates.append(v)
+    if q not in candidates:
+        candidates.append(q)
+    try:
+        c = _intel_conn()
+        with c.cursor() as cur:
+            for cand in candidates:
+                cl = cand.lower().strip()
+                cur.execute("""
+                    SELECT building_name, area_name, SUM(current_sales_count) AS s
+                    FROM building_period_comparison
+                    WHERE lower(building_name) = %s
+                    GROUP BY building_name, area_name
+                    ORDER BY s DESC NULLS LAST
+                    LIMIT 1
+                """, (cl,))
+                row = cur.fetchone()
+                if row and row[0]:
+                    return row[0], row[1]
+            for cand in candidates:
+                cl = cand.lower().strip()
+                cur.execute("""
+                    SELECT building_name, area_name, SUM(current_sales_count) AS s
+                    FROM building_period_comparison
+                    WHERE lower(building_name) LIKE %s
+                    GROUP BY building_name, area_name
+                    ORDER BY s DESC NULLS LAST
+                    LIMIT 1
+                """, (cl + "%",))
+                row = cur.fetchone()
+                if row and row[0]:
+                    return row[0], row[1]
+            for cand in candidates:
+                cl = cand.lower().strip()
+                if len(cl) < 3:
+                    continue
+                cur.execute("""
+                    SELECT building_name, area_name, SUM(current_sales_count) AS s
+                    FROM building_period_comparison
+                    WHERE lower(building_name) ILIKE %s
+                    GROUP BY building_name, area_name
+                    ORDER BY s DESC NULLS LAST
+                    LIMIT 1
+                """, ("%" + cl + "%",))
+                row = cur.fetchone()
+                if row and row[0]:
+                    return row[0], row[1]
+            try:
+                cur.execute("""
+                    SELECT building_name, area_name,
+                           similarity(lower(building_name), %s) AS sim
+                    FROM building_period_comparison
+                    WHERE lower(building_name) %% %s
+                    GROUP BY building_name, area_name
+                    ORDER BY sim DESC NULLS LAST
+                    LIMIT 1
+                """, (q_low, q_low))
+                row = cur.fetchone()
+                if row and row[0]:
+                    return row[0], row[1]
+            except Exception:
+                pass
+            try:
+                cur.execute("""
+                    SELECT DISTINCT building_name
+                    FROM building_period_comparison
+                    WHERE lower(building_name) ILIKE %s AND building_name IS NOT NULL
+                    LIMIT 5
+                """, ("%" + q_low[:6] + "%",))
+                hints = [r[0] for r in cur.fetchall() if r[0]]
+            except Exception:
+                hints = []
+            return None, hints
+    except Exception as e:
+        print(f"[compare] _intel_resolve_building err q={query!r}: {e}", flush=True)
+        return None, []
+
+
+def _intel_building_stats(name):
+    """12m DLD metrics for a building. None if no data."""
+    if not name:
+        return None
+    out = {"name": name, "area": None,
+           "median_1br": None, "median_2br": None, "median_all": None,
+           "yoy_pct": None, "sales_12m": 0, "yield_pct": None}
+    try:
+        c = _intel_conn()
+        with c.cursor() as cur:
+            cur.execute("""
+                SELECT unit_segment,
+                       current_median_sale_price,
+                       sale_price_change_percent,
+                       current_sales_count,
+                       area_name
+                FROM building_period_comparison
+                WHERE building_name = %s AND period_code = '365d'
+            """, (name,))
+            rows = cur.fetchall()
+            total_sales = 0
+            yoy_num = 0.0; yoy_den = 0
+            medians = []
+            for seg, med, yoy, cnt, area in rows:
+                if area and not out["area"]:
+                    out["area"] = area
+                cnt = int(cnt or 0)
+                total_sales += cnt
+                if med is not None:
+                    medians.append(float(med))
+                    if seg == "1BR" and out["median_1br"] is None:
+                        out["median_1br"] = float(med)
+                    elif seg == "2BR" and out["median_2br"] is None:
+                        out["median_2br"] = float(med)
+                if yoy is not None and cnt:
+                    yoy_num += float(yoy) * cnt
+                    yoy_den += cnt
+            out["sales_12m"] = total_sales
+            if medians:
+                out["median_all"] = sum(medians) / len(medians)
+            if yoy_den:
+                out["yoy_pct"] = yoy_num / yoy_den
+            cur.execute("""
+                SELECT unit_segment, gross_roi_percent, sales_count,
+                       median_sale_price, median_rent, area_name
+                FROM building_roi_summary
+                WHERE building_name = %s
+                ORDER BY sales_count DESC NULLS LAST
+            """, (name,))
+            roi_rows = cur.fetchall()
+            roi_num = 0.0; roi_den = 0
+            best_rent = None
+            best_sale_for_rent = None
+            for seg, roi, cnt, msale, mrent, area in roi_rows:
+                if area and not out["area"]:
+                    out["area"] = area
+                if roi is not None and cnt:
+                    roi_num += float(roi) * int(cnt)
+                    roi_den += int(cnt)
+                if mrent is not None and msale is not None and float(msale) > 0:
+                    if best_rent is None:
+                        best_rent = float(mrent)
+                        best_sale_for_rent = float(msale)
+                if seg == "1BR" and out["median_1br"] is None and msale is not None:
+                    out["median_1br"] = float(msale)
+                elif seg == "2BR" and out["median_2br"] is None and msale is not None:
+                    out["median_2br"] = float(msale)
+            if roi_den:
+                out["yield_pct"] = roi_num / roi_den
+            elif best_rent and best_sale_for_rent:
+                out["yield_pct"] = (best_rent / best_sale_for_rent) * 100.0
+    except Exception as e:
+        print(f"[compare] _intel_building_stats err name={name!r}: {e}", flush=True)
+        return None
+    if not any([out["median_1br"], out["median_2br"], out["median_all"],
+                out["yoy_pct"], out["sales_12m"], out["yield_pct"]]):
+        return None
+    return out
+
+
+def _fmt_price_m(p):
+    if p is None: return "-"
+    if p >= 1_000_000: return f"{p/1_000_000:.1f}M"
+    if p >= 1_000:     return f"{p/1_000:.0f}K"
+    return f"{p:.0f}"
+
+
+def _fmt_pct(p, sign=False):
+    if p is None: return "-"
+    return f"{p:+.1f}%" if sign else f"{p:.1f}%"
+
+
+def _h_esc(s):
+    if s is None: return "-"
+    return (str(s).replace("&", "&amp;")
+                  .replace("<", "&lt;").replace(">", "&gt;"))
+
+
+def _send_html(cid, text, kb=None):
+    p = {"chat_id": cid, "text": text, "parse_mode": "HTML",
+         "disable_web_page_preview": True}
+    if kb: p["reply_markup"] = kb
+    return _api("sendMessage", **p)
+
+
+def _render_compare_table(b1, b2, uid):
+    """HTML side-by-side comparison; <pre> for column alignment."""
+    lang = user_lang.get(uid, "en")
+    name1 = b1["name"]; name2 = b2["name"]
+    if lang == "ru":
+        L = {"1br": "Цена 1BR", "2br": "Цена 2BR",
+             "yield": "Yield", "yoy": "YoY рост",
+             "deals": "Сделок 12м",
+             "area": "Район",
+             "wy": "\U0001F3C6 Победитель по yield",
+             "wg": "\U0001F3C6 Победитель по росту"}
+    elif lang == "ar":
+        L = {"1br": "1BR", "2br": "2BR",
+             "yield": "العائد", "yoy": "النمو",
+             "deals": "صفقات12ش",
+             "area": "المنطقة",
+             "wy": "\U0001F3C6 الأعلى عائداً",
+             "wg": "\U0001F3C6 الأسرع نمواً"}
+    else:
+        L = {"1br": "1BR price", "2br": "2BR price",
+             "yield": "Yield", "yoy": "YoY growth",
+             "deals": "Deals 12m",
+             "area": "Area",
+             "wy": "\U0001F3C6 Yield winner",
+             "wg": "\U0001F3C6 Growth winner"}
+    label_w = 11
+    col_w = 14
+    def row(label, a, b, mark_a=False, mark_b=False):
+        sa = (a or "-"); sb = (b or "-")
+        if mark_a: sa = sa + " ✅"
+        if mark_b: sb = sb + " ✅"
+        return f"{label:<{label_w}}{sa:<{col_w}}{sb:<{col_w}}"
+    h1 = (name1[:13] + "…") if len(name1) > 13 else name1
+    h2 = (name2[:13] + "…") if len(name2) > 13 else name2
+    lines = [
+        f"\U0001F19A <b>{_h_esc(name1)}</b> vs <b>{_h_esc(name2)}</b>",
+        "",
+        "<pre>",
+        f"{'':<{label_w}}{h1:<{col_w}}{h2:<{col_w}}",
+        "-" * (label_w + col_w * 2),
+        row(L["1br"], _fmt_price_m(b1["median_1br"]), _fmt_price_m(b2["median_1br"])),
+        row(L["2br"], _fmt_price_m(b1["median_2br"]), _fmt_price_m(b2["median_2br"])),
+    ]
+    y1, y2 = b1["yield_pct"], b2["yield_pct"]
+    yield_winner = None
+    if y1 is not None and y2 is not None:
+        if y1 > y2 + 0.05: yield_winner = 1
+        elif y2 > y1 + 0.05: yield_winner = 2
+    lines.append(row(L["yield"], _fmt_pct(y1), _fmt_pct(y2),
+                     mark_a=(yield_winner == 1), mark_b=(yield_winner == 2)))
+    g1, g2 = b1["yoy_pct"], b2["yoy_pct"]
+    growth_winner = None
+    if g1 is not None and g2 is not None:
+        if g1 > g2 + 0.1: growth_winner = 1
+        elif g2 > g1 + 0.1: growth_winner = 2
+    lines.append(row(L["yoy"], _fmt_pct(g1, sign=True), _fmt_pct(g2, sign=True),
+                     mark_a=(growth_winner == 1), mark_b=(growth_winner == 2)))
+    lines.append(row(L["deals"], str(b1["sales_12m"] or "-"), str(b2["sales_12m"] or "-")))
+    lines.append(row(L["area"], (b1["area"] or "-")[:13], (b2["area"] or "-")[:13]))
+    lines.append("</pre>")
+    if yield_winner:
+        w = name1 if yield_winner == 1 else name2
+        lines.append(f"{L['wy']}: <b>{_h_esc(w)}</b>")
+    if growth_winner:
+        w = name1 if growth_winner == 1 else name2
+        lines.append(f"{L['wg']}: <b>{_h_esc(w)}</b>")
+    return "\n".join(lines)
+
+
+def kb_compare_cancel(uid):
+    return _reply_kb([
+        [_t(uid, "cmpbld_cancel_btn")],
+        [_t(uid, "rbtn_home")],
+    ])
+
+
+def start_compare_buildings(cid, uid):
+    """2-step wizard step 1: ask user for the first building name."""
+    s = gs(uid)
+    s["waiting"] = "compare_b1"
+    s.pop("compare_b1_name", None)
+    s["wizard"] = None
+    _send(cid, _t(uid, "cmpbld_ask_1"), kb_compare_cancel(uid))
+
+
+def do_compare_buildings(cid, uid, q1, q2):
+    """Resolve both queries and render the comparison table."""
+    s = gs(uid)
+    s.pop("waiting", None)
+    s.pop("compare_b1_name", None)
+    _send(cid, _t(uid, "cmpbld_searching"))
+    name1, hints1 = _intel_resolve_building(q1)
+    name2, hints2 = _intel_resolve_building(q2)
+    if not name1:
+        h = "\n".join(f"• {x}" for x in (hints1 or [])[:5]) or "-"
+        _send(cid, _t(uid, "cmpbld_not_found", q=q1, hints=h),
+              kb_main_reply(uid))
+        return
+    if not name2:
+        h = "\n".join(f"• {x}" for x in (hints2 or [])[:5]) or "-"
+        _send(cid, _t(uid, "cmpbld_not_found", q=q2, hints=h),
+              kb_main_reply(uid))
+        return
+    b1 = _intel_building_stats(name1)
+    b2 = _intel_building_stats(name2)
+    if not b1 or not b2:
+        _send(cid, _t(uid, "cmpbld_no_data"), kb_main_reply(uid))
+        return
+    html = _render_compare_table(b1, b2, uid)
+    _send_html(cid, html, kb_main_reply(uid))
+
+
 def show_compare(cid, uid):
     """Render the user's compare cart — up to 3 listings side-by-side."""
     s = gs(uid)
@@ -4980,6 +5366,8 @@ def dispatch_main_button(cid, uid, rkey):
         show_favorites(cid, uid)
     elif rkey == "rbtn_alerts":
         show_alerts(cid, uid)
+    elif rkey == "rbtn_compare_bld":
+        start_compare_buildings(cid, uid)
     elif rkey in ("rbtn_conf_on", "rbtn_conf_off"):
         # Toggle high-confidence filter (≥0.85). Persists in user_states.
         s = gs(uid)
@@ -5105,8 +5493,12 @@ def dispatch_wizard_button(cid, uid, text):
         change_labels = [T[l]["rbtn_change_deal"]  for l in ("en","ru","ar")]
         back_labels   = [T[l]["rbtn_back"]         for l in ("en","ru","ar")]
         alert_labels  = [T[l]["rbtn_create_alert"] for l in ("en","ru","ar")]
+        map_labels    = [T[l]["rbtn_map_all"]      for l in ("en","ru","ar")]
         if text in more_labels:
             send_results(cid, uid)
+            return True
+        if text in map_labels:
+            send_results_map(cid, uid)
             return True
         if text in alert_labels:
             create_alert_from_filters(cid, uid)
@@ -6994,7 +7386,29 @@ def handle_msg(msg):
                   kb_main_reply(uid))
             return
         if cmd == "compare":
-            show_compare(cid, uid); return
+            # /compare Burj Crown vs Address Opera   -> instant DLD compare
+            # /compare                                -> 2-step wizard (start_compare_buildings)
+            # /compare cart                           -> open the listing-cart (legacy UX)
+            _args = text.split(None, 1)[1].strip() if " " in text else ""
+            if _args.lower() in ("cart", "list", "items"):
+                show_compare(cid, uid); return
+            if " vs " in _args.lower() or " и " in _args or " - " in _args:
+                _sep = None
+                for s_ in (" vs ", " VS ", " Vs ", " и ", " - "):
+                    if s_ in _args:
+                        _sep = s_; break
+                if _sep:
+                    parts = _args.split(_sep, 1)
+                    if len(parts) == 2 and parts[0].strip() and parts[1].strip():
+                        do_compare_buildings(cid, uid, parts[0].strip(), parts[1].strip())
+                        return
+            if _args:
+                gs(uid)["compare_b1_name"] = _args
+                gs(uid)["waiting"] = "compare_b2"
+                gs(uid)["wizard"] = None
+                _send(cid, _t(uid, "cmpbld_ask_2"), kb_compare_cancel(uid))
+                return
+            start_compare_buildings(cid, uid); return
         if cmd == "map":
             # /map — render last search results as a static map PNG.
             send_results_map(cid, uid); return
@@ -7310,6 +7724,26 @@ def handle_msg(msg):
             return
 
     s = gs(uid)
+
+    # Compare-buildings 2-step wizard input
+    if s.get("waiting") == "compare_b1":
+        # Cancel button check
+        if text in (_t(uid, "cmpbld_cancel_btn"),):
+            s.pop("waiting", None)
+            _send(cid, _t(uid, "cmpbld_cancelled"), kb_main_reply(uid))
+            return
+        s["compare_b1_name"] = text
+        s["waiting"] = "compare_b2"
+        _send(cid, _t(uid, "cmpbld_ask_2"), kb_compare_cancel(uid))
+        return
+    if s.get("waiting") == "compare_b2":
+        if text in (_t(uid, "cmpbld_cancel_btn"),):
+            s.pop("waiting", None); s.pop("compare_b1_name", None)
+            _send(cid, _t(uid, "cmpbld_cancelled"), kb_main_reply(uid))
+            return
+        b1_name = s.get("compare_b1_name") or ""
+        do_compare_buildings(cid, uid, b1_name, text)
+        return
 
     # Custom area search input (main search)
     if s.get("waiting") == "custom_area":
