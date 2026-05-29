@@ -619,6 +619,106 @@ def realtime_accuracy_loop():
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
+# ── New scheduled jobs (added 2026-05-29) ─────────────────────────────────
+def _run_script_periodic(script_name: str, interval_sec: int, label: str):
+    """Generic loop: subprocess.run python script every N seconds."""
+    import subprocess
+    while True:
+        try:
+            time.sleep(interval_sec)
+            here = os.path.dirname(os.path.abspath(__file__))
+            print(f"[cron:{label}] running {script_name}")
+            subprocess.run(["python", os.path.join(here, script_name)],
+                           timeout=600, check=False)
+        except Exception as e:
+            print(f"[cron:{label}] error: {e}")
+
+
+def saved_searches_loop():
+    """Hourly — new matches for user-saved searches."""
+    _run_script_periodic("_check_saved_searches_alerts.py", 3600, "saved_searches")
+
+
+def price_alerts_loop():
+    """Every 6 h — price-drop alerts."""
+    _run_script_periodic("_check_price_alerts.py", 6 * 3600, "price_alerts")
+
+
+def cross_source_loop():
+    """Hourly — duplicate detection + merge."""
+    _run_script_periodic("_cross_source_verification.py", 3600, "cross_source")
+
+
+def daily_backup_loop():
+    """Daily — pg_dump + R2 upload."""
+    _run_script_periodic("_daily_backup.py", 24 * 3600, "backup")
+
+
+def channel_quality_loop():
+    """Daily — per-channel quality digest."""
+    _run_script_periodic("_channel_quality.py", 24 * 3600, "channel_quality")
+
+
+def _wait_until_utc(hour: int, minute: int = 0) -> int:
+    """Seconds until next UTC clock matching hour:minute."""
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if target <= now:
+        target += timedelta(days=1)
+    return int((target - now).total_seconds())
+
+
+def daily_digest_loop():
+    """Daily 05:00 UTC = 09:00 Dubai — DLD digest to @vadim_admin_bot."""
+    import subprocess
+    while True:
+        time.sleep(_wait_until_utc(5, 0))
+        try:
+            here = os.path.dirname(os.path.abspath(__file__))
+            digest = os.path.join(os.path.dirname(here),
+                                   "dubai-dld-analytics-bot-main",
+                                   "daily_digest.py")
+            if os.path.exists(digest):
+                print("[cron:daily_digest] running")
+                subprocess.run(["python", digest], timeout=300, check=False)
+        except Exception as e:
+            print(f"[cron:daily_digest] error: {e}")
+
+
+def weekly_aliases_loop():
+    """Monday 09:00 UTC = 13:00 Dubai — auto-aliases proposals."""
+    import subprocess
+    from datetime import datetime, timezone
+    while True:
+        time.sleep(_wait_until_utc(9, 0))
+        # Only run on Mondays (weekday 0)
+        if datetime.now(timezone.utc).weekday() != 0:
+            continue
+        try:
+            here = os.path.dirname(os.path.abspath(__file__))
+            print("[cron:weekly_aliases] running")
+            subprocess.run(["python", os.path.join(here, "_auto_aliases.py")],
+                           timeout=300, check=False)
+        except Exception as e:
+            print(f"[cron:weekly_aliases] error: {e}")
+
+
+def lead_followup_loop():
+    """Every 30 min — auto-followup leads at 24/48/72h."""
+    import subprocess
+    while True:
+        time.sleep(30 * 60)
+        try:
+            script = ("C:/Projects/lead-bot/Lead-bot/telegram-bot/"
+                      "_lead_followup_cron.py")
+            if os.path.exists(script):
+                print("[cron:lead_followup] running")
+                subprocess.run(["python", script], timeout=300, check=False)
+        except Exception as e:
+            print(f"[cron:lead_followup] error: {e}")
+
+
 def start_all():
     threading.Thread(target=alerts_loop, daemon=True).start()
     threading.Thread(target=digest_loop, daemon=True).start()
@@ -630,8 +730,17 @@ def start_all():
     threading.Thread(target=parser_quality_monitor_loop, daemon=True).start()
     threading.Thread(target=hourly_report_loop, daemon=True).start()
     threading.Thread(target=realtime_accuracy_loop, daemon=True).start()
+    # New jobs (29.05.2026)
+    threading.Thread(target=saved_searches_loop, daemon=True).start()
+    threading.Thread(target=price_alerts_loop, daemon=True).start()
+    threading.Thread(target=cross_source_loop, daemon=True).start()
+    threading.Thread(target=daily_backup_loop, daemon=True).start()
+    threading.Thread(target=channel_quality_loop, daemon=True).start()
+    threading.Thread(target=daily_digest_loop, daemon=True).start()
+    threading.Thread(target=weekly_aliases_loop, daemon=True).start()
+    threading.Thread(target=lead_followup_loop, daemon=True).start()
     start_health_server(port=int(os.environ.get("PORT", "8080")))
-    print("[cron] All workers started (including v55 watchlist + parser-quality + hourly-report + rt-accuracy).")
+    print("[cron] All workers started: 10 legacy + 8 new (saved/price/dups/backup/channel-q/digest/aliases/followup).")
 
 
 if __name__ == "__main__":

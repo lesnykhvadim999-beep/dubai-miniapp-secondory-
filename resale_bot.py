@@ -1835,7 +1835,8 @@ def is_main_menu_text(text: str):
         "rbtn_hot", "rbtn_new", "rbtn_ai", "rbtn_add",
         "rbtn_favs", "rbtn_alerts", "rbtn_lang", "rbtn_home",
         "rbtn_conf_on", "rbtn_conf_off",
-        "rbtn_top_on", "rbtn_top_off",,
+        "rbtn_top_on", "rbtn_top_off",
+        "rbtn_heatmap",
         "rbtn_voice",
     }
     for lang_code, strings in T.items():
@@ -4198,6 +4199,24 @@ def show_deal_type_menu(cid, uid, mid=None):
 
 # ── AI Consultant (#52): free-form chat mode ───────────────────────
 import json as _json_ai
+try:
+    from llm_chain import llm_call as _llm_chain_call
+except Exception as _llm_imp_e:
+    print(f"[ai_consult] llm_chain import failed ({_llm_imp_e}); falling back to _llm_call", flush=True)
+    _llm_chain_call = None
+
+def llm_call(prompt, max_tokens=600, timeout=15):
+    """Wrapper: prefer llm_chain (multi-provider + cache), else fall back to in-bot _llm_call."""
+    if _llm_chain_call is not None:
+        try:
+            return _llm_chain_call(prompt, max_tokens=max_tokens, timeout=timeout)
+        except Exception as _e:
+            print(f"[ai_consult] llm_chain err ({_e}); falling back", flush=True)
+    try:
+        return _llm_call(prompt, max_tokens=max_tokens, timeout=timeout)
+    except Exception as _e:
+        print(f"[ai_consult] _llm_call err: {_e}", flush=True)
+        return None
 
 _AI_INTRO = {
     "ru": (
