@@ -6812,6 +6812,33 @@ def main():
     run_bot()
 
 
+# ── Unhandled-exception alert hook (added 2026-05-29) ─────────────────────
+import sys as _sys, traceback as _tb
+def _unhandled_exception_hook(exc_type, exc_value, exc_traceback):
+    try:
+        from admin_notify import admin_notify
+        tb = "".join(_tb.format_exception(exc_type, exc_value, exc_traceback))
+        service = __name__
+        admin_notify(
+            f"🚨 <b>Unhandled exception</b> in <code>{service}</code>\n"
+            f"<code>{exc_type.__name__}: {exc_value}</code>\n\n"
+            f"<pre>{tb[-1500:]}</pre>"
+        )
+    except Exception:
+        pass
+    _sys.__excepthook__(exc_type, exc_value, exc_traceback)
+_sys.excepthook = _unhandled_exception_hook
+
+
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        import traceback as _crash_tb
+        try:
+            from admin_notify import admin_notify as _crash_notify
+            _crash_notify(f"🚨 Bot CRASH (resale_bot):\n<pre>{_crash_tb.format_exc()[-1500:]}</pre>")
+        except Exception:
+            pass
+        raise
 
