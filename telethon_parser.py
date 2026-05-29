@@ -33,6 +33,13 @@ from datetime import datetime, timezone, timedelta
 from parser_engine import parse_message, is_spam, ai_parse_listing, merge_ai_with_parsed
 from db_schema import upsert_listing, save_images, log_sync, get_last_parsed_message_id, get_conn
 
+# ── Parser switch (v1 = legacy regex parser_engine, v2 = LLM-first parser_v2) ──
+# Default v1 — keep production behaviour. Flip to "v2" via Railway env var
+# AFTER backfill completes (~10:00 UTC), so live parser stops producing the
+# old format mid-run. See parser_v2.parse_message_v2 for the new pipeline.
+PARSER_VERSION = os.environ.get("PARSER_VERSION", "v1").lower()
+print(f"[telethon] PARSER_VERSION={PARSER_VERSION}")
+
 # ── Config ────────────────────────────────────────────────────────────────────
 _API_ID_RAW = os.environ.get("TELEGRAM_API_ID")
 if not _API_ID_RAW:
@@ -283,64 +290,105 @@ async def parse_channel(client, channel: str, backfill: bool = False,
                 if not text.strip() and not image_urls:
                     continue
 
-                # ── Phase 2: LLM-powered multi-listing split ─────────────────
-                # Если пост содержит несколько объявлений — разбиваем через
-                # Groq и парсим каждое отдельно. Каждый chunk → отдельная запись.
-                from parser_engine import _is_likely_multi_listing, _llm_split_all_listings
-                chunks_to_parse = None
-                if _is_likely_multi_listing(text) and \
-                        os.environ.get("LLM_MULTI_SPLIT_ALL", "1") != "0":
-                    try:
-                        chunks_to_parse = _llm_split_all_listings(text)
-                        if chunks_to_parse and len(chunks_to_parse) > 1:
-                            print(f"[telethon] Multi-listing: split into {len(chunks_to_parse)} chunks (msg_id={message.id})")
-                    except Exception as _e:
-                        print(f"[telethon] LLM split-all err: {_e}")
-                        chunks_to_parse = None
-                if not chunks_to_parse:
-                    chunks_to_parse = [text]
-
-                # Parse each chunk separately
+                # ── Phase 2: multi-listing split + per-chunk parse ──────────
+                # v1 path: legacy parser_engine (regex + Groq split helper).
+                # v2 path: parser_v2.parse_message_v2 handles split internally
+                #          and returns a list of listing dicts directly.
+                parsed = None
+                _v2_extra_blocks: list[dict] = []
                 multi_saved = 0
-                for chunk_idx, chunk_text in enumerate(chunks_to_parse):
-                    # Image attached only to FIRST chunk (one photo per post)
-                    chunk_images = image_urls if chunk_idx == 0 else None
-                    # Each chunk gets a synthetic message_id offset so listing_keys differ
-                    chunk_msg_id = message.id if chunk_idx == 0 else (message.id * 100 + chunk_idx)
 
-                    parsed = parse_message(
-                        text=chunk_text,
-                        message_id=chunk_msg_id,
-                        message_date=msg_date.isoformat() if msg_date else None,
-                        chat_id=str(entity.id),
-                        seller_username=seller_username,
-                        image_urls=chunk_images,
-                    )
+                if PARSER_VERSION == "v2":
+                    # ─── v2 LLM-first pipeline ───────────────────────────────
+                    try:
+                        from parser_v2 import parse_message_v2
+                        v2_blocks = parse_message_v2(
+                            text, source_channel=str(entity.id)
+                        )
+                    except Exception as _e:
+                        print(f"[telethon] parser_v2 err msg_id={message.id}: {_e}")
+                        v2_blocks = []
 
-                    if not parsed:
+                    # Empty list = spam / nothing extractable → skip message.
+                    if not v2_blocks:
                         continue
 
-                    # Save remaining chunks via continue-flow at end of loop
-                    if chunk_idx == 0:
-                        parsed_first = parsed
-                        # For chunk #0, use original control flow below
-                        text = chunk_text  # update text variable for downstream
-                        parsed = parsed_first
-                        break  # Process chunk #0 below as before
-                    else:
-                        # Direct save for chunks ≥ 1 (no semantic dedup, dedup via content)
-                        try:
-                            cid, is_new = upsert_listing(parsed)
-                            if is_new:
-                                multi_saved += 1
-                                stats["new"] += 1
-                                if parsed.get("is_hot_deal"):
-                                    stats["hot"] += 1
-                        except Exception as _e:
-                            print(f"[telethon] multi-chunk #{chunk_idx} save err: {_e}")
+                    # v2 returns "clean" extraction dicts; we need to enrich
+                    # each with transport metadata that upsert_listing expects
+                    # (telegram_message_id, telegram_chat_id, message_date,
+                    # seller_username, image_urls). Images go only on block #0.
+                    for bi, bdict in enumerate(v2_blocks):
+                        chunk_msg_id = message.id if bi == 0 else (message.id * 100 + bi)
+                        bdict.setdefault("telegram_message_id", chunk_msg_id)
+                        bdict.setdefault("telegram_chat_id", str(entity.id))
+                        if msg_date:
+                            bdict.setdefault("message_date",
+                                              msg_date.isoformat())
+                            bdict.setdefault("posted_at",
+                                              msg_date.isoformat())
+                        if seller_username:
+                            bdict.setdefault("seller_username", seller_username)
+                        if bi == 0 and image_urls:
+                            bdict.setdefault("image_urls", image_urls)
 
-                if multi_saved:
-                    print(f"[telethon] Saved {multi_saved} additional chunks from msg_id={message.id}")
+                    parsed = v2_blocks[0]
+                    _v2_extra_blocks = v2_blocks[1:]
+                else:
+                    # ─── v1 legacy path (parser_engine + LLM split helper) ───
+                    from parser_engine import _is_likely_multi_listing, _llm_split_all_listings
+                    chunks_to_parse = None
+                    if _is_likely_multi_listing(text) and \
+                            os.environ.get("LLM_MULTI_SPLIT_ALL", "1") != "0":
+                        try:
+                            chunks_to_parse = _llm_split_all_listings(text)
+                            if chunks_to_parse and len(chunks_to_parse) > 1:
+                                print(f"[telethon] Multi-listing: split into {len(chunks_to_parse)} chunks (msg_id={message.id})")
+                        except Exception as _e:
+                            print(f"[telethon] LLM split-all err: {_e}")
+                            chunks_to_parse = None
+                    if not chunks_to_parse:
+                        chunks_to_parse = [text]
+
+                    # Parse each chunk separately
+                    for chunk_idx, chunk_text in enumerate(chunks_to_parse):
+                        # Image attached only to FIRST chunk (one photo per post)
+                        chunk_images = image_urls if chunk_idx == 0 else None
+                        # Each chunk gets a synthetic message_id offset so listing_keys differ
+                        chunk_msg_id = message.id if chunk_idx == 0 else (message.id * 100 + chunk_idx)
+
+                        parsed = parse_message(
+                            text=chunk_text,
+                            message_id=chunk_msg_id,
+                            message_date=msg_date.isoformat() if msg_date else None,
+                            chat_id=str(entity.id),
+                            seller_username=seller_username,
+                            image_urls=chunk_images,
+                        )
+
+                        if not parsed:
+                            continue
+
+                        # Save remaining chunks via continue-flow at end of loop
+                        if chunk_idx == 0:
+                            parsed_first = parsed
+                            # For chunk #0, use original control flow below
+                            text = chunk_text  # update text variable for downstream
+                            parsed = parsed_first
+                            break  # Process chunk #0 below as before
+                        else:
+                            # Direct save for chunks ≥ 1 (no semantic dedup, dedup via content)
+                            try:
+                                cid, is_new = upsert_listing(parsed)
+                                if is_new:
+                                    multi_saved += 1
+                                    stats["new"] += 1
+                                    if parsed.get("is_hot_deal"):
+                                        stats["hot"] += 1
+                            except Exception as _e:
+                                print(f"[telethon] multi-chunk #{chunk_idx} save err: {_e}")
+
+                    if multi_saved:
+                        print(f"[telethon] Saved {multi_saved} additional chunks from msg_id={message.id}")
 
                 if not parsed:
                     continue
@@ -388,6 +436,26 @@ async def parse_channel(client, channel: str, backfill: bool = False,
                         save_images(listing_id, image_urls)
                 else:
                     stats["dupes"] += 1
+
+                # ── v2 multi-listing: persist remaining blocks ───────────────
+                # parser_v2 returns N blocks; block #0 is saved above, blocks
+                # 1..N-1 each become their own listing here.
+                if _v2_extra_blocks:
+                    _v2_saved = 0
+                    for _bdict in _v2_extra_blocks:
+                        try:
+                            _cid, _is_new = upsert_listing(_bdict)
+                            if _is_new:
+                                _v2_saved += 1
+                                stats["new"] += 1
+                                if _bdict.get("is_hot_deal"):
+                                    stats["hot"] += 1
+                            else:
+                                stats["dupes"] += 1
+                        except Exception as _e:
+                            print(f"[telethon] v2 extra-block save err msg_id={message.id}: {_e}")
+                    if _v2_saved:
+                        print(f"[telethon] v2: saved {_v2_saved} extra blocks from msg_id={message.id}")
 
                 stats["last_id"] = max(stats["last_id"], message.id)
 
