@@ -237,6 +237,7 @@ T = {
     "rbtn_hot":         "🔥 Hot Deals",
     "rbtn_new":         "🆕 New",
     "rbtn_ai":          "✦ AI Assistant",
+    "rbtn_ai_consult":  "🤖 AI Consultant",
     "rbtn_voice":       "🎙 Voice search",
     "deal_q":           "Choose transaction type:",
     "deal_buy_btn":     "🏠 Buy",
@@ -516,6 +517,7 @@ T = {
     "rbtn_hot":         "🔥 Горячие",
     "rbtn_new":         "🆕 Новые",
     "rbtn_ai":          "✦ AI Помощник",
+    "rbtn_ai_consult":  "🤖 AI Консультант",
     "rbtn_voice":       "🎙 Голос поиск",
     "deal_q":           "Что вас интересует?",
     "deal_buy_btn":     "🏠 Купить",
@@ -817,6 +819,7 @@ T = {
     "rbtn_hot":         "🔥 صفقات",
     "rbtn_new":         "🆕 جديد",
     "rbtn_ai":          "✦ مساعد AI",
+    "rbtn_ai_consult":  "🤖 مستشار AI",
     "rbtn_voice":       "🎙 بحث صوتي",
     "rbtn_add":         "➕ إضافة عقار",
     "rbtn_lang":        "🌐 اللغة",
@@ -1346,6 +1349,7 @@ def kb_main_reply(uid):
         [_t(uid, "rbtn_apt"),        _t(uid, "rbtn_villa")],
         [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
         [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new"),   _t(uid, "rbtn_ai")],
+        [_t(uid, "rbtn_ai_consult")],
         [_t(uid, "rbtn_voice"),      conf_btn,              top_btn],
         [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts"), _t(uid, "rbtn_heatmap")],
         [_t(uid, "rbtn_lang")],
@@ -1872,7 +1876,7 @@ def is_main_menu_text(text: str):
     MAIN_MENU_KEYS = {
         "rbtn_buy", "rbtn_rent", "rbtn_apt", "rbtn_villa",
         "rbtn_commercial", "rbtn_plot",
-        "rbtn_hot", "rbtn_new", "rbtn_ai", "rbtn_add",
+        "rbtn_hot", "rbtn_new", "rbtn_ai", "rbtn_ai_consult", "rbtn_add",
         "rbtn_favs", "rbtn_alerts", "rbtn_lang", "rbtn_home",
         "rbtn_compare_bld",
         "rbtn_conf_on", "rbtn_conf_off",
@@ -5400,6 +5404,8 @@ def dispatch_main_button(cid, uid, rkey):
         if not _gate(uid, "smart_pick"):
             _paywall(cid, uid, "smart_pick"); return
         show_ai_start(cid, uid)
+    elif rkey == "rbtn_ai_consult":
+        ai_consultant_start(cid, uid)
     elif rkey == "rbtn_voice":
         lang_v = _get_lang(uid)
         _vp_ru = ("🎙 *Голосовой поиск*\n\n"
@@ -7546,6 +7552,7 @@ def handle_msg(msg):
                     print(f"[resale] /start cbj log err: {_e}", flush=True)
             send_welcome_with_logo(cid, uid)
         elif cmd == "menu":  show_main(cid, uid)
+        elif cmd == "ai":    ai_consultant_start(cid, uid)
         elif cmd == "cancel":
             # v134 UX: /cancel — отмена wizard + главное меню. Сбрасывает state
             # (фильтры, add-listing wizard, alert wizard) и возвращает к /menu.
@@ -7894,6 +7901,11 @@ def handle_msg(msg):
         total = s.get("total", 0)
         print(f"[SEARCH] query=\"{text}\" results={total}")
         send_results(cid, uid, mid)
+        return
+
+    # AI Consultant chat mode (#52) — must be BEFORE NL search.
+    if ai_consult_states.get(uid, {}).get("active"):
+        ai_consultant_handle_text(cid, uid, text)
         return
 
     # Natural language search
