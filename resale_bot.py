@@ -656,6 +656,9 @@ T = {
     "alert_created": "✅ Уведомление создано. Сообщим о новых подходящих объектах.",
     "alert_deleted": "Уведомление удалено.",
     "rbtn_create_alert": "🔔 Создать уведомление",
+    "rbtn_map_all":      "🗺 Показать на карте",
+    "map_caption":       "🗺 *Карта объектов*",
+    "map_no_coords":     "📍 Координаты для этих объектов пока не сохранены.\nГеокодирование в работе — попробуйте после следующего цикла парсера.",
     "compare_empty": "Корзина пуста. Нажмите ⚖️ на объявлении.",
     "compare_added": "✅ Добавлено в сравнение ({n}/3).",
     "compare_full":  "⚠ В сравнении уже 3 объекта. Очистите чтобы добавить.",
@@ -951,6 +954,9 @@ T = {
     "alert_created": "✅ تم إنشاء التنبيه.",
     "alert_deleted": "تم حذف التنبيه.",
     "rbtn_create_alert": "🔔 إنشاء تنبيه",
+    "rbtn_map_all":      "🗺 عرض على الخريطة",
+    "map_caption":       "🗺 *خريطة العقارات*",
+    "map_no_coords":     "📍 لم يتم حفظ الإحداثيات لهذه العقارات بعد.",
     "compare_empty": "السلة فارغة.",
     "compare_added": "✅ تم الإضافة ({n}/3).",
     "compare_full":  "⚠ السلة ممتلئة (3).",
@@ -5270,6 +5276,56 @@ def _inline_switch_category(cid, uid, rkey):
     return True
 
 
+def show_heatmap(cid: int, uid: int):
+    """Send Investment Heatmap PNG + textual top-up/top-down summary.
+
+    PNG кэшируется на сутки (см. _investment_heatmap._cache_path).
+    """
+    try:
+        from _investment_heatmap import get_heatmap
+    except Exception as e:
+        print(f"[heatmap] import err: {e}", flush=True)
+        _send(cid, "⚠️ Heatmap module unavailable.", kb_main_reply(uid))
+        return
+    lang = _get_lang(uid)
+    try:
+        png_path, summary = get_heatmap(lang=lang, force=False)
+    except Exception as e:
+        print(f"[heatmap] generate err: {e}", flush=True)
+        _send(cid, "⚠️ Heatmap generation failed.", kb_main_reply(uid))
+        return
+
+    if not png_path or not os.path.exists(png_path):
+        _send(cid, summary or "⚠️ No data.", kb_main_reply(uid))
+        return
+
+    caption = summary[:1024] if summary else "🗺 Dubai Investment Heatmap"
+    try:
+        with open(png_path, "rb") as f:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+                files={"photo": ("heatmap.png", f, "image/png")},
+                data={"chat_id": str(cid),
+                      "caption": caption,
+                      "parse_mode": "Markdown"},
+                timeout=30,
+            )
+        if not resp.json().get("ok"):
+            print(f"[heatmap] sendPhoto fail: {resp.text[:200]}", flush=True)
+            _send(cid, summary, kb_main_reply(uid))
+            return
+    except Exception as e:
+        print(f"[heatmap] sendPhoto err: {e}", flush=True)
+        _send(cid, summary, kb_main_reply(uid))
+        return
+
+    # Если summary длиннее 1024 — пошлём остаток отдельным сообщением
+    if summary and len(summary) > 1024:
+        _send(cid, summary[1024:], kb_main_reply(uid))
+    else:
+        _send(cid, "—", kb_main_reply(uid))
+
+
 def dispatch_main_button(cid, uid, rkey):
     """Dispatches a press of a bottom reply-keyboard button to the right flow.
     Each category sets the appropriate filter so search results stay within it.
@@ -5375,6 +5431,8 @@ def dispatch_main_button(cid, uid, rkey):
         show_favorites(cid, uid)
     elif rkey == "rbtn_alerts":
         show_alerts(cid, uid)
+    elif rkey == "rbtn_heatmap":
+        show_heatmap(cid, uid)
     elif rkey == "rbtn_compare_bld":
         start_compare_buildings(cid, uid)
     elif rkey in ("rbtn_conf_on", "rbtn_conf_off"):
@@ -7411,6 +7469,8 @@ def handle_msg(msg):
             show_favorites(cid, uid); return
         if cmd == "alerts":
             show_alerts(cid, uid); return
+        if cmd == "heatmap":
+            show_heatmap(cid, uid); return
         if cmd in ("language", "lang"):
             # v54 UX (Layla follow-up): команда /language заменяет «🌐 Язык» в меню.
             _send(cid, "🌐  Select your language / Выберите язык / اختر لغتك",
