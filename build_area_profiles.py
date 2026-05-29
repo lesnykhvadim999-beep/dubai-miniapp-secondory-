@@ -33,14 +33,12 @@ except Exception as e:
     print(f"psycopg2 missing: {e}")
     sys.exit(1)
 
-RESALE_DSN = os.environ.get(
-    "DATABASE_URL",
-    "REDACTED_DSN_USE_DATABASE_URL_ENV",
-)
-DLD_DSN = os.environ.get(
-    "ANALYTICS_DATABASE_URL",
-    "postgresql://postgres:REDACTED_LIVE_DB_PASSWORD@yamanote.proxy.rlwy.net:43494/railway",
-)
+RESALE_DSN = os.environ.get("DATABASE_URL")
+if not RESALE_DSN:
+    raise RuntimeError("DATABASE_URL required")
+DLD_DSN = os.environ.get("ANALYTICS_DATABASE_URL")
+if not DLD_DSN:
+    raise RuntimeError("ANALYTICS_DATABASE_URL required")
 
 MIN_TOTAL = 20  # минимум транзакций по району, иначе skip
 WINDOW_MONTHS = 36

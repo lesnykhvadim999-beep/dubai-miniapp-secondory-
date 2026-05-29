@@ -14,17 +14,75 @@ All fixes applied:
 import os, re, time, json, threading, requests
 from datetime import datetime, timezone
 
+# FSST: callback dedup + SIGTERM + health server
+import sys as _fsst_sys, os as _fsst_os
+_fsst_sys.path.insert(0, _fsst_os.path.dirname(__file__))
+try:
+    from fsst_core import CallbackDeduplicator, setup_sigterm, start_health_server
+    _cb_dedup = CallbackDeduplicator()
+    _fsst_ok = True
+except Exception as _fsst_e:
+    print(f"[fsst] import failed: {_fsst_e}")
+    class _FallbackDedup:
+        def is_dup_raw(self, cb): return False
+    _cb_dedup = _FallbackDedup()
+    _fsst_ok = False
+
 from db_schema import (
     init_db, search_listings, get_listing_by_id,
     get_listing_images, get_price_history, save_user, save_lead,
     get_full_stats, get_conn,
 )
 
+# ── Subscription / monetisation ───────────────────────────────────────────────
+try:
+    import sys as _sys, os as _os
+    _sys.path.insert(0, _os.path.dirname(__file__))
+    from subscription import (
+        check_gate as _sub_check_gate,
+        paywall_message as _sub_paywall_text,
+        paywall_keyboard_inline as _sub_paywall_kb_raw,
+        activate_subscription as _sub_activate,
+        get_subscription_info as _sub_info,
+        stars_invoice_payload as _stars_invoice,
+        stars_invoice_payload_year as _stars_invoice_year,
+        create_cryptobot_invoice as _ton_invoice,
+        create_cryptobot_invoice_year as _ton_invoice_year,
+        FREE_LIMIT as _SUB_FREE_LIMIT,
+        STARS_PRICE_MONTH as _STARS_PRICE,
+        SUB_DAYS_MONTH as _SUB_DAYS_MONTH,
+        SUB_DAYS_YEAR as _SUB_DAYS_YEAR,
+        USD_PRICE_MONTH as _USD_PRICE_MONTH,
+        USD_PRICE_YEAR as _USD_PRICE_YEAR,
+    )
+    _SUB_OK = True
+    print("[subscription] module loaded OK", flush=True)
+except ImportError as _e:
+    print(f"[subscription] not found ({_e}) — all features unlocked", flush=True)
+    _SUB_OK = False
+    def _sub_check_gate(uid, feature, conn): return True
+    def _sub_paywall_text(uid, feature, lang, conn): return "🔒 Premium feature."
+    def _sub_paywall_kb_raw(): return []
+    def _sub_activate(*a, **kw): pass
+    def _sub_info(uid, conn): return {"premium": False, "expires_at": None, "usage": {}}
+    def _stars_invoice(uid): return {}
+    def _stars_invoice_year(uid): return {}
+    def _ton_invoice(uid): return None
+    def _ton_invoice_year(uid): return None
+    _SUB_FREE_LIMIT = 10
+    _STARS_PRICE = 250
+    _SUB_DAYS_MONTH = 30
+    _SUB_DAYS_YEAR  = 365
+    _USD_PRICE_MONTH = 5.0
+    _USD_PRICE_YEAR  = 50.0
+
 # ── Config ────────────────────────────────────────────────────────────────────
 BOT_TOKEN      = os.environ.get("RESALE_BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ADMIN_ID       = 353806371
 LEAD_BOT_URL   = "https://t.me/dubai_fpr_lead_bot"
-LEAD_BOT_TOKEN = os.environ.get("LEAD_BOT_TOKEN", "REDACTED_LEAD_BOT_TOKEN")
+LEAD_BOT_TOKEN = os.environ.get("LEAD_BOT_TOKEN")
+if not LEAD_BOT_TOKEN:
+    raise RuntimeError("LEAD_BOT_TOKEN required")
 ANTHROPIC_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
 API            = f"https://api.telegram.org/bot{BOT_TOKEN}"
 PER_PAGE       = 10
@@ -330,7 +388,7 @@ T = {
     "ai_analyzing": "────────────────────\nAnalyzing market data\nFinding best matches...\n────────────────────",
     "ai_result": "────────────────────\n  AI RECOMMENDATIONS\n────────────────────\n\nBased on your goals:",
     "searching": "Searching...",
-    "contact_sent": "────────────────────\nRequest sent\n\nVadim will contact you\nshortly.\n────────────────────",
+    "contact_sent": "────────────────────\nRequest sent\n\nAn agent will contact you\nshortly.\n────────────────────",
     # Add listing wizard
     "add_start": "────────────────────\n  LIST YOUR PROPERTY\n────────────────────\n\nLet's add your property\nstep by step.",
     "add_deal_q": "Sale or Rent?",
@@ -588,7 +646,7 @@ T = {
     "ai_analyzing": "────────────────────\nАнализирую рынок\nПодбираю лучшие варианты...\n────────────────────",
     "ai_result": "────────────────────\n  AI РЕКОМЕНДАЦИИ\n────────────────────\n\nПо вашим критериям:",
     "searching": "Поиск...",
-    "contact_sent": "────────────────────\nЗаявка отправлена\n\nВадим свяжется с вами\nв ближайшее время.\n────────────────────",
+    "contact_sent": "────────────────────\nЗаявка отправлена\n\nАгент свяжется с вами\nв ближайшее время.\n────────────────────",
     "add_start": "────────────────────\n  РАЗМЕСТИТЬ ОБЪЕКТ\n────────────────────\n\nДобавим ваш объект\nшаг за шагом.",
     "add_deal_q": "Продажа или аренда?",
     "add_emirate_q": "Выберите эмират",
@@ -1091,6 +1149,36 @@ def _edit(cid, mid, text, kb=None):
     p = {"chat_id": cid, "message_id": mid, "text": text, "parse_mode": "Markdown"}
     if kb: p["reply_markup"] = kb
     return _api("editMessageText", **p)
+
+
+# ── Subscription gate helpers ─────────────────────────────────────────────────
+
+def _gate(uid: int, feature: str) -> bool:
+    """Return True = allowed, False = blocked (paywall)."""
+    if not _SUB_OK:
+        return True
+    try:
+        conn = get_conn()
+        result = _sub_check_gate(uid, feature, conn)
+        conn.close()
+        return result
+    except Exception as e:
+        print(f"[gate] error: {e}", flush=True)
+        return True  # fail open
+
+
+def _paywall(cid: int, uid: int, feature: str):
+    """Send paywall message with Stars + TON payment buttons."""
+    lang = _get_lang(uid) if callable(globals().get("_get_lang")) else user_lang.get(uid, "en")
+    try:
+        conn = get_conn()
+        text = _sub_paywall_text(uid, feature, lang, conn)
+        conn.close()
+    except Exception:
+        text = "🔒 *Premium feature*\n\nSubscribe for $5/month to continue."
+    raw_rows = _sub_paywall_kb_raw()
+    kb_rows = [[_btn(lbl, cb) for lbl, cb in row] for row in raw_rows]
+    _send(cid, text, _kb(*kb_rows) if kb_rows else None)
 
 def _photo(cid, photo, caption, kb=None):
     p = {"chat_id": cid, "photo": photo, "caption": caption[:1024], "parse_mode": "Markdown"}
@@ -2394,11 +2482,12 @@ def format_card(listing, uid, rank=None):
     if spec_parts:
         lines.append("  ·  ".join(spec_parts))
 
-    # 4b. BUA / Plot (villa/townhouse extra info)
+    # 4b. BUA / Plot (villa/townhouse/plot only — never apartments)
     bp_parts = []
     if bua and bua != size:
         bp_parts.append(f"{_t(uid, 'card_bua')} {_fmt_size(bua)}")
-    if plot:
+    _plot_types = ("plot", "villa", "townhouse", "whole_building")
+    if plot and prop_type.lower() in _plot_types:
         bp_parts.append(f"{_t(uid, 'card_plot')} {_fmt_size(plot)}")
     if bp_parts:
         lines.append("📏 " + "  ·  ".join(bp_parts))
@@ -3660,6 +3749,10 @@ def show_detail(cid, uid, mid, lid):
     # All-in-building button — только если есть building
     if has_building:
         kb_rows.append([_btn(_t(uid, "btn_all_in_bld"), f"allbld|{lid}")])
+    # ── Premium buttons (gated) ──────────────────────────────────────────────
+    _seller_lbl = {"en": "👤 Seller Contacts 🔒", "ru": "👤 Данные продавца 🔒", "ar": "👤 بيانات البائع 🔒"}.get(lang_user, "👤 Seller Contacts 🔒")
+    _deals_lbl  = {"en": "📊 DLD Deal History 🔒", "ru": "📊 Сделки DLD 🔒", "ar": "📊 سجل DLD 🔒"}.get(lang_user, "📊 DLD Deal History 🔒")
+    kb_rows.append([_btn(_seller_lbl, f"seller|{lid}"), _btn(_deals_lbl, f"deals|{lid}")])
     kb_rows.append([_btn(_t(uid, "btn_similar"), f"similar|{lid}"), _btn(_t(uid, "btn_back"), "results|back")])
     # v47 ECOSYSTEM cross-nav: subtle marketing — leads пользователя в смежные боты
     # когда он смотрит конкретный listing (highly intent moment).
@@ -4262,6 +4355,8 @@ def dispatch_main_button(cid, uid, rkey):
         gs(uid)["wizard"] = "deal_new"
         _send(cid, _t(uid, "deal_q"), kb_reply_deal(uid))
     elif rkey == "rbtn_ai":
+        if not _gate(uid, "smart_pick"):
+            _paywall(cid, uid, "smart_pick"); return
         show_ai_start(cid, uid)
     elif rkey == "rbtn_add":
         start_add_listing(cid, uid)
@@ -4330,13 +4425,26 @@ def dispatch_wizard_button(cid, uid, text):
             if em:
                 filters["emirate"] = em
             _push_wiz(uid, "emirate")
-            if filters.get("property_type") == "plot":
+            pt_in  = filters.get("property_type_in") or []
+            is_plot = filters.get("property_type") == "plot"
+            is_comm = any(p in COMMERCIAL_TYPES for p in pt_in)
+            is_residential_preset = bool(pt_in) and not is_comm
+            if is_plot:
+                # Plot — skip proptype, go to budget
                 state["wizard"] = "budget"
                 _send(cid, _t(uid, "budget_q"), kb_reply_budget(uid, is_plot=True))
-            elif filters.get("property_type_in"):
-                state["wizard"] = "proptype"
-                _send(cid, _t(uid, "prop_q"), kb_reply_proptype_commercial(uid))
+            elif is_comm:
+                # Commercial preset — skip proptype, go to budget
+                is_rent = filters.get("deal_type") == "rent"
+                state["wizard"] = "budget"
+                _send(cid, _t(uid, "rent_budget_q" if is_rent else "budget_q"),
+                      kb_reply_budget(uid, is_rent=is_rent, is_commercial=True))
+            elif is_residential_preset:
+                # Residential preset (apartment/villa etc) — skip proptype, go to bedrooms
+                state["wizard"] = "bedrooms"
+                _send(cid, _t(uid, "br_q"), kb_reply_bedrooms(uid))
             else:
+                # No preset — ask property type
                 state["wizard"] = "proptype"
                 _send(cid, _t(uid, "prop_q"), kb_reply_proptype_residential(uid))
             return True
@@ -5219,6 +5327,10 @@ def handle_cb(cb):
     mid  = cb["message"]["message_id"]
     uid  = cb["from"]["id"]
     data = cb.get("data", "")
+    # FSST: drop duplicate callback clicks (double-tap protection)
+    if _cb_dedup.is_dup_raw(cb):
+        _answer(cbid)
+        return
     # v112 централизованный tracking callbacks → bot_users
     try:
         from bot_user_tracker import track_user_async
@@ -5404,7 +5516,10 @@ def handle_cb(cb):
                   _kb([_btn(_t(uid, "btn_back"), "menu|main")]))
 
     elif action == "ai":
-        if parts[1] == "start": show_ai_start(cid, uid, mid)
+        if parts[1] == "start":
+            if not _gate(uid, "smart_pick"):
+                _paywall(cid, uid, "smart_pick"); return
+            show_ai_start(cid, uid, mid)
         else: handle_ai(cid, uid, mid, parts)
 
     elif action == "em":
@@ -5524,6 +5639,8 @@ def handle_cb(cb):
             _send(cid, text)
 
     elif action == "pdf":
+        if not _gate(uid, "pdf"):
+            _paywall(cid, uid, "pdf"); return
         lid = int(parts[1]) if len(parts) > 1 else 0
         listing = get_listing_by_id(lid)
         if not listing:
@@ -5536,6 +5653,180 @@ def handle_cb(cb):
         _send(cid, ack)
         threading.Thread(target=_send_pdf, args=(cid, uid, dict(listing)),
                           daemon=True).start()
+
+    # ── Subscription payment ───────────────────────────────────────────────────
+    elif action == "sub":
+        sub_type = parts[1] if len(parts) > 1 else ""
+
+        if sub_type in ("stars_month", "stars_year"):
+            # Send Telegram Stars invoice
+            try:
+                invoice = _stars_invoice_year(uid) if sub_type == "stars_year" else _stars_invoice(uid)
+                invoice["chat_id"] = cid
+                _api("sendInvoice", **invoice)
+            except Exception as e:
+                print(f"[sub] stars invoice err uid={uid}: {e}", flush=True)
+                _send(cid, "⚠️ Could not create payment. Try again later.")
+
+        elif sub_type in ("ton_month", "ton_year"):
+            # Create CryptoBot TON invoice
+            try:
+                is_year = (sub_type == "ton_year")
+                pay_url = _ton_invoice_year(uid) if is_year else _ton_invoice(uid)
+                if pay_url:
+                    lang = _get_lang(uid)
+                    amt_str = "~20 TON (~$50)" if is_year else "~2 TON (~$5)"
+                    plan_str = ("1 год" if is_year else "1 месяц") if lang == "ru" else ("1 year" if is_year else "1 month")
+                    if lang == "ru":
+                        msg = (f"💎 *Оплата TON — {plan_str}*\n\n"
+                               f"Сумма: {amt_str}\n\n"
+                               f"[Оплатить через @CryptoBot]({pay_url})\n\n"
+                               "_После оплаты подписка активируется автоматически (до 5 мин)._")
+                    else:
+                        msg = (f"💎 *TON Payment — {plan_str}*\n\n"
+                               f"Amount: {amt_str}\n\n"
+                               f"[Pay via @CryptoBot]({pay_url})\n\n"
+                               "_Subscription activates automatically after payment (up to 5 min)._")
+                    _send(cid, msg, _kb([_url_btn("💎 Open payment link", pay_url)]))
+                else:
+                    _send(cid, "⚠️ TON payments are temporarily unavailable. Please use Telegram Stars.")
+            except Exception as e:
+                print(f"[sub] ton invoice err uid={uid}: {e}", flush=True)
+                _send(cid, "⚠️ Could not create TON invoice. Try Stars payment instead.")
+
+        elif sub_type == "info":
+            lang = _get_lang(uid)
+            if lang == "ru":
+                info_text = (
+                    "⭐ *Dubai Realty Pro — $5/месяц*\n\n"
+                    "Что входит:\n"
+                    f"• 🤖 AI Умный Подбор — без лимитов (бесплатно: {_SUB_FREE_LIMIT} раз)\n"
+                    f"• 📄 Инвест-PDF отчёт — без лимитов (бесплатно: {_SUB_FREE_LIMIT} раз)\n"
+                    f"• 📊 История сделок DLD — без лимитов (бесплатно: {_SUB_FREE_LIMIT} раз)\n"
+                    f"• 👤 Контакты продавца — без лимитов (бесплатно: {_SUB_FREE_LIMIT} раз)\n\n"
+                    "Оплата:\n"
+                    "• ⭐ Telegram Stars (250 XTR) — мгновенно\n"
+                    "• 💎 TON (~2 TON) — через @CryptoBot\n\n"
+                    "_Подписка активна 30 дней. Продление — новая оплата._"
+                )
+            else:
+                info_text = (
+                    "⭐ *Dubai Realty Pro — $5/month*\n\n"
+                    "What's included:\n"
+                    f"• 🤖 AI Smart Pick — unlimited (free: {_SUB_FREE_LIMIT} uses)\n"
+                    f"• 📄 Investment PDF — unlimited (free: {_SUB_FREE_LIMIT} uses)\n"
+                    f"• 📊 DLD Deal History — unlimited (free: {_SUB_FREE_LIMIT} uses)\n"
+                    f"• 👤 Seller Contacts — unlimited (free: {_SUB_FREE_LIMIT} uses)\n\n"
+                    "Payment methods:\n"
+                    "• ⭐ Telegram Stars (250 XTR) — instant\n"
+                    "• 💎 TON (~2 TON) — via @CryptoBot\n\n"
+                    "_Subscription is valid for 30 days. Renew by paying again._"
+                )
+            raw_rows = _sub_paywall_kb_raw()
+            kb_rows = [[_btn(lbl, cb) for lbl, cb in row] for row in raw_rows]
+            _send(cid, info_text, _kb(*kb_rows) if kb_rows else None)
+
+        elif sub_type == "status":
+            # /status command via button
+            try:
+                conn = get_conn()
+                info = _sub_info(uid, conn)
+                conn.close()
+            except Exception:
+                info = {"premium": False, "expires_at": None, "usage": {}}
+            lang = _get_lang(uid)
+            if info["premium"]:
+                exp = info["expires_at"]
+                exp_str = exp.strftime("%d.%m.%Y") if exp else "?"
+                if lang == "ru":
+                    st_text = f"✅ *Подписка активна* до {exp_str}\n\nВсе функции разблокированы."
+                else:
+                    st_text = f"✅ *Subscription active* until {exp_str}\n\nAll features unlocked."
+            else:
+                usage = info.get("usage", {})
+                feat_labels = {
+                    "smart_pick": "🤖 AI Smart Pick",
+                    "pdf": "📄 PDF Report",
+                    "deals": "📊 DLD Deals",
+                    "seller_data": "👤 Seller Contacts",
+                }
+                lines = []
+                for feat, label in feat_labels.items():
+                    cnt = usage.get(feat, 0)
+                    left = max(0, _SUB_FREE_LIMIT - cnt)
+                    lines.append(f"{label}: {left}/{_SUB_FREE_LIMIT} free left")
+                usage_str = "\n".join(lines)
+                if lang == "ru":
+                    st_text = f"📊 *Статус подписки*\n\n{usage_str}\n\nПодпишитесь за $5/мес для безлимитного доступа."
+                else:
+                    st_text = f"📊 *Subscription status*\n\n{usage_str}\n\nSubscribe for $5/month for unlimited access."
+            raw_rows = _sub_paywall_kb_raw()
+            kb_rows = [[_btn(lbl, cb) for lbl, cb in row] for row in raw_rows]
+            _send(cid, st_text, _kb(*kb_rows) if kb_rows else None)
+
+    # ── Seller contacts (gated) ───────────────────────────────────────────────
+    elif action == "seller":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        if not _gate(uid, "seller_data"):
+            _paywall(cid, uid, "seller_data"); return
+        listing = get_listing_by_id(lid)
+        if not listing:
+            _api("answerCallbackQuery", callback_query_id=cb["id"],
+                 text="Listing not found", show_alert=True)
+            return
+        lang = _get_lang(uid)
+        seller   = listing.get("seller_username") or "—"
+        phone    = listing.get("phone") or "—"
+        whatsapp = listing.get("whatsapp") or phone
+        agent    = listing.get("agent_name") or "—"
+        source   = listing.get("telegram_chat_id") or ""
+        msg_id   = listing.get("telegram_message_id") or ""
+        msg_link = (f"https://t.me/{source.lstrip('@')}/{msg_id}"
+                    if source and msg_id else "—")
+        if lang == "ru":
+            seller_text = (
+                f"👤 *Данные продавца*\n\n"
+                f"👤 Продавец: {'@' + seller if seller != '—' else '—'}\n"
+                f"📞 Телефон: `{phone}`\n"
+                f"📱 WhatsApp: `{whatsapp}`\n"
+                f"👔 Агент: {agent}\n"
+                f"🔗 Объявление: {msg_link}"
+            )
+        else:
+            seller_text = (
+                f"👤 *Seller Contacts*\n\n"
+                f"👤 Seller: {'@' + seller if seller != '—' else '—'}\n"
+                f"📞 Phone: `{phone}`\n"
+                f"📱 WhatsApp: `{whatsapp}`\n"
+                f"👔 Agent: {agent}\n"
+                f"🔗 Listing: {msg_link}"
+            )
+        _send(cid, seller_text)
+
+    # ── DLD deal history for area (gated) ─────────────────────────────────────
+    elif action == "deals":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        if not _gate(uid, "deals"):
+            _paywall(cid, uid, "deals"); return
+        listing = get_listing_by_id(lid)
+        if not listing:
+            _api("answerCallbackQuery", callback_query_id=cb["id"],
+                 text="Listing not found", show_alert=True)
+            return
+        area = listing.get("area") or listing.get("emirate") or "Dubai"
+        lang = _get_lang(uid)
+        ack_txt = {"en": "📊 Loading deal data…", "ru": "📊 Загружаю сделки…"}.get(lang, "📊 Loading…")
+        _send(cid, ack_txt)
+        summary = get_market_summary(area)
+        if summary:
+            if lang == "ru":
+                header = f"📊 *Сделки DLD — {area}*"
+            else:
+                header = f"📊 *DLD Market Data — {area}*"
+            _send(cid, f"{header}\n{summary}")
+        else:
+            no_data = {"en": f"📊 No DLD data available for *{area}* yet.", "ru": f"📊 Данные по *{area}* пока недоступны."}.get(lang, f"No DLD data for {area}.")
+            _send(cid, no_data)
 
     elif action == "similar":
         lid = int(parts[1]) if len(parts) > 1 else 0
@@ -5914,6 +6205,41 @@ def handle_msg(msg):
                   _reply_with_skip_cancel(uid))
             return
 
+    # ── Stars successful_payment ───────────────────────────────────────────────
+    if msg.get("successful_payment"):
+        sp = msg["successful_payment"]
+        payload = sp.get("invoice_payload", "")
+        if payload.startswith("sub_stars_"):
+            is_year = "_year_" in payload
+            days    = _SUB_DAYS_YEAR if is_year else _SUB_DAYS_MONTH
+            try:
+                charge_id = sp.get("telegram_payment_charge_id", "")
+                conn = get_conn()
+                exp = _sub_activate(uid, "stars", charge_id, conn,
+                                    days=days,
+                                    amount_stars=sp.get("total_amount"),
+                                    amount_usd=_USD_PRICE_YEAR if is_year else _USD_PRICE_MONTH)
+                conn.close()
+                lang = _get_lang(uid)
+                exp_str = exp.strftime("%d.%m.%Y") if exp else "?"
+                plan_lbl = ("1 год" if is_year else "1 месяц") if lang == "ru" else ("1 year" if is_year else "1 month")
+                if lang == "ru":
+                    ok_txt = (f"✅ *Подписка активирована!*\n\n"
+                              f"Dubai Realty Pro · {plan_lbl}\n"
+                              f"Активна до *{exp_str}*.\n"
+                              f"Все функции разблокированы 🚀")
+                else:
+                    ok_txt = (f"✅ *Subscription activated!*\n\n"
+                              f"Dubai Realty Pro · {plan_lbl}\n"
+                              f"Active until *{exp_str}*.\n"
+                              f"All features unlocked 🚀")
+                _send(cid, ok_txt)
+                print(f"[sub] Stars payment OK uid={uid} plan={'year' if is_year else 'month'} charge={charge_id}", flush=True)
+            except Exception as e:
+                print(f"[sub] Stars activate err uid={uid}: {e}", flush=True)
+                _send(cid, "✅ Payment received! Your subscription will be activated shortly.")
+        return
+
     if not text:
         return
 
@@ -6229,6 +6555,8 @@ def handle_msg(msg):
             if uid != ADMIN_ID:
                 _send(cid, "Access denied."); return
             show_admin_menu(cid, uid)
+        elif cmd == "subscribe":
+            _paywall(cid, uid, "smart_pick")
         elif cmd == "add":   start_add_listing(cid, uid)
         elif cmd == "help":
             _send(cid,
@@ -6366,13 +6694,22 @@ def handle_msg(msg):
 
 # ── Polling ───────────────────────────────────────────────────────────────────
 def run_bot():
+    # FSST: health endpoint + graceful SIGTERM
+    if _fsst_ok:
+        start_health_server(bot_name="resale-bot")
+        _stop = [False]
+        setup_sigterm(_stop, "resale-bot")
+    else:
+        _stop = [False]
+
     print("[bot] Starting polling...")
     offset = 0
-    while True:
+    while not _stop[0]:
         try:
             r = requests.get(f"{API}/getUpdates",
                 params={"offset": offset, "timeout": 30,
-                        "allowed_updates": ["message", "callback_query"]},
+                        "allowed_updates": ["message", "callback_query",
+                                            "pre_checkout_query"]},
                 timeout=35)
             data = r.json()
             if not data.get("ok"): time.sleep(5); continue
@@ -6387,6 +6724,15 @@ def run_bot():
                         _b031_handler = "handle_cb"
                         _b031_payload = upd["callback_query"].get("data", "")[:200]
                         handle_cb(upd["callback_query"])
+                    elif "pre_checkout_query" in upd:
+                        # Stars payment: always answer OK to approve
+                        pcq = upd["pre_checkout_query"]
+                        _b031_uid = pcq["from"]["id"]
+                        _b031_handler = "pre_checkout"
+                        _b031_payload = pcq.get("invoice_payload", "")
+                        _api("answerPreCheckoutQuery",
+                             pre_checkout_query_id=pcq["id"],
+                             ok=True)
                     elif "message" in upd:
                         _b031_uid = upd["message"]["from"]["id"]
                         _b031_handler = "handle_msg"

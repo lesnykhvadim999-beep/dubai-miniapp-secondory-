@@ -39,10 +39,9 @@ MAX_TOKENS = 256
 WORKERS    = 5   # concurrent API calls
 
 # ── DB ────────────────────────────────────────────────────────────────────────
-DB_URL = os.environ.get(
-    "DATABASE_URL",
-    "REDACTED_DSN_USE_DATABASE_URL_ENV",
-)
+DB_URL = os.environ.get("DATABASE_URL")
+if not DB_URL:
+    raise RuntimeError("DATABASE_URL required")
 
 # ── CLI flags ─────────────────────────────────────────────────────────────────
 DRY_RUN = "--dry-run" in sys.argv

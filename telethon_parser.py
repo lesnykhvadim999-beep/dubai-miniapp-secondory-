@@ -34,8 +34,13 @@ from parser_engine import parse_message, is_spam, ai_parse_listing, merge_ai_wit
 from db_schema import upsert_listing, save_images, log_sync, get_last_parsed_message_id, get_conn
 
 # ── Config ────────────────────────────────────────────────────────────────────
-TELETHON_API_ID   = int(os.environ.get("TELEGRAM_API_ID", "39535588"))
-TELETHON_API_HASH = os.environ.get("TELEGRAM_API_HASH", "e48ee11a80b4ede45dbe097cfbf916ff")
+_API_ID_RAW = os.environ.get("TELEGRAM_API_ID")
+if not _API_ID_RAW:
+    raise RuntimeError("TELEGRAM_API_ID required")
+TELETHON_API_ID   = int(_API_ID_RAW)
+TELETHON_API_HASH = os.environ.get("TELEGRAM_API_HASH")
+if not TELETHON_API_HASH:
+    raise RuntimeError("TELEGRAM_API_HASH required")
 SESSION_STRING    = os.environ.get("SESSION_STRING", "")
 
 # Channels to parse — extend by adding @username strings here.
@@ -68,7 +73,7 @@ BOT_API_UPLOAD   = f"https://api.telegram.org/bot{BOT_TOKEN_UPLOAD}"
 # Используем Saved Messages (chat_id=user_id) вместо admin чата
 # чтобы фото не мелькали в основном чате
 # Для получения своего Saved Messages chat_id = тот же что и user_id
-UPLOAD_CHAT_ID   = int(os.environ.get("PHOTO_BUFFER_CHAT_ID", "353806371"))
+UPLOAD_CHAT_ID   = int(os.environ.get("PHOTO_BUFFER_CHAT_ID") or os.environ.get("UPLOAD_CHAT_ID") or "353806371")
 
 
 # ── БАГ A FIX: реальный последний message_id из listings ─────────────────────
@@ -186,11 +191,15 @@ async def parse_channel(client, channel: str, backfill: bool = False,
             # Incremental: берём реальный максимум из БД (не из sync_log!)
             real_last = get_real_last_message_id(channel)
             sync_last = get_last_parsed_message_id(channel) or 0
-            # B053 v2: санитизируем sync_last — аномальные ID > 10M (от retro-parser)
-            # игнорируем, чтобы они не перебивали корректный real_last из listings
-            if sync_last > 10_000_000:
+            # B053 v3: санитизируем sync_last если он НАМНОГО опережает db_max
+            # (признак аномалии от retro-parser: 76M для fliplux, 1.8M для secondary_dubai)
+            # Порог: sync_last > real_last + 500_000 → явно устаревшее/чужое значение
+            if real_last > 0 and sync_last > real_last + 500_000:
+                print(f"[telethon] sync_log {sync_last} >> db_max {real_last} (разрыв >{sync_last - real_last}) — аномалия, сбрасываем на db_max")
+                sync_last = real_last
+            elif sync_last > 10_000_000:
                 print(f"[telethon] sync_log ID {sync_last} аномальный (>10M) — игнорируем, используем db_max={real_last}")
-                sync_last = 0
+                sync_last = real_last
             min_id = max(real_last, sync_last)
             offset_date = None
             if min_id > 0:

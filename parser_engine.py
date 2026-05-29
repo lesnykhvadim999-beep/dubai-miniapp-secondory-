@@ -64,52 +64,52 @@ EMIRATES = {
 # ══════════════════════════════════════════════════════════════════════════════
 AREAS = {
     # Dubai
-    "Downtown Dubai":            {"emirate": "Dubai",     "aliases": ["downtown", "dt", "dtdxb", "burj khalifa area", "old town"]},
-    "Business Bay":              {"emirate": "Dubai",     "aliases": ["bb", "biz bay", "businessbay", "бизнес бей", "бизнес-бей", "бизнес бэй"]},
-    "Dubai Marina":              {"emirate": "Dubai",     "aliases": ["marina", "dm", "the marina"]},
-    "Palm Jumeirah":             {"emirate": "Dubai",     "aliases": ["palm", "pj", "the palm", "palm jumeriah", "palm jumeira"]},
-    "Jumeirah Village Circle":   {"emirate": "Dubai",     "aliases": ["jvc", "jumeirah village", "jumeirah village circle"]},
-    "Jumeirah Village Triangle": {"emirate": "Dubai",     "aliases": ["jvt"]},
-    "Jumeirah Beach Residence":  {"emirate": "Dubai",     "aliases": ["jbr", "the walk", "jumeirah beach"]},
-    "Dubai Hills Estate":        {"emirate": "Dubai",     "aliases": ["dubai hills", "dhe"]},
-    "Dubai Creek Harbour":       {"emirate": "Dubai",     "aliases": ["creek harbour", "dch", "dubai creek harbour"]},
-    "MBR City":                  {"emirate": "Dubai",     "aliases": ["mbr", "mohammed bin rashid city", "meydan one"]},
-    "Meydan":                    {"emirate": "Dubai",     "aliases": ["meydan city", "nad al sheba"]},
-    "Emaar South":               {"emirate": "Dubai",     "aliases": ["emaar south"]},
-    "Al Furjan":                 {"emirate": "Dubai",     "aliases": ["furjan", "al-furjan"]},
-    "Arjan":                     {"emirate": "Dubai",     "aliases": ["arjan", "arjan dubailand"]},
-    "DAMAC Hills":               {"emirate": "Dubai",     "aliases": ["damac hills", "akoya"]},
-    "DAMAC Hills 2":             {"emirate": "Dubai",     "aliases": ["damac hills 2", "akoya oxygen"]},
-    "Bluewaters Island":         {"emirate": "Dubai",     "aliases": ["bluewaters", "blue waters"]},
-    "Dubai South":               {"emirate": "Dubai",     "aliases": ["dubai world central", "dwc", "expo city"]},
-    "Jumeirah":                  {"emirate": "Dubai",     "aliases": ["jumeira", "jumeirah 1", "jumeirah 2", "jumeirah 3"]},
-    "Sports City":               {"emirate": "Dubai",     "aliases": ["dsc", "dubai sports city"]},
-    "Silicon Oasis":             {"emirate": "Dubai",     "aliases": ["dso", "dubai silicon oasis"]},
-    "International City":        {"emirate": "Dubai",     "aliases": ["ic", "intl city", "dragon mart"]},
-    "Dubai Harbour":             {"emirate": "Dubai",     "aliases": ["harbour", "dubai harbour"]},
-    "City Walk":                 {"emirate": "Dubai",     "aliases": ["cw", "citywalk"]},
-    "DIFC":                      {"emirate": "Dubai",     "aliases": ["dubai international financial centre", "financial centre"]},
-    "Barsha Heights":            {"emirate": "Dubai",     "aliases": ["tecom", "al barsha heights"]},
-    "Al Barsha":                 {"emirate": "Dubai",     "aliases": ["al barsha", "barsha", "al barsha 1", "al barsha 2", "al barsha 3"]},
-    "Sobha Hartland":            {"emirate": "Dubai",     "aliases": ["sobha", "hartland", "sobha hartland 2"]},
-    "Motor City":                {"emirate": "Dubai",     "aliases": ["motorcity"]},
-    "La Mer":                    {"emirate": "Dubai",     "aliases": ["la mer", "la mer jumeirah"]},
-    "Discovery Gardens":         {"emirate": "Dubai",     "aliases": ["dg", "discovery gardens"]},
-    "The Valley":                {"emirate": "Dubai",     "aliases": ["emaar valley", "valley"]},
-    "Dubailand":                 {"emirate": "Dubai",     "aliases": ["dubai land", "liwan", "villanova"]},
-    "Arabian Ranches":           {"emirate": "Dubai",     "aliases": ["arabian ranches", "arabian ranch"]},
-    "Arabian Ranches 2":         {"emirate": "Dubai",     "aliases": ["arabian ranches 2", "ar2"]},
-    "Arabian Ranches 3":         {"emirate": "Dubai",     "aliases": ["arabian ranches 3", "ar3"]},
-    "Tilal Al Ghaf":             {"emirate": "Dubai",     "aliases": ["tilal al ghaf", "tilal"]},
-    "DAMAC Lagoons":             {"emirate": "Dubai",     "aliases": ["damac lagoons"]},
-    "Mudon":                     {"emirate": "Dubai",     "aliases": ["mudon"]},
-    "Town Square":               {"emirate": "Dubai",     "aliases": ["town square", "nshama"]},
-    "Jumeirah Golf Estates":     {"emirate": "Dubai",     "aliases": ["jge", "jumeirah golf"]},
-    "Emirates Hills":            {"emirate": "Dubai",     "aliases": ["emirates hills"]},
-    "The Meadows":               {"emirate": "Dubai",     "aliases": ["meadows"]},
-    "The Springs":               {"emirate": "Dubai",     "aliases": ["springs"]},
-    "The Lakes":                 {"emirate": "Dubai",     "aliases": ["lakes"]},
-    "The Greens":                {"emirate": "Dubai",     "aliases": ["greens"]},
+    "Downtown Dubai":            {"emirate": "Dubai",     "aliases": ["downtown", "dt", "dtdxb", "burj khalifa area", "old town", "داون تاون", "دونتاون", "داونتاون", "وسط مدينة دبي", "وسط دبي", "داون تاون دبي"]},
+    "Business Bay":              {"emirate": "Dubai",     "aliases": ["bb", "biz bay", "businessbay", "бизнес бей", "бизнес-бей", "бизнес бэй", "بيزنس باي", "بزنس باي", "بيزنس بي", "business bay dubai"]},
+    "Dubai Marina":              {"emirate": "Dubai",     "aliases": ["marina", "dm", "the marina", "دبي مارينا", "مارينا دبي", "dubai marina walk", "marina dubai"]},
+    "Palm Jumeirah":             {"emirate": "Dubai",     "aliases": ["palm", "pj", "the palm", "palm jumeriah", "palm jumeira", "نخلة جميرا", "النخلة", "جميرا بالم", "palm jbr"]},
+    "Jumeirah Village Circle":   {"emirate": "Dubai",     "aliases": ["jvc", "jumeirah village", "jumeirah village circle", "جميرا فيلدج سيركل", "جي في سي"]},
+    "Jumeirah Village Triangle": {"emirate": "Dubai",     "aliases": ["jvt", "جميرا فيلدج ترايانجل"]},
+    "Jumeirah Beach Residence":  {"emirate": "Dubai",     "aliases": ["jbr", "the walk", "jumeirah beach", "جميرا بيتش ريزيدنس", "جي بي آر"]},
+    "Dubai Hills Estate":        {"emirate": "Dubai",     "aliases": ["dubai hills", "dhe", "دبي هيلز", "دبي هيلز استيت", "هيلز دبي"]},
+    "Dubai Creek Harbour":       {"emirate": "Dubai",     "aliases": ["creek harbour", "dch", "dubai creek harbour", "دبي كريك هاربور", "كريك هاربور", "خور دبي"]},
+    "MBR City":                  {"emirate": "Dubai",     "aliases": ["mbr", "mohammed bin rashid city", "meydan one", "mbrCity", "مدينة محمد بن راشد", "mbr city"]},
+    "Meydan":                    {"emirate": "Dubai",     "aliases": ["meydan city", "nad al sheba", "ميدان", "مدينة ميدان"]},
+    "Emaar South":               {"emirate": "Dubai",     "aliases": ["emaar south", "إعمار الجنوب"]},
+    "Al Furjan":                 {"emirate": "Dubai",     "aliases": ["furjan", "al-furjan", "الفرجان", "فرجان"]},
+    "Arjan":                     {"emirate": "Dubai",     "aliases": ["arjan", "arjan dubailand", "أرجان"]},
+    "DAMAC Hills":               {"emirate": "Dubai",     "aliases": ["damac hills", "akoya", "داماك هيلز", "اكويا"]},
+    "DAMAC Hills 2":             {"emirate": "Dubai",     "aliases": ["damac hills 2", "akoya oxygen", "داماك هيلز 2"]},
+    "Bluewaters Island":         {"emirate": "Dubai",     "aliases": ["bluewaters", "blue waters", "بلووترز", "جزيرة بلووترز"]},
+    "Dubai South":               {"emirate": "Dubai",     "aliases": ["dubai world central", "dwc", "expo city", "دبي الجنوب", "المدينة الجنوبية"]},
+    "Jumeirah":                  {"emirate": "Dubai",     "aliases": ["jumeira", "jumeirah 1", "jumeirah 2", "jumeirah 3", "جميرا", "جميرة"]},
+    "Sports City":               {"emirate": "Dubai",     "aliases": ["dsc", "dubai sports city", "المدينة الرياضية", "مدينة دبي الرياضية"]},
+    "Silicon Oasis":             {"emirate": "Dubai",     "aliases": ["dso", "dubai silicon oasis", "واحة السيليكون", "دبي السيليكون"]},
+    "International City":        {"emirate": "Dubai",     "aliases": ["ic", "intl city", "dragon mart", "المدينة الدولية", "إنترناشيونال سيتي"]},
+    "Dubai Harbour":             {"emirate": "Dubai",     "aliases": ["harbour", "dubai harbour", "دبي هاربور", "ميناء دبي"]},
+    "City Walk":                 {"emirate": "Dubai",     "aliases": ["cw", "citywalk", "سيتي ووك", "سيتي ووك دبي"]},
+    "DIFC":                      {"emirate": "Dubai",     "aliases": ["dubai international financial centre", "financial centre", "مركز دبي المالي العالمي", "المركز المالي"]},
+    "Barsha Heights":            {"emirate": "Dubai",     "aliases": ["tecom", "al barsha heights", "بارشا هايتس", "تيكوم"]},
+    "Al Barsha":                 {"emirate": "Dubai",     "aliases": ["al barsha", "barsha", "al barsha 1", "al barsha 2", "al barsha 3", "البرشاء", "برشاء"]},
+    "Sobha Hartland":            {"emirate": "Dubai",     "aliases": ["sobha", "hartland", "sobha hartland 2", "صوبها هارتلاند", "صوبها", "سوبها هارتلاند", "هارتلاند دبي"]},
+    "Motor City":                {"emirate": "Dubai",     "aliases": ["motorcity", "موتور سيتي"]},
+    "La Mer":                    {"emirate": "Dubai",     "aliases": ["la mer", "la mer jumeirah", "لا مير", "لا مير جميرا"]},
+    "Discovery Gardens":         {"emirate": "Dubai",     "aliases": ["dg", "discovery gardens", "ديسكفري جاردنز", "حدائق الاكتشاف"]},
+    "The Valley":                {"emirate": "Dubai",     "aliases": ["emaar valley", "valley", "ذا فالي", "الوادي"]},
+    "Dubailand":                 {"emirate": "Dubai",     "aliases": ["dubai land", "liwan", "villanova", "دبي لاند", "أراضي دبي"]},
+    "Arabian Ranches":           {"emirate": "Dubai",     "aliases": ["arabian ranches", "arabian ranch", "المرابع العربية", "مرابع عربية"]},
+    "Arabian Ranches 2":         {"emirate": "Dubai",     "aliases": ["arabian ranches 2", "ar2", "المرابع العربية 2"]},
+    "Arabian Ranches 3":         {"emirate": "Dubai",     "aliases": ["arabian ranches 3", "ar3", "المرابع العربية 3"]},
+    "Tilal Al Ghaf":             {"emirate": "Dubai",     "aliases": ["tilal al ghaf", "tilal", "تلال الغاف", "تلال"]},
+    "DAMAC Lagoons":             {"emirate": "Dubai",     "aliases": ["damac lagoons", "داماك لاغونز", "بحيرات داماك"]},
+    "Mudon":                     {"emirate": "Dubai",     "aliases": ["mudon", "مدن"]},
+    "Town Square":               {"emirate": "Dubai",     "aliases": ["town square", "nshama", "تاون سكوير", "نشامة"]},
+    "Jumeirah Golf Estates":     {"emirate": "Dubai",     "aliases": ["jge", "jumeirah golf", "جميرا غولف استيتس", "جي جي إي"]},
+    "Emirates Hills":            {"emirate": "Dubai",     "aliases": ["emirates hills", "تلال الإمارات", "تلال امارات"]},
+    "The Meadows":               {"emirate": "Dubai",     "aliases": ["meadows", "ذا ميدوز"]},
+    "The Springs":               {"emirate": "Dubai",     "aliases": ["springs", "ذا سبرينغز"]},
+    "The Lakes":                 {"emirate": "Dubai",     "aliases": ["lakes", "ذا ليكس"]},
+    "The Greens":                {"emirate": "Dubai",     "aliases": ["greens", "ذا غرينز"]},
     "The Views":                 {"emirate": "Dubai",     "aliases": ["views"]},
     "Bur Dubai":                 {"emirate": "Dubai",     "aliases": ["bur dubai", "burdubai"]},
     "Deira":                     {"emirate": "Dubai",     "aliases": ["deira"]},
@@ -853,6 +853,13 @@ SALE_MIN_PRICE: dict = {
         "Jumeirah Village Circle":  350_000,
         "Dubai Hills Estate":       600_000,
         "Emaar Beachfront":       1_000_000,
+        "Sobha Hartland":           500_000,
+        "MBR City":                 500_000,
+        "Dubai Creek Harbour":      500_000,
+        "Bluewaters Island":        900_000,
+        "City Walk":                700_000,
+        "DIFC":                     700_000,
+        "Jumeirah Beach Residence": 800_000,
     },
     1: {
         "default":                  600_000,
@@ -863,6 +870,17 @@ SALE_MIN_PRICE: dict = {
         "Jumeirah Village Circle":  550_000,
         "Dubai Hills Estate":       900_000,
         "Emaar Beachfront":       1_500_000,
+        "Sobha Hartland":           900_000,
+        "MBR City":               1_000_000,
+        "Dubai Creek Harbour":      900_000,
+        "Bluewaters Island":      1_500_000,
+        "City Walk":              1_200_000,
+        "DIFC":                   1_200_000,
+        "Jumeirah Beach Residence": 1_200_000,
+        "Meydan":                   700_000,
+        "Al Furjan":                500_000,
+        "Silicon Oasis":            400_000,
+        "International City":       300_000,
     },
     2: {
         "default":                  900_000,
@@ -872,6 +890,16 @@ SALE_MIN_PRICE: dict = {
         "Business Bay":           1_200_000,
         "Dubai Hills Estate":     1_500_000,
         "Emaar Beachfront":       2_500_000,
+        "Sobha Hartland":         1_400_000,
+        "MBR City":               1_600_000,
+        "Dubai Creek Harbour":    1_400_000,
+        "Bluewaters Island":      2_500_000,
+        "City Walk":              2_000_000,
+        "DIFC":                   1_800_000,
+        "Jumeirah Beach Residence": 1_800_000,
+        "Jumeirah Village Circle":  800_000,
+        "Al Furjan":                750_000,
+        "Silicon Oasis":            600_000,
     },
     3: {
         "default":              1_400_000,
@@ -881,6 +909,16 @@ SALE_MIN_PRICE: dict = {
         "Dubai Hills Estate":   2_500_000,
         "The Valley":           1_800_000,
         "DAMAC Hills":          1_500_000,
+        "Sobha Hartland":       2_200_000,
+        "MBR City":             2_500_000,
+        "Dubai Creek Harbour":  2_200_000,
+        "Bluewaters Island":    4_000_000,
+        "Jumeirah Village Circle": 1_200_000,
+        "Al Furjan":            1_200_000,
+        "Arabian Ranches":      2_500_000,
+        "Arabian Ranches 2":    2_000_000,
+        "Arabian Ranches 3":    1_800_000,
+        "Tilal Al Ghaf":        2_000_000,
     },
     4: {
         "default":              2_500_000,
@@ -888,6 +926,12 @@ SALE_MIN_PRICE: dict = {
         "Dubai Hills Estate":   4_000_000,
         "The Valley":           2_500_000,
         "Arabian Ranches":      3_500_000,
+        "Arabian Ranches 2":    3_000_000,
+        "Arabian Ranches 3":    2_500_000,
+        "Sobha Hartland":       3_500_000,
+        "Tilal Al Ghaf":        3_000_000,
+        "DAMAC Hills":          2_500_000,
+        "Jumeirah":             5_000_000,
     },
 }
 
@@ -908,6 +952,11 @@ _HARD_RENT_KW_PE = [
     r'\b/month\b', r'\b/мес\b', r'\b/год\b',
     r'\bаренда\b', r'\bснять\b', r'\bсниму\b', r'\bсдам\b',
     r'\bсдается\b', r'\bсдаётся\b',
+    # Arabic rent keywords
+    r'للإيجار', r'للتأجير', r'\bإيجار\b', r'\bمؤجر\b', r'\bمؤجرة\b',
+    r'\bسنوياً?\b', r'\bشهرياً?\b', r'\bسنوي\b', r'\bشهري\b',
+    r'\bتأجير\b', r'إيجاره\b', r'إيجارها\b',
+    r'قابل\s+للإيجار', r'متاح\s+للإيجار',
 ]
 _HARD_SALE_KW_PE = [
     r'\bfor sale\b', r'\bselling\b', r'\bresale\b', r'\bsale price\b',
@@ -918,6 +967,12 @@ _HARD_SALE_KW_PE = [
     r'\boff[\s\-]?plan\b', r'\bdeveloper\s*:', r'\bproject\s*:',
     r'\bпродажа\b', r'\bпродам\b', r'\bпродаётся\b',
     r'\bbuy\b', r'\bbuying\b',
+    # Arabic sale keywords
+    r'للبيع', r'\bبيع\b', r'\bيُباع\b', r'\bيباع\b',
+    r'خطة\s+الدفع', r'خطة\s+دفع', r'على\s+المخطط',
+    r'تحت\s+الإنشاء', r'وحدة\s+للبيع',
+    r'سعر\s+البيع', r'سعر\s+الطلب', r'سعر\s+البيع\b',
+    r'بيع\s+عاجل', r'تنازل', r'\bمشروع\b',
 ]
 
 
@@ -2423,6 +2478,38 @@ def extract_bedrooms(text: str) -> Optional[int]:
     # Studio only if no numeric pattern found
     if re.search(r'\bstudio\b|\bstd\b', tl):
         return 0
+    # ── Arabic bedroom patterns ──────────────────────────────────────────────
+    # Western digits + Arabic room words: "1 غرفة نوم", "2 غرف نوم", "3 غرف"
+    m = re.search(r'(\d+)\s*غرف(?:\s*نوم)?\b', tl)
+    if m:
+        v = _ok(int(m.group(1)))
+        if v is not None: return v
+    m = re.search(r'(\d+)\s*غرفة\s*نوم', tl)
+    if m:
+        v = _ok(int(m.group(1)))
+        if v is not None: return v
+    # Arabic-Indic numerals + room words: ١ غرفة, ٢ غرف, etc.
+    m = re.search(r'([١٢٣٤٥٦٧٨٩])\s*غرف(?:\s*نوم)?\b', tl)
+    if m:
+        _ai = {'١': 1, '٢': 2, '٣': 3, '٤': 4, '٥': 5, '٦': 6, '٧': 7, '٨': 8, '٩': 9}
+        v = _ok(_ai.get(m.group(1), 0))
+        if v is not None and v > 0: return v
+    # Arabic word numbers before/after غرف
+    _AR_WORD_BR = {
+        'واحدة': 1, 'واحد': 1, 'غرفتين': 2, 'غرفتان': 2,
+        'اثنتين': 2, 'اثنين': 2, 'ثلاث': 3, 'ثلاثة': 3,
+        'أربع': 4, 'أربعة': 4, 'خمس': 5, 'خمسة': 5,
+    }
+    for _aw, _an in _AR_WORD_BR.items():
+        if re.search(rf'{_aw}\s*غرف(?:\s*نوم)?\b', tl) or \
+           re.search(rf'\bغرف(?:\s*نوم)?\s*{_aw}\b', tl):
+            return _an
+    # "غرفتين" standalone = 2 bedrooms
+    if re.search(r'\bغرفتين\b|\bغرفتان\b', tl):
+        return 2
+    # Arabic studio: ستوديو / استوديو
+    if re.search(r'\bستوديو\b|\baستوديو\b|\bاستوديو\b', tl):
+        return 0
     return None
     # "Unit: X Bedroom" format
 def extract_size(text: str) -> dict:
@@ -3504,13 +3591,24 @@ def extract_property_type(text: str, bedrooms: Optional[int] = None) -> str:
             return "studio"
 
     # 2. Villa (explicit, not "apartment in villa community")
-    if re.search(r'\b(?:villa|вилла|виллы|detached\s+villa|independent\s+villa)\b',
-                 head_stripped, re.I):
-        # guard: "apartment in <area> villa community" — это apartment
-        if not re.search(
-            r'\b(?:apartment|apt|flat|unit|residence)\b[^.\n]{0,40}\bvilla\s+(?:community|complex|compound)\b',
+    _villa_match = re.search(r'\b(?:villa|вилла|виллы|detached\s+villa|independent\s+villa)\b',
+                              head_stripped, re.I)
+    if _villa_match:
+        _villa_pos = _villa_match.start()
+        # Guard A: "apartment/apt/flat/unit/studio" BEFORE villa in text → it's an apartment
+        # e.g. "2BR Apartment in Villa Nova, JVC" → apartment
+        _apt_before = re.search(r'\b(?:apartment|apt|flat|unit|studio)\b',
+                                 head_stripped[:_villa_pos], re.I)
+        # Guard B: "apartment in <area> villa community/complex/compound" pattern
+        _apt_villa_community = re.search(
+            r'\b(?:apartment|apt|flat|unit|residence)\b[^.\n]{0,60}'
+            r'\bvilla\s+(?:community|complex|compound|project|district|homes?|residences?)\b',
             head_stripped, re.I,
-        ):
+        )
+        # Guard C: explicitly mentions BR/BHK before villa, no sale context for villa
+        # e.g. "1BR in Damac Villas Paramount" — common apartment-in-villa-project pattern
+        _br_before_villa = re.search(r'\b\d+\s*(?:br|bhk|bedroom)\b', head_stripped[:_villa_pos], re.I)
+        if not _apt_before and not _apt_villa_community and not _br_before_villa:
             return "villa"
 
     # 3. Townhouse / TH
@@ -4840,6 +4938,47 @@ def parse_message(
         except Exception as _e:
             print(f"[parser] LLM fallback err: {_e}")
 
+    # ── GUARD A: building must appear in THIS listing's text ─────────────────
+    # Prevents cross-contamination from adjacent listings in multi-posts.
+    # e.g. "The Opus" appearing in a JVC Seasons Community listing because
+    # the same Telegram post contained both. Hard rule: if building name
+    # (≥6 chars) is nowhere in the chunk text → it's from a neighbour → NULL.
+    # Short codes (<6 chars: JBR, DIFC, etc.) are allowed to pass.
+    if data.get("building") and text:
+        _bld_lower = data["building"].strip().lower()
+        _txt_lower = text.lower()
+        if len(_bld_lower) >= 6 and _bld_lower not in _txt_lower:
+            # Check aliases too before nulling
+            _has_alias = False
+            if BUILDINGS_DB:
+                _bdata = BUILDINGS_DB.get(data["building"], {})
+                for _alias in _bdata.get("aliases", []):
+                    if _alias.lower() in _txt_lower:
+                        _has_alias = True
+                        break
+            if not _has_alias:
+                print(f"[parser] GUARD_A: building {data['building']!r} not in text → NULL", flush=True)
+                data["building"] = None
+                data["building_confidence"] = 0.0
+                _gr = (data.get("review_reason") or "")
+                data["review_reason"] = (_gr + "; building_not_in_text").lstrip("; ")
+
+    # ── GUARD B: plot_sqft only for plot/villa/townhouse/whole_building ───────
+    # Prevents plot size from villa in same multi-post contaminating apartment.
+    _PLOT_PROP_TYPES = {"plot", "villa", "townhouse", "whole_building"}
+    if data.get("plot_sqft") and \
+            (data.get("property_type") or "").lower() not in _PLOT_PROP_TYPES:
+        data["plot_sqft"] = None
+
+    # ── Hard gate: NULL price или NULL area → не сохранять вообще ───────────
+    # Объявление без цены или района бесполезно для пользователя — пропускаем.
+    if not data.get("price"):
+        print(f"[parser] SKIP: no price in listing", flush=True)
+        return None
+    if not data.get("area") or not str(data.get("area")).strip():
+        print(f"[parser] SKIP: no area in listing", flush=True)
+        return None
+
     # ── Quality gate: NULL building → отправить в audit (не публикуем) ─────
     # Пользователь договорился: лучше меньше но качественных объявлений.
     # Если building всё ещё пустой даже после LLM — audit.
@@ -5115,6 +5254,93 @@ def _apply_qgate_corrections(data: dict, corrections: dict) -> dict:
 _BENCH_CACHE: dict = {}  # (area_lc, pt, br, deal) -> (median, sample_size)
 _BENCH_LOADED = False
 _BENCH_DEVIATION_THRESHOLD = 0.40  # 40% off median ⇒ suspicious
+
+# ── B050: Tier-median gate (uses clean building_tier medians, 20% threshold) ──
+_TIER_MED_CACHE: dict = {}   # (area_lc, pt, deal, br) -> (median, cnt)
+_TIER_MED_LOADED = False
+_TIER_MED_THRESHOLD = 0.20   # 20% off tier-0 median → manual_review
+
+
+def _tier_med_load() -> None:
+    """Load tier-0 medians from listings table into memory. Called once."""
+    global _TIER_MED_LOADED
+    if _TIER_MED_LOADED:
+        return
+    dsn = os.environ.get("DATABASE_URL", "")
+    if not dsn:
+        _TIER_MED_LOADED = True
+        return
+    try:
+        import psycopg2 as _pg
+        conn = _pg.connect(dsn, connect_timeout=5)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT area, property_type, deal_type, bedrooms,
+                   PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) AS median,
+                   COUNT(*) AS cnt
+            FROM listings
+            WHERE is_active AND price > 0 AND bedrooms IS NOT NULL
+              AND building_tier = 0
+            GROUP BY area, property_type, deal_type, bedrooms
+            HAVING COUNT(*) >= 4
+        """)
+        n = 0
+        for area, pt, dt, br, med, cnt in cur.fetchall():
+            key = (str(area).strip().lower(),
+                   str(pt).strip().lower(),
+                   str(dt).strip().lower(),
+                   int(br) if br is not None else None)
+            try:
+                med_f = float(med) if med is not None else None
+            except Exception:
+                med_f = None
+            if med_f and med_f > 0:
+                _TIER_MED_CACHE[key] = (med_f, int(cnt or 0))
+                n += 1
+        cur.close(); conn.close()
+        print(f"[tier_gate] loaded {n} tier-0 median rows")
+    except Exception as _e:
+        print(f"[tier_gate] load error: {_e}")
+    _TIER_MED_LOADED = True
+
+
+def _check_tier_median_gate(data: dict) -> Optional[str]:
+    """B050: flag if price deviates >20% from tier-0 peer-group median.
+
+    Returns reason string or None. Fail-safe: any exception → None.
+    """
+    try:
+        _tier_med_load()
+        if not _TIER_MED_CACHE:
+            return None
+        price = data.get("price")
+        if not price or price <= 0:
+            return None
+        area_lc = (data.get("area") or "").strip().lower()
+        if not area_lc:
+            return None
+        pt = (data.get("property_type") or "").strip().lower()
+        if pt not in ("apartment", "villa", "townhouse", "penthouse", "studio",
+                      "duplex", "penthouse"):
+            return None
+        deal = (data.get("deal_type") or "sale").strip().lower()
+        br = data.get("bedrooms")
+        if isinstance(br, float):
+            br = int(br)
+        key = (area_lc, pt, deal, br)
+        entry = _TIER_MED_CACHE.get(key)
+        if not entry:
+            return None
+        median, cnt = entry
+        deviation = abs(price - median) / median
+        if deviation > _TIER_MED_THRESHOLD:
+            pct = int(deviation * 100)
+            direction = "above" if price > median else "below"
+            return (f"tier_median_{pct}pct_{direction}_median"
+                    f"_{int(median/1000)}k_n{cnt}")
+        return None
+    except Exception:
+        return None
 
 
 def _bench_norm_area(area: str | None) -> str | None:
@@ -5557,6 +5783,15 @@ def _validate_listing_strict(data: dict) -> list:
     except Exception:
         pass
 
+    # B050: tier-median gate — 20% from clean building_tier peer-group median.
+    # More precise than B038 (uses our own DB medians, freshly cleaned to 100%).
+    try:
+        tier_reason = _check_tier_median_gate(data)
+        if tier_reason:
+            reasons.append(tier_reason)
+    except Exception:
+        pass
+
     # B039: area × property_type profile gate. Если parsed property_type имеет
     # долю <5% в районе по DLD за 36 мес — suspicious, отдадим LLM на верификацию.
     try:
@@ -5755,8 +5990,15 @@ def extract_area_from_rules(text):
             return aname
         aliases = adata.get('aliases', [])
         for alias in aliases:
-            if alias.lower() in text_lower:
-                return aname
+            al = alias.lower()
+            # Short aliases (≤4 chars): require word boundary to avoid false
+            # substring matches ("ic" in "price", "bb" in "cabbie", etc.)
+            if len(al) <= 4:
+                if re.search(r'\b' + re.escape(al) + r'\b', text_lower):
+                    return aname
+            else:
+                if al in text_lower:
+                    return aname
     return None
 
 
@@ -5770,7 +6012,9 @@ def expand_abbreviations(text):
     return text
 
 
-DLD_DB_URL = "postgresql://postgres:REDACTED_ARCHIVE_DB_PASSWORD@switchback.proxy.rlwy.net:23244/railway"
+DLD_DB_URL = os.environ.get("DLD_DB_URL")
+if not DLD_DB_URL:
+    raise RuntimeError("DLD_DB_URL required")
 
 def dld_lookup(building_name):
     """v110 READ-MODEL ONLY: lookup строится через dxb_stats_client

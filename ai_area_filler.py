@@ -31,10 +31,9 @@ MODEL      = "claude-haiku-4-5"
 MAX_TOKENS = 128
 WORKERS    = 5
 
-DB_URL = os.environ.get(
-    "DATABASE_URL",
-    "REDACTED_DSN_USE_DATABASE_URL_ENV",
-)
+DB_URL = os.environ.get("DATABASE_URL")
+if not DB_URL:
+    raise RuntimeError("DATABASE_URL required")
 
 DRY_RUN = "--dry-run" in sys.argv
 VERBOSE = "--verbose" in sys.argv
