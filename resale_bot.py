@@ -237,6 +237,7 @@ T = {
     "rbtn_hot":         "🔥 Hot Deals",
     "rbtn_new":         "🆕 New",
     "rbtn_ai":          "✦ AI Assistant",
+    "rbtn_voice":       "🎙 Voice search",
     "deal_q":           "Choose transaction type:",
     "deal_buy_btn":     "🏠 Buy",
     "deal_rent_btn":    "🔑 Rent",
@@ -503,6 +504,7 @@ T = {
     "rbtn_hot":         "🔥 Горячие",
     "rbtn_new":         "🆕 Новые",
     "rbtn_ai":          "✦ AI Помощник",
+    "rbtn_voice":       "🎙 Голос поиск",
     "deal_q":           "Что вас интересует?",
     "deal_buy_btn":     "🏠 Купить",
     "deal_rent_btn":    "🔑 Аренда",
@@ -791,6 +793,7 @@ T = {
     "rbtn_hot":         "🔥 صفقات",
     "rbtn_new":         "🆕 جديد",
     "rbtn_ai":          "✦ مساعد AI",
+    "rbtn_voice":       "🎙 بحث صوتي",
     "rbtn_add":         "➕ إضافة عقار",
     "rbtn_lang":        "🌐 اللغة",
     "rbtn_home":        "🏠 القائمة الرئيسية",
@@ -1305,7 +1308,7 @@ def kb_main_reply(uid):
         [_t(uid, "rbtn_apt"),        _t(uid, "rbtn_villa")],
         [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
         [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new"),   _t(uid, "rbtn_ai")],
-        [conf_btn],
+        [_t(uid, "rbtn_voice"),      conf_btn],
         [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts"), _t(uid, "rbtn_lang")],
     ])
 
@@ -1832,6 +1835,8 @@ def is_main_menu_text(text: str):
         "rbtn_hot", "rbtn_new", "rbtn_ai", "rbtn_add",
         "rbtn_favs", "rbtn_alerts", "rbtn_lang", "rbtn_home",
         "rbtn_conf_on", "rbtn_conf_off",
+        "rbtn_top_on", "rbtn_top_off",,
+        "rbtn_voice",
     }
     for lang_code, strings in T.items():
         for k, v in strings.items():
@@ -3213,6 +3218,9 @@ def do_search(uid, extra=None):
     # UI toggle "🎯 Verified only" — фильтр уверенности ≥ 0.85.
     if s.get("confidence_filter") and "confidence_min" not in filters:
         filters["confidence_min"] = 0.85
+    # UI toggle "🏆 Only A+/A" — Investment Score 2.0 >= 80.
+    if s.get("top_filter") and "score_min" not in filters:
+        filters["score_min"] = 80
     results, total = search_listings(filters, limit=PER_PAGE * 5)
     s["results"] = results
     s["total"]   = total
@@ -3450,6 +3458,64 @@ def send_results(cid, uid, mid=None):
 # Groq — бесплатный fallback (Llama 3.3 70B, OpenAI-compatible API).
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_MODEL   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+# Groq Whisper for voice-to-text (free tier, OGG supported, multi-lingual)
+GROQ_WHISPER_MODEL = os.environ.get("GROQ_WHISPER_MODEL", "whisper-large-v3")
+
+
+def transcribe_voice_groq(file_id, lang_hint=None, timeout=30):
+    """Download Telegram voice (OGG) by file_id and transcribe via Groq Whisper.
+    Returns transcript string, or None on any error / missing key.
+    Free tier — no paid services. Files up to 25 MB supported."""
+    if not GROQ_API_KEY:
+        print("[voice] GROQ_API_KEY missing — voice transcription disabled",
+              flush=True)
+        return None
+    try:
+        gf = requests.get(f"{API}/getFile",
+                          params={"file_id": file_id}, timeout=15).json()
+        if not gf.get("ok"):
+            print(f"[voice] getFile failed: {gf}", flush=True)
+            return None
+        path = gf["result"]["file_path"]
+        file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{path}"
+        import tempfile
+        ogg = requests.get(file_url, timeout=20)
+        if ogg.status_code != 200:
+            print(f"[voice] download HTTP {ogg.status_code}", flush=True)
+            return None
+        with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tf:
+            tf.write(ogg.content)
+            tmp_path = tf.name
+        try:
+            with open(tmp_path, "rb") as fh:
+                files = {"file": ("voice.ogg", fh, "audio/ogg")}
+                data = {"model": GROQ_WHISPER_MODEL,
+                        "response_format": "json",
+                        "temperature": "0"}
+                if lang_hint in ("en", "ru", "ar"):
+                    data["language"] = lang_hint
+                resp = requests.post(
+                    "https://api.groq.com/openai/v1/audio/transcriptions",
+                    headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+                    files=files, data=data, timeout=timeout,
+                )
+        finally:
+            try:
+                import os as _os_v; _os_v.unlink(tmp_path)
+            except Exception:
+                pass
+        if resp.status_code != 200:
+            print(f"[voice] Groq Whisper HTTP {resp.status_code}: "
+                  f"{resp.text[:160]}", flush=True)
+            return None
+        text = (resp.json().get("text") or "").strip()
+        print(f"[voice] transcript len={len(text)}: {text[:120]}", flush=True)
+        return text or None
+    except Exception as e:
+        print(f"[voice] transcribe error: {e}", flush=True)
+        return None
+
+
 
 
 def _llm_call(prompt: str, max_tokens: int = 600, timeout: int = 20) -> str | None:
@@ -4130,6 +4196,345 @@ def show_deal_type_menu(cid, uid, mid=None):
     else:   _send(cid, text, kb)
 
 
+# ── AI Consultant (#52): free-form chat mode ───────────────────────
+import json as _json_ai
+
+_AI_INTRO = {
+    "ru": (
+        "🤖 *AI Консультант*\n\n"
+        "Опиши свободным текстом что ищешь. Я уточню детали и подберу варианты.\n\n"
+        "_Например:_ «хочу 2BR с видом на Marina до 4M, инвестиция на 5 лет»\n\n"
+        "Напиши сообщение ниже ↓"
+    ),
+    "en": (
+        "🤖 *AI Consultant*\n\n"
+        "Describe what you're looking for in free form. I will ask follow-ups and find options.\n\n"
+        "_Example:_ «I want 2BR with Marina view under 4M, investment for 5 years»\n\n"
+        "Send your message below ↓"
+    ),
+    "ar": (
+        "🤖 *مستشار AI*\n\n"
+        "صف ما تبحث عنه بحرية. سأسألك أسئلة توضيحية وأجد خيارات."
+    ),
+}
+
+_AI_DONE = {
+    "ru": "✅ Отлично, рад был помочь! Спасибо за обратную связь.",
+    "en": "✅ Glad to help! Thanks for the feedback.",
+    "ar": "✅ سعدت بمساعدتك! شكراً عлى التعليق.",
+}
+
+_AI_SORRY = {
+    "ru": "😕 Понял. Попробуй уточнить критерии или выбери другой район/бюджет.",
+    "en": "😕 Got it. Try adjusting criteria or pick a different area / budget.",
+    "ar": "😕 حسнاً. حاول تعديل اлмعايير أو اختيار مнطقة / ميزانية أخرى.",
+}
+
+
+def _ai_consult_create_session(uid):
+    """Insert a new ai_consultations row, return its id (or None on failure)."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO ai_consultations (user_id, final_filters, results_shown) "
+                "VALUES (%s, %s, %s) RETURNING id",
+                (uid, _json_ai.dumps({}), _json_ai.dumps([])),
+            )
+            row = cur.fetchone()
+            cid_db = row["id"] if isinstance(row, dict) else row[0]
+        conn.commit()
+        conn.close()
+        return cid_db
+    except Exception as _e:
+        print(f"[ai_consult] create session err: {_e}", flush=True)
+        return None
+
+
+def _ai_consult_update_session(consult_id, filters=None, results=None, satisfied=None):
+    if not consult_id:
+        return
+    try:
+        conn = get_conn()
+        sets, params = [], []
+        if filters is not None:
+            sets.append("final_filters = %s"); params.append(_json_ai.dumps(filters))
+        if results is not None:
+            sets.append("results_shown = %s"); params.append(_json_ai.dumps(results))
+        if satisfied is not None:
+            sets.append("user_satisfied = %s"); params.append(bool(satisfied))
+        if not sets:
+            conn.close(); return
+        params.append(consult_id)
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE ai_consultations SET {', '.join(sets)} WHERE id = %s", params)
+        conn.commit()
+        conn.close()
+    except Exception as _e:
+        print(f"[ai_consult] update err: {_e}", flush=True)
+
+
+def ai_consultant_start(cid, uid):
+    """Enter free-form AI consultant chat mode."""
+    # B052: drop any active wizard to avoid label collisions.
+    try:
+        _reset(uid)
+    except Exception:
+        pass
+    lang = _get_lang(uid) if callable(globals().get("_get_lang")) else user_lang.get(uid, "en")
+    session_id = _ai_consult_create_session(uid)
+    ai_consult_states[uid] = {
+        "active": True,
+        "history": [],         # list of ("user"/"bot", text)
+        "filters": {},
+        "consult_id": session_id,
+        "results": [],
+        "lang": lang,
+    }
+    intro = _AI_INTRO.get(lang, _AI_INTRO["en"])
+    kb = _reply_kb([[_t(uid, "rbtn_home")]])
+    _send(cid, intro, kb)
+
+
+def _ai_build_prompt(state, new_message):
+    lang = state.get("lang", "en")
+    lang_name = {"ru": "Russian", "en": "English", "ar": "Arabic"}.get(lang, "English")
+    history_text = "\n".join([f"{role}: {msg}" for role, msg in state.get("history", [])[-8:]])
+    filters_json = _json_ai.dumps(state.get("filters", {}), ensure_ascii=False)
+    return (
+        "You are an expert Dubai real-estate advisor. The user is looking for property to buy or rent. "
+        f"Respond ONLY in {lang_name}.\n\n"
+        f"Current filters collected so far: {filters_json}\n"
+        f"Conversation history:\n{history_text or '(empty)'}\n\n"
+        f"User just wrote: {new_message}\n\n"
+        "Extract real-estate filters from the dialog. Filter keys you may use:\n"
+        "  area (str), building (str), deal_type ('sale'|'rent'), property_type ('apartment'|'villa'|'townhouse'|'penthouse'|'studio'|'office'|'retail'),\n"
+        "  bedrooms (int 0=studio, 1..4, 99=4+), min_price (AED), max_price (AED), view (str like 'marina'/'sea'/'burj'), is_off_plan (bool).\n\n"
+        "If you have enough data to search (max_price AND (area OR building OR property_type)) — RETURN a JSON object exactly like:\n"
+        '{"action":"search", "filters":{...}}\n'
+        "Otherwise ask ONE short clarifying question to improve filters:\n"
+        '{"action":"ask", "message":"...", "filters":{partial updates}}\n\n'
+        "Output ONLY a single JSON object. No prose, no markdown fences."
+    )
+
+
+def _ai_parse_llm_json(raw):
+    if not raw:
+        return None
+    txt = raw.strip()
+    # Strip code fences
+    if txt.startswith("```"):
+        txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", txt, flags=re.IGNORECASE)
+    # Find first { ... last }
+    i, j = txt.find("{"), txt.rfind("}")
+    if i < 0 or j < 0 or j <= i:
+        return None
+    try:
+        return _json_ai.loads(txt[i:j+1])
+    except Exception:
+        return None
+
+
+def _ai_format_results(state, listings):
+    """Ask LLM to write a short justification per listing. Falls back to plain list."""
+    lang = state.get("lang", "en")
+    if not listings:
+        return _AI_SORRY.get(lang, _AI_SORRY["en"])
+    lang_name = {"ru": "Russian", "en": "English", "ar": "Arabic"}.get(lang, "English")
+    filt = state.get("filters", {})
+    items_payload = []
+    for i, l in enumerate(listings, start=1):
+        items_payload.append({
+            "n": i,
+            "building": l.get("building"),
+            "area": l.get("area"),
+            "bedrooms": l.get("bedrooms"),
+            "price": l.get("price"),
+            "size_sqft": l.get("size_sqft"),
+            "view": l.get("view"),
+            "property_type": l.get("property_type"),
+            "deal_type": l.get("deal_type"),
+            "roi_estimate": l.get("roi_estimate"),
+            "discount_percent": l.get("discount_percent"),
+        })
+    prompt = (
+        f"You are an expert Dubai real-estate advisor. Respond ONLY in {lang_name}.\n\n"
+        f"User filters: {_json_ai.dumps(filt, ensure_ascii=False)}\n"
+        f"Top matches (JSON):\n{_json_ai.dumps(items_payload, ensure_ascii=False)}\n\n"
+        "Write a SHORT HTML answer (Telegram-safe tags: <b>, <i>). For each item list:\n"
+        "  N. <b>Building BR</b> — price AED ✅\n"
+        "     Why it fits: 2-3 short reasons using ✅ marks (view, price vs budget, ROI, etc.).\n"
+        "At the end add one-line overall recommendation. Max 1500 chars.\n"
+        "Do NOT invent data not in the JSON. Output plain text (no markdown fences)."
+    )
+    try:
+        resp = llm_call(prompt, max_tokens=900, timeout=20)
+        if resp and len(resp.strip()) > 30:
+            return resp.strip()
+    except Exception as _e:
+        print(f"[ai_consult] format LLM err: {_e}", flush=True)
+    # Fallback formatting
+    lines = []
+    for i, l in enumerate(listings, start=1):
+        title = l.get("building") or l.get("area") or "Listing"
+        br = l.get("bedrooms")
+        br_s = ("studio" if br == 0 else f"{br}BR") if br is not None else ""
+        price = l.get("price")
+        price_s = f"{int(price/1_000_000)}M AED" if price and price >= 1_000_000 else (f"{int(price):,} AED" if price else "—")
+        lines.append(f"{i}. <b>{title} {br_s}</b> — {price_s}")
+    return "\n".join(lines)
+
+
+def _kb_ai_results(uid, consult_id):
+    lang = user_lang.get(uid, "en")
+    if lang == "ru":
+        labels = ("👍 Помогло", "👎 Не то", "🔍 Уточнить поиск", "📊 Сравнить эти 5", "🏠 В меню")
+    elif lang == "ar":
+        labels = ("👍 ساعد", "👎 ليس ما أريد", "🔍 تحسين البحث", "📊 مقارнة الخمسة", "🏠 القائمة")
+    else:
+        labels = ("👍 Helpful", "👎 Not it", "🔍 Refine search", "📊 Compare these 5", "🏠 Main menu")
+    return _kb(
+        [_btn(labels[0], f"aic|fb|1|{consult_id or 0}"),
+         _btn(labels[1], f"aic|fb|0|{consult_id or 0}")],
+        [_btn(labels[2], "aic|refine")],
+        [_btn(labels[3], "aic|compare")],
+        [_btn(labels[4], "aic|home")],
+    )
+
+
+def ai_consultant_handle_text(cid, uid, text):
+    """Process a free-form message inside AI consultant FSM."""
+    state = ai_consult_states.get(uid)
+    if not state or not state.get("active"):
+        return
+    lang = state.get("lang", "en")
+    state.setdefault("history", []).append(("user", text))
+
+    # Soft "typing" feedback
+    try:
+        _api("sendChatAction", chat_id=cid, action="typing")
+    except Exception:
+        pass
+
+    prompt = _ai_build_prompt(state, text)
+    raw = None
+    try:
+        raw = llm_call(prompt, max_tokens=400, timeout=18)
+    except Exception as _e:
+        print(f"[ai_consult] llm err: {_e}", flush=True)
+
+    parsed = _ai_parse_llm_json(raw)
+    if not parsed:
+        fallback = {
+            "ru": "Понял. Уточни, пожалуйста: район, бюджет и число спален?",
+            "en": "Got it. Could you clarify area, budget and number of bedrooms?",
+            "ar": "فهمت. هل يمكнك توضيح الмنطقة والميزانية وعدد الغرف?",
+        }.get(lang, "Could you clarify area, budget and bedrooms?")
+        state["history"].append(("bot", fallback))
+        _send(cid, fallback)
+        return
+
+    # Merge filter updates from LLM (both ask and search may carry partial filters).
+    new_filters = parsed.get("filters") or {}
+    if isinstance(new_filters, dict):
+        merged = dict(state.get("filters", {}))
+        for k, v in new_filters.items():
+            if v is None or v == "":
+                continue
+            merged[k] = v
+        state["filters"] = merged
+
+    action = parsed.get("action")
+    if action == "ask":
+        q = parsed.get("message") or {
+            "ru": "Какой район или бюджет?",
+            "en": "Which area or budget?",
+            "ar": "أي مнطقة أو мيزانية?",
+        }.get(lang, "Which area or budget?")
+        state["history"].append(("bot", q))
+        _send(cid, q)
+        return
+
+    if action == "search":
+        # Map LLM filter names → search_listings schema.
+        filt = dict(state.get("filters", {}))
+        sl_filters = {}
+        if filt.get("area"):           sl_filters["area"]          = filt["area"]
+        if filt.get("building"):       sl_filters["building"]      = filt["building"]
+        if filt.get("deal_type") in ("sale", "rent"):
+            sl_filters["deal_type"] = filt["deal_type"]
+        else:
+            sl_filters["deal_type"] = "sale"
+        if filt.get("property_type"):  sl_filters["property_type"] = filt["property_type"]
+        if filt.get("bedrooms") is not None:
+            try: sl_filters["bedrooms"] = int(filt["bedrooms"])
+            except Exception: pass
+        if filt.get("min_price"):
+            try: sl_filters["min_price"] = int(filt["min_price"])
+            except Exception: pass
+        if filt.get("max_price"):
+            try: sl_filters["max_price"] = int(filt["max_price"])
+            except Exception: pass
+        if filt.get("view"):           sl_filters["view"]          = filt["view"]
+        if filt.get("is_off_plan") is True:
+            sl_filters["is_off_plan"] = True
+        sl_filters["sort"] = "best_deals"
+
+        try:
+            results, total = search_listings(sl_filters, limit=5, offset=0)
+        except Exception as _e:
+            print(f"[ai_consult] search err: {_e}", flush=True)
+            results, total = [], 0
+
+        state["results"] = [r.get("id") for r in results if r.get("id")]
+        _ai_consult_update_session(state.get("consult_id"),
+                                   filters=filt, results=state["results"])
+
+        if not results:
+            sorry = _AI_SORRY.get(lang, _AI_SORRY["en"])
+            state["history"].append(("bot", sorry))
+            _send(cid, sorry, _kb_ai_results(uid, state.get("consult_id")))
+            return
+
+        body = _ai_format_results(state, results)
+        header = {
+            "ru": f"📊 Нашёл {total} вариантов. Топ-{len(results)}:\n\n",
+            "en": f"📊 Found {total} matches. Top-{len(results)}:\n\n",
+            "ar": f"📊 وجدت {total} نتيجة. أعلى {len(results)}:\n\n",
+        }.get(lang, f"📊 Found {total} matches. Top-{len(results)}:\n\n")
+        full = header + body
+        if len(full) > 3800:
+            full = full[:3800]
+        # Use HTML parse mode since LLM gives <b>/<i> tags.
+        try:
+            _api("sendMessage", chat_id=cid, text=full, parse_mode="HTML",
+                 reply_markup=_kb_ai_results(uid, state.get("consult_id")))
+        except Exception:
+            _send(cid, full, _kb_ai_results(uid, state.get("consult_id")))
+        state["history"].append(("bot", body[:300]))
+        return
+
+    # Unknown action — just echo a polite line.
+    fallback = {
+        "ru": "Не совсем понял. Можешь добавить детали (район, бюджет)?",
+        "en": "Not sure I follow. Could you add details (area, budget)?",
+        "ar": "لست мتأкداً. هل يмкنك إضافة تفاصيل (مнطقة، мيزانية)?",
+    }.get(lang, "Could you add more details?")
+    state["history"].append(("bot", fallback))
+    _send(cid, fallback)
+
+
+def ai_consultant_finish(cid, uid, satisfied):
+    state = ai_consult_states.get(uid) or {}
+    consult_id = state.get("consult_id")
+    if consult_id is not None:
+        _ai_consult_update_session(consult_id, satisfied=satisfied)
+    lang = state.get("lang", user_lang.get(uid, "en"))
+    msg = _AI_DONE.get(lang, _AI_DONE["en"]) if satisfied else _AI_SORRY.get(lang, _AI_SORRY["en"])
+    ai_consult_states.pop(uid, None)
+    _send(cid, msg, kb_main_reply(uid))
+
+
 def show_main(cid, uid, mid=None):
     """Always sends a fresh message with persistent bottom keyboard.
     If an old inline-menu message is given, delete it to keep the chat clean.
@@ -4525,6 +4930,22 @@ def dispatch_main_button(cid, uid, rkey):
         if not _gate(uid, "smart_pick"):
             _paywall(cid, uid, "smart_pick"); return
         show_ai_start(cid, uid)
+    elif rkey == "rbtn_voice":
+        lang_v = _get_lang(uid)
+        _vp_ru = ("🎙 *Голосовой поиск*\n\n"
+                  "Просто запиши голосовое следующим сообщением.\n"
+                  "_Например:_ «2 спальни в Марине до 5 миллионов»\n\n"
+                  "Подсказки: /voice_help")
+        _vp_ar = ("🎙 *البحث الصوتي*\n\n"
+                  "أرسل ملاحظة صوتية في الرسالة التالية.\n"
+                  "مثال: «شقة بغرفتي نوم في دبي مارينا حتى 5 ملايين»\n\n"
+                  "تلميحات: /voice_help")
+        _vp_en = ("🎙 *Voice search*\n\n"
+                  "Just record a voice note as your next message.\n"
+                  "_Example:_ \"2BR in Marina under 5M\"\n\n"
+                  "Hints: /voice_help")
+        _send(cid, {"ru": _vp_ru, "ar": _vp_ar}.get(lang_v, _vp_en),
+              kb_main_reply(uid))
     elif rkey == "rbtn_add":
         start_add_listing(cid, uid)
     elif rkey == "rbtn_lang":
@@ -6387,6 +6808,33 @@ def handle_msg(msg):
     lang  = user_lang.get(uid, "en")
     save_user(uid, uname, fname, lang)
 
+    # ── Voice-to-search (Groq Whisper) ─────────────────────────────────
+    voice = msg.get("voice") or msg.get("audio")
+    if voice and not text:
+        try:
+            _vfile_id = voice.get("file_id")
+            _hint_msg = {"ru": "🎙 Распознаю голосовое…",
+                         "ar": "🎙 جارٍ التعرف على الصوت…"}.get(lang,
+                         "🎙 Transcribing voice…")
+            _send(cid, _hint_msg)
+            transcript = transcribe_voice_groq(_vfile_id, lang_hint=lang)
+            if not transcript or len(transcript.strip()) < 5:
+                _send(cid,
+                      {"ru": "⚠️ Не разобрал голосовое — попробуй повторить или набери текстом.",
+                       "ar": "⚠️ لم أفهم الصوت — حاول مرة أخرى أو اكتب رسالة."}.get(
+                          lang, "⚠️ Could not understand the voice — please try again or type your query."),
+                      kb_main_reply(uid))
+                return
+            heard_lbl = {"ru": "🎙 Услышал:",
+                         "ar": "🎙 سمعت:"}.get(lang, "🎙 Heard:")
+            _send(cid, f"{heard_lbl} _{transcript[:300]}_")
+            text = transcript.strip()
+        except Exception as _ve:
+            print(f"[voice] handler err: {_ve}", flush=True)
+            _send(cid, "⚠️ Voice transcription failed. Please type your query.",
+                  kb_main_reply(uid))
+            return
+
     # Handle photo upload for add listing wizard
     if photo and uid in add_states:
         s = add_states[uid]
@@ -6506,6 +6954,25 @@ def handle_msg(msg):
             # v54 UX (Layla follow-up): команда /language заменяет «🌐 Язык» в меню.
             _send(cid, "🌐  Select your language / Выберите язык / اختر لغتك",
                   kb_lang_reply())
+            return
+        if cmd == "voice_help":
+            _vhelp_ru = ("🎙 *Голосовой поиск* — примеры:\n\n"
+                        "• «2 спальни в Марине до 5 миллионов»\n"
+                        "• «Студия в JVC до 800 тысяч»\n"
+                        "• «Вилла в Palm с видом на море»\n"
+                        "• «Горячие сделки в Downtown»\n\n"
+                        "_Файл до 25 МБ, длительность до 2 мин._")
+            _vhelp_en = ("🎙 *Voice search* — examples:\n\n"
+                        "• \"2BR in Marina under 5M\"\n"
+                        "• \"Studio in JVC under 800k\"\n"
+                        "• \"Villa on Palm with sea view\"\n"
+                        "• \"Hot deals in Downtown\"\n\n"
+                        "_File up to 25 MB, ideally under 2 min._")
+            _vhelp_ar = ("🎙 *أمثلة بحث صوتي:*\n\n"
+                        "• شقة غرفتي نوم في دبي مارينا حتى 5 ملايين\n"
+                        "• فيلا في Palm بإطلالة بحر")
+            _send(cid, {"ru": _vhelp_ru, "ar": _vhelp_ar}.get(lang, _vhelp_en),
+                  kb_main_reply(uid))
             return
         if cmd == "compare":
             show_compare(cid, uid); return
