@@ -1,4 +1,5 @@
 requests
+httpx
 curl_cffi>=0.7.0
 sqlalchemy
 psycopg2-binary
@@ -12,3 +13,4 @@ PySocks
 reportlab>=4.0
 Pillow>=10.0
 matplotlib>=3.7
+numpy>=1.24
