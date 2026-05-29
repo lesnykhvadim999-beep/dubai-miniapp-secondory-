@@ -597,6 +597,27 @@ def parser_quality_monitor_loop():
         time.sleep(interval)
 
 
+# ── 8. Realtime accuracy monitor (task #56) ────────────────────────────────────
+def realtime_accuracy_loop():
+    """Каждые 60с: новые listings → second LLM verify → flag если low confidence."""
+    interval = int(os.environ.get("RT_ACCURACY_INTERVAL", "60"))
+    try:
+        import _realtime_accuracy_daemon as rtd
+        rtd.ensure_schema()
+    except Exception as e:
+        print(f"[cron] rt-accuracy init err: {e}", flush=True)
+    while True:
+        try:
+            import _realtime_accuracy_daemon as rtd
+            stats = rtd.run_cycle()
+            if stats.get("scanned"):
+                print(f"[cron] rt-accuracy: {stats}", flush=True)
+        except Exception as e:
+            print(f"[cron] rt-accuracy err: {e}", flush=True)
+            traceback.print_exc()
+        time.sleep(interval)
+
+
 # ── Entry point ────────────────────────────────────────────────────────────────
 def start_all():
     threading.Thread(target=alerts_loop, daemon=True).start()
@@ -608,8 +629,9 @@ def start_all():
     threading.Thread(target=watchlist_weekly_loop, daemon=True).start()
     threading.Thread(target=parser_quality_monitor_loop, daemon=True).start()
     threading.Thread(target=hourly_report_loop, daemon=True).start()
+    threading.Thread(target=realtime_accuracy_loop, daemon=True).start()
     start_health_server(port=int(os.environ.get("PORT", "8080")))
-    print("[cron] All workers started (including v55 watchlist + parser-quality + hourly-report).")
+    print("[cron] All workers started (including v55 watchlist + parser-quality + hourly-report + rt-accuracy).")
 
 
 if __name__ == "__main__":
