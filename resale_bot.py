@@ -296,6 +296,25 @@ T = {
     "rbtn_add":         "➕ List Property",
     "rbtn_lang":        "🌐 Language",
     "rbtn_home":        "🏠 Main Menu",
+    # v55 compact menu: top-level grouped categories (▾ = submenu)
+    "rbtn_search_grp":   "🔍 Search ▾",
+    "rbtn_picks_grp":    "⭐ Picks ▾",
+    "rbtn_profile_grp":  "📊 My Profile ▾",
+    "rbtn_settings_grp": "⚙️ Settings ▾",
+    "rbtn_compare_short":"⚖️ Compare",
+    "rbtn_map_short":    "🗺 Areas Map",
+    "rbtn_back_menu":    "← Back",
+    # submenu items not yet present
+    "rbtn_saved_searches":"💾 Saved Searches",
+    "rbtn_my_leads":     "📈 My Leads",
+    "rbtn_default_filters":"🔧 Default Filters",
+    "rbtn_support":      "📞 Support",
+    "rbtn_profile_view": "👤 Profile",
+    # coming-soon stub
+    "soon_msg":          "🚧 Coming soon. We're working on it!",
+    "profile_view_title":"👤 *Your Profile*",
+    "support_msg":       "📞 *Support*\n\nWrite to @VadimRealty or use /help for assistance.",
+    "default_filters_msg":"🔧 *Default Filters*\n\nThis feature lets you save your preferred filters for one-tap search. Coming soon.",
     # Results navigation (bottom bar)
     "rbtn_more":        "▶ Show more",
     "rbtn_change_deal": "← Transaction Type",
@@ -697,6 +716,24 @@ T = {
     "rbtn_add":         "➕ Разместить",
     "rbtn_lang":        "🌐 Язык",
     "rbtn_home":        "🏠 Главное меню",
+    # v55 компактное меню: верхние группы (▾ = подменю)
+    "rbtn_search_grp":   "🔍 Поиск ▾",
+    "rbtn_picks_grp":    "⭐ Подборки ▾",
+    "rbtn_profile_grp":  "📊 Мой профиль ▾",
+    "rbtn_settings_grp": "⚙️ Настройки ▾",
+    "rbtn_compare_short":"⚖️ Сравнить",
+    "rbtn_map_short":    "🗺 Карта районов",
+    "rbtn_back_menu":    "← Назад",
+    # подпункты меню
+    "rbtn_saved_searches":"💾 Сохранённые поиски",
+    "rbtn_my_leads":     "📈 Мои leads",
+    "rbtn_default_filters":"🔧 Фильтры по умолч.",
+    "rbtn_support":      "📞 Поддержка",
+    "rbtn_profile_view": "👤 Профиль",
+    "soon_msg":          "🚧 Скоро будет доступно. Работаем над этим!",
+    "profile_view_title":"👤 *Ваш профиль*",
+    "support_msg":       "📞 *Поддержка*\n\nПишите @VadimRealty или используйте /help для помощи.",
+    "default_filters_msg":"🔧 *Фильтры по умолчанию*\n\nЭта функция позволит сохранить ваши предпочтения для поиска одним кликом. Скоро.",
     # Results navigation (bottom bar)
     "rbtn_more":        "▶ Показать ещё",
     "rbtn_change_deal": "← Тип сделки",
@@ -1117,6 +1154,23 @@ T = {
     "rbtn_add":         "➕ إضافة عقار",
     "rbtn_lang":        "🌐 اللغة",
     "rbtn_home":        "🏠 القائمة الرئيسية",
+    # v55 قائمة مدمجة: مجموعات علوية (▾ = قائمة فرعية)
+    "rbtn_search_grp":   "🔍 بحث ▾",
+    "rbtn_picks_grp":    "⭐ مختارات ▾",
+    "rbtn_profile_grp":  "📊 ملفي ▾",
+    "rbtn_settings_grp": "⚙️ الإعدادات ▾",
+    "rbtn_compare_short":"⚖️ قارن",
+    "rbtn_map_short":    "🗺 خريطة المناطق",
+    "rbtn_back_menu":    "← رجوع",
+    "rbtn_saved_searches":"💾 عمليات البحث المحفوظة",
+    "rbtn_my_leads":     "📈 طلباتي",
+    "rbtn_default_filters":"🔧 الفلاتر الافتراضية",
+    "rbtn_support":      "📞 الدعم",
+    "rbtn_profile_view": "👤 الملف الشخصي",
+    "soon_msg":          "🚧 قريباً. نعمل على ذلك!",
+    "profile_view_title":"👤 *ملفك الشخصي*",
+    "support_msg":       "📞 *الدعم*\n\nراسل @VadimRealty أو استخدم /help للمساعدة.",
+    "default_filters_msg":"🔧 *الفلاتر الافتراضية*\n\nسيسمح لك بحفظ فلاترك المفضلة للبحث بنقرة واحدة. قريباً.",
     # Results navigation (bottom bar)
     "rbtn_more":        "▶ عرض المزيد",
     "rbtn_change_deal": "← نوع الصفقة",
@@ -1930,28 +1984,57 @@ def _reply_remove():
 
 
 def kb_main_reply(uid):
-    """v54 UX (Layla follow-up): «🌐 Язык» убран из меню — теперь только команда /language.
-    v53: bottom menu compressed to 4 rows (was 6).
-    Частые действия наверху, редкие (Add, Lang) — через команды /add /language.
-    Hot/New объединены в одну строку с AI — это quick-access shortcuts.
-    Хендлеры на rbtn_add / rbtn_lang сохранены для обратной совместимости.
+    """v55 COMPACT UX: top-level menu reduced to 4 rows via grouped submenus.
+    Submenu state lives in user_states[uid]["submenu"]:
+      • None / "main"  → 4-row main menu (Search / Picks / Profile / Settings)
+      • "search"       → Apt/Villa/Commercial/Plot + Back
+      • "picks"        → Hot/New/Verified/Top + Back
+      • "profile"      → Favs/Alerts/Saved searches/My leads + Back
+      • "settings"     → Lang/Profile/Default filters/Support + Back
+    All old rbtn_* keys remain reachable via their submenu — handlers untouched.
+    Hot-keys (AI / Compare / Map) stay on top level for one-tap access.
     """
-    # B035: убрали Buy/Rent с главного — теперь deal_type выбирается ВНУТРИ
-    # каждой категории (Apt/Villa/Commercial/Plot/Hot/New).
-    # Confidence toggle: показываем label по состоянию gs(uid)["confidence_filter"].
-    conf_on = bool(user_states.get(uid, {}).get("confidence_filter"))
-    conf_btn = _t(uid, "rbtn_conf_on" if conf_on else "rbtn_conf_off")
-    top_on  = bool(user_states.get(uid, {}).get("top_filter"))
-    top_btn = _t(uid, "rbtn_top_on" if top_on else "rbtn_top_off")
+    submenu = (user_states.get(uid, {}) or {}).get("submenu") or "main"
+
+    if submenu == "search":
+        return _reply_kb([
+            [_t(uid, "rbtn_apt"),        _t(uid, "rbtn_villa")],
+            [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
+            [_t(uid, "rbtn_back_menu")],
+        ])
+
+    if submenu == "picks":
+        # Verified / Top buttons reflect current toggle state.
+        conf_on = bool(user_states.get(uid, {}).get("confidence_filter"))
+        conf_btn = _t(uid, "rbtn_conf_on" if conf_on else "rbtn_conf_off")
+        top_on  = bool(user_states.get(uid, {}).get("top_filter"))
+        top_btn = _t(uid, "rbtn_top_on" if top_on else "rbtn_top_off")
+        return _reply_kb([
+            [_t(uid, "rbtn_hot"),  _t(uid, "rbtn_new")],
+            [conf_btn,             top_btn],
+            [_t(uid, "rbtn_back_menu")],
+        ])
+
+    if submenu == "profile":
+        return _reply_kb([
+            [_t(uid, "rbtn_favs"),            _t(uid, "rbtn_alerts")],
+            [_t(uid, "rbtn_saved_searches"),  _t(uid, "rbtn_my_leads")],
+            [_t(uid, "rbtn_back_menu")],
+        ])
+
+    if submenu == "settings":
+        return _reply_kb([
+            [_t(uid, "rbtn_lang"),             _t(uid, "rbtn_profile_view")],
+            [_t(uid, "rbtn_default_filters"),  _t(uid, "rbtn_support")],
+            [_t(uid, "rbtn_back_menu")],
+        ])
+
+    # main (default): 4 rows
     return _reply_kb([
-        [_t(uid, "rbtn_apt"),        _t(uid, "rbtn_villa")],
-        [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
-        [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new"),   _t(uid, "rbtn_ai")],
-        [_t(uid, "rbtn_ai_consult")],
-        [conf_btn,                   top_btn],
-        [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts"), _t(uid, "rbtn_heatmap")],
-        [_t(uid, "rbtn_lang")],
-        [_t(uid, "rbtn_compare_bld")],
+        [_t(uid, "rbtn_search_grp"),   _t(uid, "rbtn_picks_grp")],
+        [_t(uid, "rbtn_ai"),           _t(uid, "rbtn_compare_short")],
+        [_t(uid, "rbtn_profile_grp"),  _t(uid, "rbtn_map_short")],
+        [_t(uid, "rbtn_settings_grp")],
     ])
 
 
@@ -2481,6 +2564,11 @@ def is_main_menu_text(text: str):
         "rbtn_top_on", "rbtn_top_off",
         "rbtn_heatmap",
         "rbtn_voice",
+        # v55 compact menu — group entries + back + submenu stubs
+        "rbtn_search_grp", "rbtn_picks_grp", "rbtn_profile_grp", "rbtn_settings_grp",
+        "rbtn_compare_short", "rbtn_map_short", "rbtn_back_menu",
+        "rbtn_saved_searches", "rbtn_my_leads",
+        "rbtn_default_filters", "rbtn_support", "rbtn_profile_view",
     }
     for lang_code, strings in T.items():
         for k, v in strings.items():
@@ -4038,26 +4126,35 @@ def send_results(cid, uid, mid=None):
         _ac = (lst.get("agent_count") or 1) if isinstance(lst, dict) else 1
         _contacts_label = (_t(uid, "btn_contacts_n").format(n=_ac)
                             if _ac > 1 else _t(uid, "btn_contacts"))
+        # v55 compact card: 3 main rows + optional PDF.
+        # Row 1: Analysis | Contacts (the 2 most-clicked CTAs)
+        # Row 2: 6 emoji-only action buttons (safe for mobile width)
+        # Row 3: 4 language flags for translation
         kb_rows = [
-            [_btn(_t(uid, "btn_analysis"), f"detail|{lid}")],
-            [_btn(_contacts_label,         f"agents|{lid}")],
-            [_btn(fav_label,               f"fav|{lid}"),    _btn(_t(uid, "btn_compare"), f"cmp|{lid}")],
-            [_btn(_t(uid, "btn_map"),      f"map|{lid}"),    _btn(_t(uid, "btn_photos"),  f"photos|{lid}")],
+            [_btn(_t(uid, "btn_analysis"), f"detail|{lid}"),
+             _btn(_contacts_label,         f"agents|{lid}")],
+        ]
+        # Emoji-only row: heart / scales / map / photos / building / similar
+        emoji_row = [
+            _btn("❤️" if not fav_now else "💔", f"fav|{lid}"),
+            _btn("⚖️", f"cmp|{lid}"),
+            _btn("🗺", f"map|{lid}"),
+            _btn("📸", f"photos|{lid}"),
         ]
         if has_building:
-            kb_rows.append([_btn(_t(uid, "btn_all_in_bld"), f"allbld|{lid}")])
-        kb_rows.append([_btn(_t(uid, "btn_similar"),  f"similar|{lid}"), _btn(_t(uid, "btn_send"),   f"send|{lid}")])
-        # Description language switcher (auto-translate RU/EN/AR/CN).
-        # `tr|<lang>|<lid>` callback short-circuits with a friendly toast if
-        # no translation row exists yet for this listing.
+            emoji_row.append(_btn("🏢", f"allbld|{lid}"))
+        emoji_row.append(_btn("🔄", f"similar|{lid}"))
+        kb_rows.append(emoji_row)
+        # Language flags for translation
         kb_rows.append([
-            _btn("🇷🇺 RU", f"tr|ru|{lid}"),
-            _btn("🇬🇧 EN", f"tr|en|{lid}"),
-            _btn("🇸🇦 AR", f"tr|ar|{lid}"),
-            _btn("🇨🇳 CN", f"tr|zh|{lid}"),
+            _btn("🇷🇺", f"tr|ru|{lid}"),
+            _btn("🇬🇧", f"tr|en|{lid}"),
+            _btn("🇸🇦", f"tr|ar|{lid}"),
+            _btn("🇨🇳", f"tr|zh|{lid}"),
         ])
         if PDF_OK:
-            kb_rows.append([_btn(_t(uid, "pdf_label"), f"pdf|{lid}")])
+            kb_rows.append([_btn(_t(uid, "pdf_label"), f"pdf|{lid}"),
+                            _btn(_t(uid, "btn_send"),   f"send|{lid}")])
         kb = _kb(*kb_rows)
         # Send with photos (file_id stored directly from Bot API upload)
         images = get_listing_images(lid) if lid else []
@@ -4834,35 +4931,38 @@ def show_detail(cid, uid, mid, lid):
     _ac_d = (listing.get("agent_count") or 1)
     _contacts_label_d = (_t(uid, "btn_contacts_n").format(n=_ac_d)
                           if _ac_d > 1 else _t(uid, "btn_contacts"))
-    kb_rows = [
-        [_url_btn(_t(uid, "btn_book"), lead_url)],
-        [_btn(_contacts_label_d,       f"agents|{lid}")],
-        [_btn(fav_label,              f"fav|{lid}"),    _btn(_t(uid, "btn_compare"), f"cmp|{lid}")],
-        [_btn(watch_label,            f"watch|{lid}")],
-        [_btn(_t(uid, "btn_map"),     f"map|{lid}"),    _btn(_t(uid, "btn_photos"),  f"photos|{lid}")],
-        [_btn(_t(uid, "det_translate"), f"translate|{lid}|{lang_user}")],
+    # v55 compact detail: 4 rows max. Pin Investment Analysis (lead URL)
+    # + Agent Contacts at the top — these are the primary conversion paths.
+    # Secondary actions (fav, compare, watch, map, photos, similar) collapse
+    # into a single emoji row. Premium-locked rows (seller/DLD) stay visible
+    # as one row. Cross-bot CTAs collapse to one compact row.
+    emoji_row_d = [
+        _btn(fav_label,                            f"fav|{lid}"),
+        _btn("⚖️",                                  f"cmp|{lid}"),
+        _btn(watch_label.split(" ", 1)[0] or "⭐",  f"watch|{lid}"),
+        _btn("🗺",                                  f"map|{lid}"),
+        _btn("📸",                                  f"photos|{lid}"),
+        _btn("🔄",                                  f"similar|{lid}"),
     ]
-    # All-in-building button — только если есть building
     if has_building:
-        kb_rows.append([_btn(_t(uid, "btn_all_in_bld"), f"allbld|{lid}")])
-    # ── Premium buttons (gated) ──────────────────────────────────────────────
-    kb_rows.append([_btn(_t(uid, "det_seller_contacts_locked"), f"seller|{lid}"),
-                    _btn(_t(uid, "det_dld_deals_locked"),       f"deals|{lid}")])
-    kb_rows.append([_btn(_t(uid, "btn_similar"), f"similar|{lid}"), _btn(_t(uid, "btn_back"), "results|back")])
-    # v47 ECOSYSTEM cross-nav: subtle marketing — leads пользователя в смежные боты
-    # когда он смотрит конкретный listing (highly intent moment).
-    # v55: расширили payload до from_resale_utm_resale_card_detail для UTM tracking.
-    kb_rows.append([
-        _url_btn(_t(uid, "cta_new_projects"),
-                 "https://t.me/dubai_projects_monitor_bot?start=from_resale_utm_resale_card_detail"),
-    ])
-    kb_rows.append([
-        _url_btn(_t(uid, "cta_roi_calc"),
-                 "https://t.me/dubai_roi_fpr_bot?start=from_resale_utm_resale_card_detail"),
-        _url_btn(_t(uid, "cta_area_analytics"),
-                 "https://t.me/Analitik_price_bot?start=from_resale_utm_resale_card_detail"),
-    ])
-    kb_rows.append([_btn(_t(uid, "btn_menu"), "menu|main")])
+        emoji_row_d.append(_btn("🏢", f"allbld|{lid}"))
+    kb_rows = [
+        # Row 1: pinned primary CTAs
+        [_url_btn(_t(uid, "btn_book"), lead_url),
+         _btn(_contacts_label_d,       f"agents|{lid}")],
+        # Row 2: compact emoji action row
+        emoji_row_d,
+        # Row 3: premium-gated buttons + translate
+        [_btn(_t(uid, "det_seller_contacts_locked"), f"seller|{lid}"),
+         _btn(_t(uid, "det_dld_deals_locked"),       f"deals|{lid}")],
+        # Row 4: cross-ecosystem nav (UTM-tagged) + back/menu
+        [_url_btn(_t(uid, "cta_roi_calc"),
+                  "https://t.me/dubai_roi_fpr_bot?start=from_resale_utm_resale_card_detail"),
+         _url_btn(_t(uid, "cta_area_analytics"),
+                  "https://t.me/Analitik_price_bot?start=from_resale_utm_resale_card_detail")],
+        [_btn(_t(uid, "btn_back"), "results|back"),
+         _btn(_t(uid, "btn_menu"), "menu|main")],
+    ]
     kb = _kb(*kb_rows)
 
     # Try to show photos
@@ -6152,6 +6252,17 @@ def dispatch_main_button(cid, uid, rkey):
     B045: если юзер сейчас на результатах (wizard=="results") и жмёт категорию —
     делаем inline-switch вместо запуска нового wizard с нуля.
     """
+    # v55: clear submenu when user picks any real action (everything except
+    # submenu navigation itself). Keeps state tidy after a category dive.
+    _SUBMENU_NAV_KEYS = {
+        "rbtn_search_grp", "rbtn_picks_grp", "rbtn_profile_grp",
+        "rbtn_settings_grp", "rbtn_back_menu",
+    }
+    if rkey not in _SUBMENU_NAV_KEYS:
+        try:
+            gs(uid)["submenu"] = "main"
+        except Exception:
+            pass
     # B045: inline-switch категории при wizard=="results"
     if gs(uid).get("wizard") == "results" and rkey in ("rbtn_apt", "rbtn_villa",
                                                        "rbtn_commercial", "rbtn_plot"):
@@ -6254,6 +6365,42 @@ def dispatch_main_button(cid, uid, rkey):
         s["top_filter"] = new_val
         msg_key = "top_filter_on_msg" if new_val else "top_filter_off_msg"
         _send(cid, _t(uid, msg_key), kb_main_reply(uid))
+    # ── v55 compact menu: submenu navigation ────────────────────────────────
+    elif rkey == "rbtn_search_grp":
+        gs(uid)["submenu"] = "search"
+        _send(cid, _t(uid, "rbtn_search_grp"), kb_main_reply(uid))
+    elif rkey == "rbtn_picks_grp":
+        gs(uid)["submenu"] = "picks"
+        _send(cid, _t(uid, "rbtn_picks_grp"), kb_main_reply(uid))
+    elif rkey == "rbtn_profile_grp":
+        gs(uid)["submenu"] = "profile"
+        _send(cid, _t(uid, "rbtn_profile_grp"), kb_main_reply(uid))
+    elif rkey == "rbtn_settings_grp":
+        gs(uid)["submenu"] = "settings"
+        _send(cid, _t(uid, "rbtn_settings_grp"), kb_main_reply(uid))
+    elif rkey == "rbtn_back_menu":
+        gs(uid)["submenu"] = "main"
+        _send(cid, _t(uid, "main_menu"), kb_main_reply(uid))
+    elif rkey == "rbtn_compare_short":
+        start_compare_buildings(cid, uid)
+    elif rkey == "rbtn_map_short":
+        show_heatmap(cid, uid)
+    elif rkey == "rbtn_saved_searches":
+        _send(cid, _t(uid, "soon_msg"), kb_main_reply(uid))
+    elif rkey == "rbtn_my_leads":
+        # Reuse favorites view as "my leads" for now (no separate feature yet).
+        show_favorites(cid, uid)
+    elif rkey == "rbtn_default_filters":
+        _send(cid, _t(uid, "default_filters_msg"), kb_main_reply(uid))
+    elif rkey == "rbtn_support":
+        _send(cid, _t(uid, "support_msg"), kb_main_reply(uid))
+    elif rkey == "rbtn_profile_view":
+        # Minimal profile card: uid + lang + subscription status placeholder.
+        lang = user_lang.get(uid, "en")
+        prof = (f"{_t(uid, 'profile_view_title')}\n\n"
+                f"🆔 `{uid}`\n"
+                f"🌐 {lang.upper()}")
+        _send(cid, prof, kb_main_reply(uid))
 
 
 def dispatch_wizard_button(cid, uid, text):

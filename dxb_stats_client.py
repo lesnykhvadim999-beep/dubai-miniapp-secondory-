@@ -52,6 +52,14 @@ except Exception:
         def d(f): return f
         return d
 
+# Circuit breaker for intel_db (analytics read-model) — opens after repeated
+# connection failures so callers stop retrying and return cached/None paths.
+try:
+    from stability import get_breaker as _get_breaker_stats
+    _intel_breaker = _get_breaker_stats("intel_db")
+except Exception:
+    _intel_breaker = None
+
 try:
     import psycopg2
     import psycopg2.extras
@@ -82,6 +90,9 @@ _NEG_TTL = 60  # сек
 def _conn():
     # v111: убрали "SELECT 1" перед каждым обращением (это лишний RTT 200-300мс
     # на public proxy). Ping раз в 60с.
+    # Circuit breaker: when OPEN (intel DB unhealthy), skip the connect attempt.
+    if _intel_breaker is not None and _intel_breaker.is_open():
+        raise RuntimeError("intel_db circuit OPEN — skipping connection")
     c = getattr(_LOCAL, "conn", None)
     last_ping = getattr(_LOCAL, "conn_ping", 0)
     now_t = time.time()
@@ -99,8 +110,18 @@ def _conn():
             _LOCAL.conn = None
     if not _DSN:
         raise RuntimeError("ANALYTICS_DATABASE_URL not configured")
-    c = psycopg2.connect(_DSN, connect_timeout=5,
-                         application_name="dxb_stats_client")
+    # Wrap connect via circuit breaker so repeated DB failures trip OPEN.
+    if _intel_breaker is not None:
+        try:
+            c = _intel_breaker.call(
+                psycopg2.connect, _DSN,
+                connect_timeout=5, application_name="dxb_stats_client",
+            )
+        except Exception:
+            raise
+    else:
+        c = psycopg2.connect(_DSN, connect_timeout=5,
+                             application_name="dxb_stats_client")
     c.autocommit = True
     with c.cursor() as cur:
         cur.execute("SET statement_timeout = 5000")

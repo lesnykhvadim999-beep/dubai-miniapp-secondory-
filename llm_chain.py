@@ -847,7 +847,7 @@ _DISPATCH = {
 
 
 # в”Ђв”Ђ Public API в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
-def llm_call(prompt: str, max_tokens: int = 600,
+def _llm_call_inner(prompt: str, max_tokens: int = 600,
              timeout: int = 15, use_cache: bool = True) -> Optional[str]:
     """Universal LLM call with multi-key + token-bucket + Postgres cache.
 
@@ -916,7 +916,36 @@ def llm_call(prompt: str, max_tokens: int = 600,
                 return result
             # this key failed вЂ” move to next key in same provider
         # all keys for this provider failed в†’ next provider
-    return None
+    # Raise so circuit breaker can count this as a failure event.
+    raise RuntimeError("llm_call: all providers exhausted")
+
+
+# Circuit breaker wraps llm_call — opens after 5 total-failures in 60s, fallback=None.
+try:
+    from stability import get_breaker as _get_breaker_llm
+    _llm_breaker = _get_breaker_llm("llm_chain")
+except Exception:
+    _llm_breaker = None
+
+
+def llm_call(prompt: str, max_tokens: int = 600,
+             timeout: int = 15, use_cache: bool = True) -> Optional[str]:
+    """Public LLM API. Wrapped by CircuitBreaker — when OPEN, returns None
+    immediately instead of trying providers (graceful degradation)."""
+    if _llm_breaker is None:
+        try:
+            return _llm_call_inner(prompt, max_tokens=max_tokens,
+                                   timeout=timeout, use_cache=use_cache)
+        except Exception:
+            return None
+    try:
+        return _llm_breaker.call(
+            _llm_call_inner, prompt,
+            max_tokens=max_tokens, timeout=timeout, use_cache=use_cache,
+            fallback=None,
+        )
+    except Exception:
+        return None
 
 
 def status() -> dict:

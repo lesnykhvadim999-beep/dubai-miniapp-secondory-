@@ -946,6 +946,13 @@ def extract_block_two_pass(block: str) -> Optional[dict]:
 
 def verify_extraction(block: str, fields: dict) -> dict:
     """Ask a second LLM to grade each field as ok/wrong/missing."""
+    # Feature flag: FF_LLM_EXTRA_PASS_ENABLED=0 → skip verify pass (saves tokens).
+    try:
+        from stability import ff as _ff
+        if not _ff("LLM_EXTRA_PASS"):
+            return {}
+    except Exception:
+        pass
     prompt = VERIFY_PROMPT.format(text=block[:1500],
                                     fields_json=json.dumps(fields, ensure_ascii=False))
     raw = llm_call(prompt, max_tokens=300, timeout=15)
