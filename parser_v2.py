@@ -25,6 +25,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from llm_chain import llm_call  # type: ignore
 from parser_v2_extras import extract_extras  # rule-based extras: furnishing, view, floor, handover
 
+# Active learning loop (#9) — optional few-shot injection. Imports lazily
+# so environments without DB / module still parse normally.
+try:
+    from active_learning import (
+        is_enabled as _al_enabled,
+        pick_few_shot_examples as _al_pick,
+        format_few_shot_prompt as _al_format,
+    )
+except Exception:
+    def _al_enabled() -> bool:  # type: ignore
+        return False
+    def _al_pick(*a, **k):  # type: ignore
+        return []
+    def _al_format(text, ex):  # type: ignore
+        return f'"""\n{(text or "")[:2000]}\n"""'
+
 
 # ── Canonical map: aliases → user-friendly Dubai community names ──────────
 AREA_CANONICAL = {
@@ -324,11 +340,37 @@ def split_message(text: str) -> tuple[bool, list[str]]:
     return False, blocks
 
 
+def _build_extract_prompt(block: str) -> str:
+    """Build EXTRACT prompt, optionally prepending few-shot examples
+    learned from admin corrections (active learning loop, #9). Capped at
+    3 examples (~600 tokens). OFF by default — gated by
+    ACTIVE_LEARNING_ENABLED env var."""
+    text_for_prompt = block[:2000]
+    if _al_enabled():
+        try:
+            picked = _al_pick(text_for_prompt, n=3)
+            if picked:
+                # _al_format returns the body with examples + final
+                # `"""<text>"""` placeholder, ready to drop into
+                # EXTRACT_PROMPT where {text} was. We replace the
+                # triple-quoted text block in EXTRACT_PROMPT.
+                body = _al_format(text_for_prompt, picked)
+                # EXTRACT_PROMPT wraps text in its own """ """ — strip
+                # those wrappers and feed body verbatim.
+                tpl = EXTRACT_PROMPT.replace(
+                    '"""\n{text}\n"""', "{text}"
+                )
+                return tpl.format(text=body)
+        except Exception as e:
+            print(f"[parser_v2/al] few-shot err: {e}")
+    return EXTRACT_PROMPT.format(text=text_for_prompt)
+
+
 def extract_block(block: str) -> Optional[dict]:
     """Extract structured fields from a single listing block."""
     if not block or len(block.strip()) < 15:
         return None
-    prompt = EXTRACT_PROMPT.format(text=block[:2000])
+    prompt = _build_extract_prompt(block)
     # Retry up to 2 times on JSON parse failure (different LLM may succeed)
     parsed = None
     for attempt in range(2):
@@ -450,8 +492,9 @@ def parse_message_v2(text: str, source_channel: str | None = None) -> list[dict]
             fields["handover_text"] = extras.get("handover_text")
             if not fields.get("handover_date") and extras.get("handover_year"):
                 y = extras["handover_year"]; q = extras.get("handover_quarter")
-                month = {1: "03", 2: "06", 3: "09", 4: "12"}.get(q or 0, "12")
-                fields["handover_date"] = f"{y}-{month}"
+                month, day = {1: ("03", "31"), 2: ("06", "30"),
+                              3: ("09", "30"), 4: ("12", "31")}.get(q or 0, ("12", "31"))
+                fields["handover_date"] = f"{y}-{month}-{day}"
         out.append(fields)
     return out
 

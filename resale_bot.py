@@ -5797,6 +5797,59 @@ def needs_review_check(listing):
     return False, None
 
 
+_PARSER_EXAMPLE_FIELDS = (
+    "deal_type", "property_type", "emirate", "area", "building",
+    "bedrooms", "bathrooms", "size_sqft", "floor", "view",
+    "furnishing", "price", "currency",
+)
+
+
+def _classify_parser_example(correct: dict) -> str:
+    """Coarse bucket for few-shot diversity.
+    apartment / villa / commercial / multi_unit / spam_lookalike."""
+    pt = (correct.get("property_type") or "").lower()
+    if pt in ("office", "shop", "warehouse", "showroom"):
+        return "commercial"
+    if pt in ("villa", "townhouse"):
+        return "villa"
+    if pt in ("whole_building",):
+        return "multi_unit"
+    if pt in ("apartment", "studio", "penthouse", "duplex"):
+        return "apartment"
+    return "apartment"
+
+
+def _save_parser_example(cur, item: dict, edits: dict, reviewer_uid: str) -> None:
+    """INSERT a labeled example into parser_examples. Called from admin save.
+
+    `item` is the review_queue row with current listing fields (the LLM
+    original output for the white-listed columns). `edits` is the admin's
+    overrides — we merge to produce correct_output. Skips silently if
+    source_text is too short or empty.
+    """
+    import json as _json
+    src = (item.get("original_text") or "").strip()
+    if len(src) < 20:
+        return
+    original = {f: item.get(f) for f in _PARSER_EXAMPLE_FIELDS}
+    correct = dict(original)
+    for k, v in edits.items():
+        if k in _PARSER_EXAMPLE_FIELDS:
+            correct[k] = v
+    example_type = _classify_parser_example(correct)
+    cur.execute(
+        """
+        INSERT INTO parser_examples
+            (source_text, correct_output, llm_original_output,
+             reviewed_by, example_type, used_in_prompt)
+        VALUES (%s, %s::jsonb, %s::jsonb, %s, %s, FALSE)
+        """,
+        (src[:4000], _json.dumps(correct, default=str, ensure_ascii=False),
+         _json.dumps(original, default=str, ensure_ascii=False),
+         reviewer_uid, example_type),
+    )
+
+
 def get_review_queue():
     try:
         conn = get_conn()
@@ -5804,7 +5857,9 @@ def get_review_queue():
             cur.execute("""
                 SELECT rq.id, rq.listing_id, rq.reason,
                        l.area, l.building, l.emirate, l.bedrooms,
-                       l.size_sqft, l.price, l.deal_type, l.original_text
+                       l.bathrooms, l.size_sqft, l.floor, l.view,
+                       l.furnishing, l.price, l.currency,
+                       l.deal_type, l.property_type, l.original_text
                 FROM review_queue rq
                 JOIN listings l ON l.id = rq.listing_id
                 WHERE rq.status = 'pending' AND l.is_active = TRUE
@@ -7263,6 +7318,15 @@ def handle_cb(cb):
                         "UPDATE review_queue SET status='approved', reviewed_at=NOW() WHERE id=%s",
                         (qid,)
                     )
+                    # Active learning loop (#9): сохраняем правку как
+                    # ground-truth пример для few-shot prompt parser_v2.
+                    # Original = что было до правки (от LLM). Correct = с
+                    # применёнными изменениями. Никогда не падаем — это
+                    # nice-to-have, основной save не должен ломаться.
+                    try:
+                        _save_parser_example(cur, item, edits, str(uid))
+                    except Exception as _pe:
+                        print(f"[active_learning] save example err: {_pe}")
                 conn.commit()
                 conn.close()
                 new_queue = [q for q in queue if q["id"] != qid]

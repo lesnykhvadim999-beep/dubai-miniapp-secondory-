@@ -264,6 +264,25 @@ CREATE TABLE IF NOT EXISTS review_queue (
 CREATE INDEX IF NOT EXISTS idx_rq_listing ON review_queue(listing_id);
 CREATE INDEX IF NOT EXISTS idx_rq_status  ON review_queue(status);
 
+-- ── Parser Examples (active learning loop, issue #9) ─────────────────────────
+-- Когда админ через @vadim_admin_bot правит ошибку парсера (✏️ + ✅ Сохранить),
+-- сюда складывается пара (исходный текст листинга, корректные поля). Эти
+-- примеры подсасываются в few-shot prompt parser_v2 если включён флаг
+-- ACTIVE_LEARNING_ENABLED=1. По умолчанию выключено до 100+ примеров.
+CREATE TABLE IF NOT EXISTS parser_examples (
+    id                  BIGSERIAL PRIMARY KEY,
+    source_text         TEXT NOT NULL,
+    correct_output      JSONB NOT NULL,
+    llm_original_output JSONB,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    reviewed_by         TEXT,
+    used_in_prompt      BOOLEAN DEFAULT FALSE,
+    example_type        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pex_type    ON parser_examples(example_type);
+CREATE INDEX IF NOT EXISTS idx_pex_created ON parser_examples(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pex_used    ON parser_examples(used_in_prompt);
+
 -- ── Favorites ─────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS favorites (
     id           SERIAL PRIMARY KEY,
