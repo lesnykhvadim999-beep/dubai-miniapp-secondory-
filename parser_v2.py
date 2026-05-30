@@ -266,6 +266,11 @@ Rules:
 - When both are present (e.g. "Original 5.4M / Selling 4.9M") → `price=4900000`,
   `price_original=5400000`. When only one price → `price=<that price>`,
   `price_original=null`.
+- Numbers like "22.8 m" / "1.3 m" with lowercase trailing m mean MILLION AED.
+  Cyrillic "1.5 млн" / "1,5 М" also mean MILLION. So "22.8 m" → price=22800000.
+- "Verdana Townhouses • 3BR from 1.91M / 4BR from 2.26M" — this is a price
+  RANGE across multiple unit configs. Use the LOWEST price (1910000), set
+  bedrooms=null (mixed configs), set property_type from the listed type.
 - Area should be the USER-FRIENDLY community name buyers actually search
   for ("Dubai Marina", NOT "Marsa Dubai"; "JLT" or "Jumeirah Lake Towers",
   NOT "Al Thanyah Fifth"; "Dubai Hills Estate", NOT
@@ -530,29 +535,44 @@ Now extract. Return JSON with these keys:
   "tenure": "freehold" | "leasehold" | null,""" + _COMMON_SCHEMA_TAIL
 
 
-_NUM_SUFFIX = {"k": 1_000, "K": 1_000, "m": 1_000_000, "M": 1_000_000,
+_NUM_SUFFIX = {"k": 1_000, "K": 1_000, "к": 1_000, "К": 1_000,
+                "m": 1_000_000, "M": 1_000_000, "м": 1_000_000, "М": 1_000_000,
                 "mn": 1_000_000, "MN": 1_000_000, "mln": 1_000_000,
-                "b": 1_000_000_000, "B": 1_000_000_000}
+                "млн": 1_000_000, "млна": 1_000_000, "миллион": 1_000_000,
+                "b": 1_000_000_000, "B": 1_000_000_000, "млрд": 1_000_000_000}
 
 
 def _coerce_number(v, *, integer: bool = False) -> Optional[float]:
-    """Robust number coercion. Handles: '2.15M', '1,500,000', '50k',
-    '1200 sqft', 1500000, 2.5, None."""
+    """Robust number coercion. Handles:
+       '2.15M', '1,500,000', '50k', '1200 sqft',
+       'AED 22.8 m' (lowercase m with space),
+       '1.5 млн' / '1,5 М' (Cyrillic suffix),
+       '$3.5M', '1.2M per year'."""
     if v is None:
         return None
     if isinstance(v, (int, float)):
         return int(v) if integer else float(v)
     if not isinstance(v, str):
         return None
-    s = v.strip().replace(",", "")
-    # strip currency prefix and trailing unit words
-    s = re.sub(r"^\s*(aed|usd|eur|\$|€)\s*", "", s, flags=re.IGNORECASE)
+    # Normalize: trim, comma → dot for decimal (RU style "1,5"), remove thousand-grouping commas
+    s = v.strip()
+    # If multiple commas → thousands; if single comma surrounded by digits → decimal separator
+    if s.count(",") == 1 and re.match(r"^\d+,\d{1,3}(?!\d)\s", s + " "):
+        # Looks like "1,5" decimal — convert to dot
+        s = s.replace(",", ".")
+    else:
+        s = s.replace(",", "")
+    # Strip currency prefix and trailing unit words (EN + RU)
+    s = re.sub(r"^\s*(aed|usd|eur|\$|€|د\.إ)\s*", "", s, flags=re.IGNORECASE)
     s = re.sub(r"\s*(aed|usd|eur|sqft|sq\.?\s*ft|sqm|sq\.?\s*m|sm|"
-               r"/year|/month|/yr|/mo|годовая|per\s+year|per\s+month)\s*$",
+               r"/year|/month|/yr|/mo|годовая|год\.?|"
+               r"per\s+year|per\s+month|в\s+год|в\s+месяц)\s*$",
                "", s, flags=re.IGNORECASE)
-    s = s.replace(" ", "").strip().lstrip("$")
-    # match number + optional suffix M/K/B
-    m = re.fullmatch(r"(-?\d+(?:\.\d+)?)([KkMmBb]|mn|MN|mln)?", s)
+    s = s.replace(" ", "").replace(" ", "").replace(" ", "").strip().lstrip("$")
+    # Match number + optional suffix (M/K/B Latin + Cyrillic М/К/млн/млрд)
+    m = re.fullmatch(
+        r"(-?\d+(?:\.\d+)?)"
+        r"(млна?|млн|миллионов?|млрд|mn|MN|mln|[KkMmBbКкМм])?", s)
     if not m:
         return None
     n = float(m.group(1))
