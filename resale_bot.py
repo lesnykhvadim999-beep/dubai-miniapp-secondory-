@@ -1668,6 +1668,17 @@ def _build_pdf_risks(score_dict, listing, lang):
 
 def _send_pdf(cid, uid, listing):
     """Generate investment PDF for a listing + send as document."""
+    # Feature flag: FF_PDF_REPORT_ENABLED=0 → skip PDF generation gracefully.
+    try:
+        from stability import ff as _ff, degrade_msg as _dmsg
+        if not _ff("PDF_REPORT"):
+            try:
+                send_message(cid, _dmsg("feature_unavailable", _get_lang(uid)))
+            except Exception:
+                pass
+            return
+    except Exception:
+        pass
     try:
         # v51 PERF: use module-level imports (was lazy in hot path)
         dld_b = _lookup_benchmark(listing.get("building")) if listing.get("building") else None
@@ -1778,7 +1789,16 @@ def _api_raw(method, **kw):
 
 
 def _api(method, **kw):
+    # Circuit breaker around Telegram API: when OPEN (mass 5xx / 429),
+    # short-circuits to {} so the bot doesn't pile up requests.
     try:
+        from stability import get_breaker as _gb
+        _tg_cb = _gb("telegram_api", threshold=10, window=60, cooldown=30)
+    except Exception:
+        _tg_cb = None
+    try:
+        if _tg_cb is not None:
+            return _tg_cb.call(_api_raw, method, fallback={}, **kw)
         return _api_raw(method, **kw)
     except Exception as e:
         count_error(err_type=f"tg_{method}")
@@ -4095,6 +4115,14 @@ def transcribe_voice_groq(file_id, lang_hint=None, timeout=30):
     """Download Telegram voice (OGG) by file_id and transcribe via Groq Whisper.
     Returns transcript string, or None on any error / missing key.
     Free tier — no paid services. Files up to 25 MB supported."""
+    # Feature flag: FF_VOICE_SEARCH_ENABLED=0 disables voice transcription.
+    try:
+        from stability import ff as _ff
+        if not _ff("VOICE_SEARCH"):
+            print("[voice] FF_VOICE_SEARCH_ENABLED=0 — disabled", flush=True)
+            return None
+    except Exception:
+        pass
     if not GROQ_API_KEY:
         print("[voice] GROQ_API_KEY missing — voice transcription disabled",
               flush=True)
@@ -4193,6 +4221,13 @@ def _llm_call(prompt: str, max_tokens: int = 600, timeout: int = 20) -> str | No
 
 def claude_translate(text, target_lang="en"):
     """Translate any text to target_lang via LLM (Claude → Groq fallback)."""
+    # Feature flag: FF_TRANSLATE_ENABLED=0 → return original text unchanged.
+    try:
+        from stability import ff as _ff
+        if not _ff("TRANSLATE"):
+            return text
+    except Exception:
+        pass
     if not text: return None
     lang_full = {"en": "English", "ru": "Russian", "ar": "Arabic"}.get(target_lang, "English")
     prompt = (
@@ -5129,6 +5164,17 @@ def ai_consultant_start(cid, uid):
     except Exception:
         pass
     lang = _get_lang(uid) if callable(globals().get("_get_lang")) else user_lang.get(uid, "en")
+    # Feature flag: FF_AI_CONSULTANT_ENABLED=0 → degrade to traditional search.
+    try:
+        from stability import ff as _ff, degrade_msg as _dmsg
+        if not _ff("AI_CONSULTANT"):
+            try:
+                send_message(cid, _dmsg("llm_unavailable", lang))
+            except Exception:
+                pass
+            return
+    except Exception:
+        pass
     session_id = _ai_consult_create_session(uid)
     ai_consult_states[uid] = {
         "active": True,
@@ -6045,6 +6091,14 @@ def show_heatmap(cid: int, uid: int):
 
     PNG кэшируется на сутки (см. _investment_heatmap._cache_path).
     """
+    # Feature flag: FF_HEATMAP_ENABLED=0 → show "temporarily unavailable".
+    try:
+        from stability import ff as _ff, degrade_msg as _dmsg
+        if not _ff("HEATMAP"):
+            _send(cid, _dmsg("feature_unavailable", _get_lang(uid)), kb_main_reply(uid))
+            return
+    except Exception:
+        pass
     try:
         from _investment_heatmap import get_heatmap
     except Exception as e:
@@ -8831,6 +8885,17 @@ def run_bot():
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     print("[bot] Dubai Resale Intelligence Bot v5")
+    # Resilience: smoke test + watchdog + crash-loop counter (opt-out via envs)
+    try:
+        from resilience import start_resilience as _start_resilience
+        if not _start_resilience("resale"):
+            print("[resilience] smoke test FAILED — refusing to start polling", flush=True)
+            import sys as _sys
+            _sys.exit(1)
+    except SystemExit:
+        raise
+    except Exception as _re:
+        print(f"[resilience] init error (continuing): {_re}", flush=True)
     try:
         p = start_metrics_server()
         if p:
