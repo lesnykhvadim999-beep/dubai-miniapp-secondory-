@@ -44,6 +44,35 @@ from db_schema import (
     get_full_stats, get_conn,
 )
 
+# ── Empty-result sanity guard (added 2026-05-30) ──────────────────────────
+# Wrap search_listings so that when filter chops everything but the base
+# table is healthy (>>100 rows) we audit + alert. Throttled 1/hour.
+try:
+    import sys as _eg_sys2, os as _eg_os2
+    for _eg_path2 in ("/app/shared", r"C:\Projects\shared", "../shared"):
+        if _eg_os2.path.isdir(_eg_path2) and _eg_path2 not in _eg_sys2.path:
+            _eg_sys2.path.insert(0, _eg_path2)
+    from empty_guard import guarded_query as _eg_guarded
+    _orig_search_listings = search_listings
+    def _sl_empty(r):
+        # search_listings returns (rows, total)
+        try:
+            return not r or not r[0]
+        except Exception:
+            return False
+    search_listings = _eg_guarded(  # type: ignore[misc]
+        label="resale.search_listings",
+        base_count_sql="SELECT COUNT(*) FROM public.listings WHERE is_active=true",
+        dsn_env="DATABASE_URL",
+        bot="resale",
+        base_min=500,
+        alert_threshold=2_000,
+        is_empty=_sl_empty,
+    )(_orig_search_listings)
+    print("[empty_guard] resale.search_listings wrapped")
+except Exception as _eg_e2:
+    print(f"[empty_guard] resale init failed (non-fatal): {_eg_e2}")
+
 # ── Subscription / monetisation ───────────────────────────────────────────────
 try:
     import sys as _sys, os as _os
@@ -9082,6 +9111,27 @@ def main():
             print(f"[bot] cron_worker boot thread failed: {e}", flush=True)
     else:
         print("[bot] cron_worker DISABLED (CRON_WORKER_ENABLED=0).")
+    # Contract validator (background thread, non-blocking). См. shared/contract_validator.py.
+    # STRICT_CONTRACTS=0 by default → алертим, не падаем.
+    try:
+        from contract_boot_hook import install_contract_check
+        try:
+            from admin_notify import admin_notify as _adm_notify
+        except Exception:
+            _adm_notify = None
+        _resale_dsn = os.environ.get("DATABASE_URL", "")
+        install_contract_check(
+            bot_name="resale",
+            dsns={
+                "resale": _resale_dsn,
+                "live": os.environ.get("LIVE_DATABASE_URL", _resale_dsn),
+            },
+            contracts_filter=["listings_v2", "users", "leads", "area_price_benchmark"],
+            admin_notify=_adm_notify,
+        )
+        print("[contract] boot check scheduled", flush=True)
+    except Exception as _cce:
+        print(f"[contract] boot check skipped: {_cce!r}", flush=True)
     print("[bot] About to call run_bot()...")
     run_bot()
 
@@ -9105,6 +9155,17 @@ _sys.excepthook = _unhandled_exception_hook
 
 
 if __name__ == "__main__":
+    # Boot-time ecosystem contract verification (fail-soft unless STRICT_CONTRACTS=1).
+    try:
+        from contracts_registry import verify_my_contracts as _vmc
+        _vmc(bot_name="resale", role="both", notify=True)
+    except Exception as _ce:
+        try:
+            import logging as _lg
+            _lg.getLogger(__name__).warning(
+                "contracts_registry verify failed (non-fatal): %s", _ce)
+        except Exception:
+            pass
     try:
         main()
     except Exception:
