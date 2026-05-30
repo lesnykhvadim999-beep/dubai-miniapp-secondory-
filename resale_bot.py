@@ -8394,11 +8394,18 @@ def main():
     from market_updater import start_market_scheduler
     start_market_scheduler()
     print("[bot] Market updater started.")
-    try:
-        from cron_worker import start_all as _start_cron
-        _start_cron()
-    except Exception as e:
-        print(f"[bot] cron_worker init failed: {e}")
+    # Cron worker disabled — was crashing main polling loop on Railway.
+    # Re-enable via CRON_WORKER_ENABLED=1 once cron_worker.start_all is fixed.
+    if os.environ.get("CRON_WORKER_ENABLED") == "1":
+        try:
+            from cron_worker import start_all as _start_cron
+            _start_cron()
+            print("[bot] cron_worker started.")
+        except Exception as e:
+            print(f"[bot] cron_worker init failed: {e}")
+    else:
+        print("[bot] cron_worker DISABLED (set CRON_WORKER_ENABLED=1 to enable).")
+    print("[bot] About to call run_bot()...")
     run_bot()
 
 
