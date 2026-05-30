@@ -14,7 +14,7 @@ import psycopg2
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "REDACTED_DSN_USE_DATABASE_URL_ENV"
+    os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set"))
 )
 
 # Regex совпадает с тем, что добавлен в _is_building_stopword

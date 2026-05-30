@@ -42,8 +42,7 @@ DLD_DSN = os.environ.get(
 )
 RESALE_DSN = os.environ.get(
     "DATABASE_URL",
-    "postgresql://postgres:REDACTED_DSN_PASSWORD"
-    "@tramway.proxy.rlwy.net:23228/railway",
+    os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set")),
 )
 DRY_RUN = os.environ.get("DRY_RUN", "0") == "1"
 MIN_TXNS = 5

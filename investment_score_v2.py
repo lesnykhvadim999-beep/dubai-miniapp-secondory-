@@ -317,8 +317,7 @@ if __name__ == "__main__":
     )
     RESALE_URL = os.environ.get(
         "RESALE_DB_URL",
-        "postgresql://postgres:REDACTED_DSN_PASSWORD"
-        "@tramway.proxy.rlwy.net:23228/railway",
+        os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set")),
     )
     intel = psycopg2.connect(INTEL_URL)
     resale = psycopg2.connect(RESALE_URL)

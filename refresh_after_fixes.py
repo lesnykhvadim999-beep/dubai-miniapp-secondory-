@@ -2,6 +2,7 @@
 """Refresh price/deal_type/building/property_type for all active records
 after fixes to: AED stripping, multi-listing separators, emoji stripping,
 sale-keyword guard, rent>1M validation."""
+import os
 import sys, time
 sys.stdout.reconfigure(encoding='utf-8')
 import psycopg2
@@ -10,7 +11,7 @@ from parser_engine import (
     detect_building, validate_deal_type_by_price, compute_deal_quality,
 )
 
-conn = psycopg2.connect('REDACTED_DSN_USE_DATABASE_URL_ENV')
+conn = psycopg2.connect(os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set")))
 cur = conn.cursor()
 cur.execute("""
     SELECT id, original_text, deal_type, property_type, price, original_price,

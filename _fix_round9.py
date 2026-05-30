@@ -5,10 +5,11 @@
 - Marina Residences on Palm — keep (real building)
 - Building matches text first-line only — drop bleed
 """
+import os
 import sys, io, re, psycopg2
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-DB = "REDACTED_DSN_USE_DATABASE_URL_ENV"
+DB = os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set"))
 conn = psycopg2.connect(DB)
 cur = conn.cursor()
 

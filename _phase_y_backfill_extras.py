@@ -18,8 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from parser_v2_extras import extract_extras  # noqa: E402
 
 DSN = (
-    "postgresql://postgres:REDACTED_DSN_PASSWORD"
-    "@tramway.proxy.rlwy.net:23228/railway"
+    os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set"))
 )
 
 BATCH = 500

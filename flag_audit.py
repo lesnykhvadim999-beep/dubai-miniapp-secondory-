@@ -14,12 +14,13 @@
 Этот скрипт можно запускать ежедневно через cron / admin command /auditreview
 для просмотра свежих audit-записей.
 """
+import os
 import sys, time
 sys.stdout.reconfigure(encoding='utf-8')
 import psycopg2
 from parser_engine import _lookup_benchmark
 
-DB_URL = 'REDACTED_DSN_USE_DATABASE_URL_ENV'
+DB_URL = os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set"))
 
 def classify(row):
     """Returns (is_audit: bool, reason: str | None)."""

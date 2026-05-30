@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from llm_chain import llm_call, status as llm_status  # noqa: E402
 
-DSN = "REDACTED_DSN_USE_DATABASE_URL_ENV"
+DSN = os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set"))
 LOG_FILE = r"C:/Temp/v131_wb_disputed_recheck.log"
 SLEEP_BETWEEN = 8.0
 

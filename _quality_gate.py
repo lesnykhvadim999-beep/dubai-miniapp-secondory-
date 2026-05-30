@@ -1,12 +1,13 @@
 """Quality gate: NULL building → is_audit=TRUE.
 Также: re-extract building+area для всех видимых через parse_message
 + применить DLD-normalize."""
+import os
 import sys, io, psycopg2
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
 sys.path.insert(0, '.')
 from parser_engine import parse_message, normalize_via_dld, _DLD_CANONICAL
 
-DB = "REDACTED_DSN_USE_DATABASE_URL_ENV"
+DB = os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set"))
 conn = psycopg2.connect(DB); cur = conn.cursor()
 
 # Step 1: count what we have

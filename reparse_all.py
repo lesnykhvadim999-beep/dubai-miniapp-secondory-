@@ -6,12 +6,13 @@ Updates: is_off_plan, handover_date, extra_info, description, view, floor,
 
 Idempotent — safe to re-run.
 """
+import os
 import sys, os, time, json
 sys.stdout.reconfigure(encoding='utf-8')
 
 os.environ.setdefault(
     "DATABASE_URL",
-    "REDACTED_DSN_USE_DATABASE_URL_ENV"
+    os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set"))
 )
 
 import psycopg2

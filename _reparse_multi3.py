@@ -1,12 +1,13 @@
 """Re-parse multi-listing records: building, area, ptype, br, sz, pr.
 Apply parse_message to first-block. Update DB where different.
 """
+import os
 import sys, io, psycopg2
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.path.insert(0, '.')
 from parser_engine import parse_message
 
-DB = "REDACTED_DSN_USE_DATABASE_URL_ENV"
+DB = os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set"))
 conn = psycopg2.connect(DB)
 cur = conn.cursor()
 

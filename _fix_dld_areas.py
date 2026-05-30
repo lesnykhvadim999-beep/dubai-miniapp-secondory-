@@ -1,10 +1,11 @@
 """Convert DLD official area names back to user-friendly names.
 DLD canonical имена не понятны пользователям — нужно показывать привычные.
 """
+import os
 import sys, io, psycopg2
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
 
-DB = "REDACTED_DSN_USE_DATABASE_URL_ENV"
+DB = os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set"))
 
 # DLD official name → User-friendly name
 DLD_TO_FRIENDLY = {

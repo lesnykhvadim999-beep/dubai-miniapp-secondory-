@@ -1,12 +1,13 @@
 """Fix all records where reference number was picked as price.
 Re-run extract_price with the fixed parser.
 """
+import os
 import sys, io, psycopg2
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.path.insert(0, '.')
 from parser_engine import extract_price
 
-DB = "REDACTED_DSN_USE_DATABASE_URL_ENV"
+DB = os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set"))
 conn = psycopg2.connect(DB)
 cur = conn.cursor()
 

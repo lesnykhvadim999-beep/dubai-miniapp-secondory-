@@ -16,8 +16,7 @@ from datetime import datetime, timezone
 
 DB = os.environ.get(
     "DATABASE_URL",
-    "postgresql://postgres:REDACTED_DSN_PASSWORD"
-    "@tramway.proxy.rlwy.net:23228/railway",
+    os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set")),
 )
 
 
@@ -73,6 +72,16 @@ def extract_price(text):
     return None
 
 
+def _strip_markdown(s):
+    """Remove **bold** / *italic* / `code` / ~~strike~~ markers."""
+    if not s:
+        return s
+    s = re.sub(r"\*+", "", s)
+    s = re.sub(r"~~", "", s)
+    s = re.sub(r"`", "", s)
+    return s
+
+
 def main():
     c = psycopg2.connect(DB, connect_timeout=10)
     cur = c.cursor()
@@ -88,7 +97,9 @@ def main():
     filled = 0
     examples = []
     for lid, txt in rows:
-        p = extract_price(txt)
+        # Strip markdown formatting that can break regex
+        txt_clean = _strip_markdown(txt)
+        p = extract_price(txt_clean)
         if p:
             cur.execute("UPDATE listings SET price=%s WHERE id=%s", (p, lid))
             filled += 1

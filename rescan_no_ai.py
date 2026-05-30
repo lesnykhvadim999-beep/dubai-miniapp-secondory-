@@ -10,6 +10,7 @@ rescan_no_ai.py — Пересканирование базы БЕЗ AI, тол�
 - Не трогает поля которые уже заполнены (только пустые + цену)
 - Коммитит каждые 100 записей
 """
+import os
 import sys, os, time
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -20,7 +21,7 @@ from parser_engine import parse_message, validate_deal_type_by_price
 
 DB_URL = os.environ.get(
     "DATABASE_URL",
-    "REDACTED_DSN_USE_DATABASE_URL_ENV",
+    os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set")),
 )
 
 def rescan_no_ai():

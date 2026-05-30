@@ -57,7 +57,7 @@ from parser_v2_helpers import is_complete, pick_primary  # type: ignore
 
 
 DEFAULT_DSN = (
-    "postgresql://postgres:REDACTED_DSN_PASSWORD@"
+    "postgresql://postgres:REDACTED_USE_ENV_DATABASE_URL@"
     "tramway.proxy.rlwy.net:23228/railway"
 )
 DSN = os.environ.get("DATABASE_URL", DEFAULT_DSN)
