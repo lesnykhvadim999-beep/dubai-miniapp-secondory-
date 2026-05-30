@@ -12,6 +12,33 @@ import re
 from typing import List
 
 
+# ─── Pattern: forwarded-message headers (Telegram quotes from another channel) ───
+_FORWARDED_HEADER_RX = re.compile(
+    r"^\s*(?:"
+    r"Forwarded\s+from\s+[^\n]{1,80}|"
+    r"From\s+[@:]?\w[\w\s_-]{1,80}|"
+    r"Переслано\s+(?:из\s+|от\s+)?[^\n]{1,80}|"
+    r"📨\s+[\w\s]{1,40}|"
+    r"💬\s+@\w+\s+writes?:|"
+    r"\[Channel:\s+[^\]]+\]"
+    r")\s*\n+",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def strip_forwarded_header(text: str) -> str:
+    """Remove Telegram-style forwarded-message headers from start of text."""
+    if not text:
+        return text
+    # Allow up to 3 nested forwards
+    for _ in range(3):
+        new = _FORWARDED_HEADER_RX.sub("", text, count=1)
+        if new == text:
+            break
+        text = new
+    return text.strip()
+
+
 # ─── Pattern: explicit FOR SALE! / FOR RENT! repeating markers ───
 _HEADER_RX = re.compile(
     r"(?:^|\n)\s*(?:[🟦🔥📍💎⚡🚨✨🌟▪️▶️🏠🏢🏖]\s*)?"
@@ -71,6 +98,11 @@ def regex_split(text: str) -> List[str]:
 
     Returns [text] (single-block) if no markers found."""
     if not text or not text.strip():
+        return []
+
+    # 0. Strip forwarded-message headers first
+    text = strip_forwarded_header(text)
+    if not text:
         return []
 
     # 1. Inline split (highest priority — must be obvious, works for short texts too)
