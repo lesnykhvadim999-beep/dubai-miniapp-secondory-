@@ -493,6 +493,117 @@ T = {
     "stats_rent_cnt":     "For Rent",
     "stats_sale_avg":     "Avg sale price",
     "stats_rent_avg":     "Avg rent/year",
+    "card_price_on_request": "Price on request",
+    "det_type_label": "Type",
+    "det_property": "Property",
+    "det_bedrooms": "Bedrooms",
+    "det_size": "Size",
+    "det_floor": "Floor",
+    "det_view": "View",
+    "det_status": "Status",
+    "det_furn": "Furnishing",
+    "det_stage": "Stage",
+    "det_off_plan": "Off-plan",
+    "det_handover": "Handover",
+    "det_description": "Description",
+    "det_for_rent": "For Rent",
+    "det_investment_analysis": "INVESTMENT ANALYSIS",
+    "det_score": "Score",
+    "det_roi": "ROI",
+    "det_roi_yearly": "% yearly",
+    "det_longterm": "Long-term",
+    "det_per_year": "/ year",
+    "det_airbnb": "Airbnb",
+    "det_area_growth": "Area growth",
+    "det_annually": "% annually",
+    "det_very_good_deal": "VERY GOOD DEAL",
+    "det_good_deal": "GOOD DEAL",
+    "det_interesting_offer": "INTERESTING OFFER",
+    "det_below_market": "below market average",
+    "det_below_original": "below original price",
+    "det_premium_below": "below premium segment",
+    "det_translate": "🌐 Translate",
+    "det_seller_contacts_locked": "👤 Seller Contacts 🔒",
+    "det_dld_deals_locked": "📊 DLD Deal History 🔒",
+    "cta_new_projects": "🏗 New developer projects",
+    "cta_roi_calc": "📊 ROI Calculator",
+    "cta_area_analytics": "📈 Area Analytics",
+    "pdf_label": "📄 Investment PDF",
+    "pdf_generating": "📄 Generating PDF…",
+    "pdf_failed": "PDF failed",
+    "pdf_report_caption": "📄 Investment Report — {bld}",
+    "voice_prompt": '🎙 *Voice search*\n\nJust record a voice note as your next message.\n_Example:_ "2BR in Marina under 5M"\n\nHints: /voice_help',
+    "voice_help": '🎙 *Voice search* — examples:\n\n• "2BR in Marina under 5M"\n• "Studio in JVC under 800k"\n• "Villa on Palm with sea view"\n• "Hot deals in Downtown"\n\n_File up to 25 MB, ideally under 2 min._',
+    "voice_recognizing": "🎙 Transcribing voice…",
+    "voice_not_understood": "⚠️ Could not understand the voice — please try again or type your query.",
+    "voice_heard": "🎙 Heard:",
+    "voice_failed": "⚠️ Voice transcription failed. Please type your query.",
+    "tr_not_ready": "Translation not ready yet. Try later.",
+    "lang_picker": "🌐  Select your language / Выберите язык / اختر لغتك",
+    "relax_no_building": "❌ Without building: «{q}»",
+    "relax_no_budget": "💰 Without budget cap",
+    "relax_no_bedrooms": "🛏 Without bedroom filter",
+    "relax_no_area": "📍 Without area: «{q}»",
+    "relax_hint": "\n\n_Try removing one of the filters below:_",
+    "no_listings_to_compare": "⚠️ No results to compare.",
+    "compare_unavailable": "⚠️ Compare unavailable.",
+    "compare_cart_cleared": "🗑 Compare cart cleared.",
+    "pay_failed_generic": "⚠️ Could not create payment. Try again later.",
+    "ton_unavailable": "⚠️ TON payments are temporarily unavailable. Please use Telegram Stars.",
+    "ton_invoice_failed": "⚠️ Could not create TON invoice. Try Stars payment instead.",
+    "ton_pay_title": "💎 *TON Payment — {plan}*",
+    "ton_pay_amount": "Amount",
+    "ton_pay_via": "Pay via @CryptoBot",
+    "ton_pay_note": "_Subscription activates automatically after payment (up to 5 min)._",
+    "ton_open_link": "💎 Open payment link",
+    "plan_month": "1 month",
+    "plan_year": "1 year",
+    "sub_info_title_m": "⭐ *Dubai Realty Pro — $5/month*",
+    "sub_info_includes": "What's included:",
+    "sub_info_smart": "🤖 AI Smart Pick",
+    "sub_info_pdf": "📄 Investment PDF",
+    "sub_info_deals": "📊 DLD Deal History",
+    "sub_info_seller": "👤 Seller Contacts",
+    "sub_info_unlimited": "unlimited",
+    "sub_info_free_uses": "(free: {n} uses)",
+    "sub_info_payments": "Payment methods:",
+    "sub_info_stars": "⭐ Telegram Stars (250 XTR) — instant",
+    "sub_info_ton": "💎 TON (~2 TON) — via @CryptoBot",
+    "sub_info_note": "_Subscription is valid for 30 days. Renew by paying again._",
+    "sub_status_active_until": "✅ *Subscription active* until {dt}",
+    "sub_status_unlocked": "All features unlocked.",
+    "sub_status_title": "📊 *Subscription status*",
+    "sub_status_free_left": "{label}: {left}/{total} free left",
+    "sub_status_cta": "Subscribe for $5/month for unlimited access.",
+    "sub_activated": "✅ *Subscription activated!*",
+    "sub_active_until": "Active until *{dt}*.",
+    "sub_unlocked_emoji": "All features unlocked 🚀",
+    "sub_payment_received": "✅ Payment received! Your subscription will be activated shortly.",
+    "seller_title": "👤 *Seller Contacts*",
+    "seller_seller": "Seller",
+    "seller_phone": "Phone",
+    "seller_whatsapp": "WhatsApp",
+    "seller_agent": "Agent",
+    "seller_listing": "Listing",
+    "deals_loading": "📊 Loading deal data…",
+    "deals_title": "📊 *DLD Market Data — {area}*",
+    "deals_no_data": "📊 No DLD data available for *{area}* yet.",
+    "back_to_results": "🔙 Back to results",
+    "all_in_bld_caption": "🏢 All units in *{bld}*",
+    "photo_received": "✅ Photo {n} received. Send more or tap Skip.",
+    "not_found_short": "Not found.",
+    "nl_partial_understood": "Couldn't parse fully — try clarifying (area, deal type, budget).",
+    "aic_helpful": "👍 Helpful",
+    "aic_not_it": "👎 Not it",
+    "aic_refine": "🔍 Refine search",
+    "aic_compare5": "📊 Compare these 5",
+    "aic_home": "🏠 Main menu",
+    "aic_clarify": "Got it. Could you clarify area, budget and number of bedrooms?",
+    "aic_which_area": "Which area or budget?",
+    "aic_need_details": "Not sure I follow. Could you add details (area, budget)?",
+    "aic_results_hdr": "📊 Found {total} matches. Top-{n}:\n\n",
+    "wiz_bld_dld_suggest": "💡 You might mean (from DLD archive):",
+    "deals_count_suffix": "{n} deals",
 },
 "ru": {
     "welcome": (
@@ -782,6 +893,117 @@ T = {
     "stats_rent_cnt":     "Аренда",
     "stats_sale_avg":     "Ср. цена продажи",
     "stats_rent_avg":     "Ср. аренда/год",
+    "card_price_on_request": "Цена по запросу",
+    "det_type_label": "Тип",
+    "det_property": "Объект",
+    "det_bedrooms": "Спальни",
+    "det_size": "Площадь",
+    "det_floor": "Этаж",
+    "det_view": "Вид",
+    "det_status": "Статус",
+    "det_furn": "Меблировка",
+    "det_stage": "Стадия",
+    "det_off_plan": "Off-plan",
+    "det_handover": "Сдача",
+    "det_description": "Описание",
+    "det_for_rent": "Аренда",
+    "det_investment_analysis": "ИНВЕСТ-АНАЛИЗ",
+    "det_score": "Балл",
+    "det_roi": "ROI",
+    "det_roi_yearly": "% годовых",
+    "det_longterm": "Долгосрочная",
+    "det_per_year": "/ год",
+    "det_airbnb": "Airbnb",
+    "det_area_growth": "Рост района",
+    "det_annually": "% в год",
+    "det_very_good_deal": "ОТЛИЧНАЯ СДЕЛКА",
+    "det_good_deal": "ХОРОШАЯ СДЕЛКА",
+    "det_interesting_offer": "ИНТЕРЕСНОЕ ПРЕДЛОЖЕНИЕ",
+    "det_below_market": "ниже рынка",
+    "det_below_original": "ниже первоначальной цены",
+    "det_premium_below": "ниже премиум-сегмента",
+    "det_translate": "🌐 Перевести",
+    "det_seller_contacts_locked": "👤 Данные продавца 🔒",
+    "det_dld_deals_locked": "📊 Сделки DLD 🔒",
+    "cta_new_projects": "🏗 Новостройки от застройщика",
+    "cta_roi_calc": "📊 ROI калькулятор",
+    "cta_area_analytics": "📈 Аналитика района",
+    "pdf_label": "📄 Инвест-отчёт PDF",
+    "pdf_generating": "📄 Готовлю PDF…",
+    "pdf_failed": "PDF не создан",
+    "pdf_report_caption": "📄 Инвест-отчёт — {bld}",
+    "voice_prompt": "🎙 *Голосовой поиск*\n\nПросто запиши голосовое следующим сообщением.\n_Например:_ «2 спальни в Марине до 5 миллионов»\n\nПодсказки: /voice_help",
+    "voice_help": "🎙 *Голосовой поиск* — примеры:\n\n• «2 спальни в Марине до 5 миллионов»\n• «Студия в JVC до 800 тысяч»\n• «Вилла в Palm с видом на море»\n• «Горячие сделки в Downtown»\n\n_Файл до 25 МБ, длительность до 2 мин._",
+    "voice_recognizing": "🎙 Распознаю голосовое…",
+    "voice_not_understood": "⚠️ Не разобрал голосовое — попробуй повторить или набери текстом.",
+    "voice_heard": "🎙 Услышал:",
+    "voice_failed": "⚠️ Не удалось распознать голос. Попробуйте написать текстом.",
+    "tr_not_ready": "Перевод ещё не готов. Попробуйте позже.",
+    "lang_picker": "🌐  Select your language / Выберите язык / اختر لغتك",
+    "relax_no_building": "❌ Без здания: «{q}»",
+    "relax_no_budget": "💰 Без ограничения бюджета",
+    "relax_no_bedrooms": "🛏 Без фильтра спален",
+    "relax_no_area": "📍 Без района: «{q}»",
+    "relax_hint": "\n\n_Попробуйте убрать один из фильтров ниже:_",
+    "no_listings_to_compare": "⚠️ Нет объектов для сравнения.",
+    "compare_unavailable": "⚠️ Сравнение недоступно.",
+    "compare_cart_cleared": "🗑 Корзина сравнения очищена.",
+    "pay_failed_generic": "⚠️ Не удалось создать платёж. Попробуйте позже.",
+    "ton_unavailable": "⚠️ TON-оплата временно недоступна. Используйте Telegram Stars.",
+    "ton_invoice_failed": "⚠️ Не удалось создать TON-инвойс. Попробуйте оплату Stars.",
+    "ton_pay_title": "💎 *Оплата TON — {plan}*",
+    "ton_pay_amount": "Сумма",
+    "ton_pay_via": "Оплатить через @CryptoBot",
+    "ton_pay_note": "_После оплаты подписка активируется автоматически (до 5 мин)._",
+    "ton_open_link": "💎 Открыть ссылку оплаты",
+    "plan_month": "1 месяц",
+    "plan_year": "1 год",
+    "sub_info_title_m": "⭐ *Dubai Realty Pro — $5/месяц*",
+    "sub_info_includes": "Что входит:",
+    "sub_info_smart": "🤖 AI Умный Подбор",
+    "sub_info_pdf": "📄 Инвест-PDF отчёт",
+    "sub_info_deals": "📊 История сделок DLD",
+    "sub_info_seller": "👤 Контакты продавца",
+    "sub_info_unlimited": "без лимитов",
+    "sub_info_free_uses": "(бесплатно: {n} раз)",
+    "sub_info_payments": "Оплата:",
+    "sub_info_stars": "⭐ Telegram Stars (250 XTR) — мгновенно",
+    "sub_info_ton": "💎 TON (~2 TON) — через @CryptoBot",
+    "sub_info_note": "_Подписка активна 30 дней. Продление — новая оплата._",
+    "sub_status_active_until": "✅ *Подписка активна* до {dt}",
+    "sub_status_unlocked": "Все функции разблокированы.",
+    "sub_status_title": "📊 *Статус подписки*",
+    "sub_status_free_left": "{label}: {left}/{total} бесплатных осталось",
+    "sub_status_cta": "Подпишитесь за $5/мес для безлимитного доступа.",
+    "sub_activated": "✅ *Подписка активирована!*",
+    "sub_active_until": "Активна до *{dt}*.",
+    "sub_unlocked_emoji": "Все функции разблокированы 🚀",
+    "sub_payment_received": "✅ Платёж получен! Подписка скоро активируется.",
+    "seller_title": "👤 *Данные продавца*",
+    "seller_seller": "Продавец",
+    "seller_phone": "Телефон",
+    "seller_whatsapp": "WhatsApp",
+    "seller_agent": "Агент",
+    "seller_listing": "Объявление",
+    "deals_loading": "📊 Загружаю сделки…",
+    "deals_title": "📊 *Сделки DLD — {area}*",
+    "deals_no_data": "📊 Данные по *{area}* пока недоступны.",
+    "back_to_results": "🔙 К результатам",
+    "all_in_bld_caption": "🏢 Все объекты в *{bld}*",
+    "photo_received": "✅ Фото {n} получено. Отправьте ещё или нажмите Пропустить.",
+    "not_found_short": "Не найдено.",
+    "nl_partial_understood": "Не все параметры понял — попробуйте уточнить (район, тип сделки, бюджет).",
+    "aic_helpful": "👍 Помогло",
+    "aic_not_it": "👎 Не то",
+    "aic_refine": "🔍 Уточнить поиск",
+    "aic_compare5": "📊 Сравнить эти 5",
+    "aic_home": "🏠 В меню",
+    "aic_clarify": "Понял. Уточни, пожалуйста: район, бюджет и число спален?",
+    "aic_which_area": "Какой район или бюджет?",
+    "aic_need_details": "Не совсем понял. Можешь добавить детали (район, бюджет)?",
+    "aic_results_hdr": "📊 Нашёл {total} вариантов. Топ-{n}:\n\n",
+    "wiz_bld_dld_suggest": "💡 Возможно, вы имели в виду (из DLD-архива):",
+    "deals_count_suffix": "{n} сделок",
 },
 "ar": {
     "welcome": (
@@ -1072,6 +1294,117 @@ T = {
     "stats_rent_cnt":     "للإيجار",
     "stats_sale_avg":     "متوسط سعر البيع",
     "stats_rent_avg":     "متوسط الإيجار/سنة",
+    "card_price_on_request": "السعر عند الطلب",
+    "det_type_label": "النوع",
+    "det_property": "العقار",
+    "det_bedrooms": "غرف النوم",
+    "det_size": "المساحة",
+    "det_floor": "الطابق",
+    "det_view": "الإطلالة",
+    "det_status": "الحالة",
+    "det_furn": "التأثيث",
+    "det_stage": "المرحلة",
+    "det_off_plan": "قيد الإنشاء",
+    "det_handover": "التسليم",
+    "det_description": "الوصف",
+    "det_for_rent": "للإيجار",
+    "det_investment_analysis": "تحليل الاستثمار",
+    "det_score": "النتيجة",
+    "det_roi": "العائد",
+    "det_roi_yearly": "% سنوياً",
+    "det_longterm": "طويل الأجل",
+    "det_per_year": "/ سنة",
+    "det_airbnb": "Airbnb",
+    "det_area_growth": "نمو المنطقة",
+    "det_annually": "% سنوياً",
+    "det_very_good_deal": "صفقة ممتازة",
+    "det_good_deal": "صفقة جيدة",
+    "det_interesting_offer": "عرض مثير",
+    "det_below_market": "أقل من السوق",
+    "det_below_original": "أقل من السعر الأصلي",
+    "det_premium_below": "أقل من القطاع المميز",
+    "det_translate": "🌐 ترجمة",
+    "det_seller_contacts_locked": "👤 بيانات البائع 🔒",
+    "det_dld_deals_locked": "📊 سجل DLD 🔒",
+    "cta_new_projects": "🏗 مشاريع جديدة",
+    "cta_roi_calc": "📊 حاسبة العائد",
+    "cta_area_analytics": "📈 تحليلات المنطقة",
+    "pdf_label": "📄 تقرير PDF",
+    "pdf_generating": "📄 جاري التحضير…",
+    "pdf_failed": "فشل إنشاء PDF",
+    "pdf_report_caption": "📄 تقرير استثماري — {bld}",
+    "voice_prompt": "🎙 *البحث الصوتي*\n\nأرسل ملاحظة صوتية في الرسالة التالية.\nمثال: «شقة بغرفتي نوم في دبي مارينا حتى 5 ملايين»\n\nتلميحات: /voice_help",
+    "voice_help": "🎙 *أمثلة بحث صوتي:*\n\n• شقة غرفتي نوم في دبي مارينا حتى 5 ملايين\n• استوديو في JVC حتى 800 ألف\n• فيلا في Palm بإطلالة بحر\n• عروض ساخنة في Downtown\n\n_حجم الملف حتى 25 ميجابايت._",
+    "voice_recognizing": "🎙 جارٍ التعرف على الصوت…",
+    "voice_not_understood": "⚠️ لم أفهم الصوت — حاول مرة أخرى أو اكتب رسالة.",
+    "voice_heard": "🎙 سمعت:",
+    "voice_failed": "⚠️ فشل التعرف على الصوت. اكتب طلبك نصاً.",
+    "tr_not_ready": "الترجمة غير جاهزة بعد. حاول لاحقًا.",
+    "lang_picker": "🌐  Select your language / Выберите язык / اختر لغتك",
+    "relax_no_building": "❌ بدون مبنى: «{q}»",
+    "relax_no_budget": "💰 بدون حد للميزانية",
+    "relax_no_bedrooms": "🛏 بدون فلتر غرف النوم",
+    "relax_no_area": "📍 بدون منطقة: «{q}»",
+    "relax_hint": "\n\n_جرب إزالة أحد الفلاتر أدناه:_",
+    "no_listings_to_compare": "⚠️ لا توجد نتائج للمقارنة.",
+    "compare_unavailable": "⚠️ المقارنة غير متاحة.",
+    "compare_cart_cleared": "🗑 تم مسح سلة المقارنة.",
+    "pay_failed_generic": "⚠️ تعذر إنشاء الدفع. حاول لاحقاً.",
+    "ton_unavailable": "⚠️ مدفوعات TON غير متاحة مؤقتاً. استخدم Telegram Stars.",
+    "ton_invoice_failed": "⚠️ تعذر إنشاء فاتورة TON. استخدم Stars بدلاً.",
+    "ton_pay_title": "💎 *دفع TON — {plan}*",
+    "ton_pay_amount": "المبلغ",
+    "ton_pay_via": "ادفع عبر @CryptoBot",
+    "ton_pay_note": "_يتم تفعيل الاشتراك تلقائياً بعد الدفع (حتى 5 دقائق)._",
+    "ton_open_link": "💎 افتح رابط الدفع",
+    "plan_month": "شهر واحد",
+    "plan_year": "سنة واحدة",
+    "sub_info_title_m": "⭐ *Dubai Realty Pro — 5$/شهر*",
+    "sub_info_includes": "ما يتضمنه:",
+    "sub_info_smart": "🤖 اختيار AI الذكي",
+    "sub_info_pdf": "📄 تقرير PDF",
+    "sub_info_deals": "📊 سجل صفقات DLD",
+    "sub_info_seller": "👤 بيانات البائع",
+    "sub_info_unlimited": "غير محدود",
+    "sub_info_free_uses": "(مجاناً: {n} مرات)",
+    "sub_info_payments": "طرق الدفع:",
+    "sub_info_stars": "⭐ Telegram Stars (250 XTR) — فوري",
+    "sub_info_ton": "💎 TON (~2 TON) — عبر @CryptoBot",
+    "sub_info_note": "_الاشتراك ساري لمدة 30 يوماً. التجديد بدفع جديد._",
+    "sub_status_active_until": "✅ *الاشتراك نشط* حتى {dt}",
+    "sub_status_unlocked": "جميع الميزات مفعّلة.",
+    "sub_status_title": "📊 *حالة الاشتراك*",
+    "sub_status_free_left": "{label}: {left}/{total} مجانية متبقية",
+    "sub_status_cta": "اشترك بـ 5$/شهر للوصول غير المحدود.",
+    "sub_activated": "✅ *تم تفعيل الاشتراك!*",
+    "sub_active_until": "نشط حتى *{dt}*.",
+    "sub_unlocked_emoji": "جميع الميزات مفعّلة 🚀",
+    "sub_payment_received": "✅ تم استلام الدفع! سيتم تفعيل اشتراكك قريباً.",
+    "seller_title": "👤 *بيانات البائع*",
+    "seller_seller": "البائع",
+    "seller_phone": "الهاتف",
+    "seller_whatsapp": "WhatsApp",
+    "seller_agent": "الوكيل",
+    "seller_listing": "الإعلان",
+    "deals_loading": "📊 جاري تحميل الصفقات…",
+    "deals_title": "📊 *بيانات DLD — {area}*",
+    "deals_no_data": "📊 لا توجد بيانات DLD لـ *{area}* بعد.",
+    "back_to_results": "🔙 إلى النتائج",
+    "all_in_bld_caption": "🏢 جميع الوحدات في *{bld}*",
+    "photo_received": "✅ تم استلام الصورة {n}. أرسل المزيد أو اضغط تخطي.",
+    "not_found_short": "غير موجود.",
+    "nl_partial_understood": "لم أفهم كل شيء — حاول التوضيح (المنطقة، نوع الصفقة، الميزانية).",
+    "aic_helpful": "👍 ساعد",
+    "aic_not_it": "👎 ليس ما أريد",
+    "aic_refine": "🔍 تحسين البحث",
+    "aic_compare5": "📊 مقارنة الخمسة",
+    "aic_home": "🏠 القائمة",
+    "aic_clarify": "فهمت. هل يمكنك توضيح المنطقة والميزانية وعدد الغرف؟",
+    "aic_which_area": "أي منطقة أو ميزانية؟",
+    "aic_need_details": "لست متأكداً. هل يمكنك إضافة تفاصيل (منطقة، ميزانية)؟",
+    "aic_results_hdr": "📊 وجدت {total} نتيجة. أعلى {n}:\n\n",
+    "wiz_bld_dld_suggest": "💡 ربما تقصد (من أرشيف DLD):",
+    "deals_count_suffix": "{n} صفقة",
 },
 }
 
@@ -1139,77 +1472,111 @@ def _build_pdf_signals(score_dict, listing, lang):
     score_dict may be a dict from compute_investment_score (with keys like
     'roi', 'recommendation', 'growth_pct'...) OR a plain number OR None.
     """
-    is_ru = (lang == "ru")
-    is_ar = (lang == "ar")
+    # Per-language label dictionaries (en/ru/ar) — PDF labels.
+    L = {
+        "en": {
+            "rec_buy":    "Recommendation: BUY",
+            "rec_hold":   "Recommendation: HOLD",
+            "rec_avoid":  "Recommendation: AVOID",
+            "roi":        "ROI",
+            "yr":         "/yr",
+            "growth":     "Price growth",
+            "vs_bank":    "vs Bank deposit",
+            "pp":         "pp",
+            "inv_score":  "Investment score",
+            "roi_est":    "ROI estimate",
+        },
+        "ru": {
+            "rec_buy":    "Рекомендация: ПОКУПАТЬ",
+            "rec_hold":   "Рекомендация: ДЕРЖАТЬ",
+            "rec_avoid":  "Рекомендация: ОТКЛОНИТЬ",
+            "roi":        "ROI",
+            "yr":         "/год",
+            "growth":     "Рост цен",
+            "vs_bank":    "Доходность vs банк",
+            "pp":         "п.п.",
+            "inv_score":  "Инвестиционный балл",
+            "roi_est":    "ROI оценка",
+        },
+        "ar": {
+            "rec_buy":    "توصية: شراء",
+            "rec_hold":   "توصية: احتفظ",
+            "rec_avoid":  "توصية: تجنّب",
+            "roi":        "العائد",
+            "yr":         "/سنة",
+            "growth":     "نمو الأسعار",
+            "vs_bank":    "مقابل وديعة بنكية",
+            "pp":         "نقطة",
+            "inv_score":  "نتيجة الاستثمار",
+            "roi_est":    "تقدير العائد",
+        },
+    }
+    M = L.get(lang, L["en"])
     signals = []
-    # Safe-extract numeric score
     if isinstance(score_dict, dict):
         rec = score_dict.get("recommendation")
         roi = score_dict.get("roi") or score_dict.get("roi_estimate")
         growth = score_dict.get("growth_pct") or score_dict.get("growth_yoy")
         vs_bank = score_dict.get("vs_bank_pp")
-        rec_label = {"BUY": "Рекомендация: ПОКУПАТЬ" if is_ru else
-                            ("توصية: شراء" if is_ar else "Recommendation: BUY"),
-                     "HOLD": "Рекомендация: ДЕРЖАТЬ" if is_ru else "Recommendation: HOLD",
-                     "AVOID": "Рекомендация: ОТКЛОНИТЬ" if is_ru else "Recommendation: AVOID"}
+        rec_label = {"BUY": M["rec_buy"], "HOLD": M["rec_hold"], "AVOID": M["rec_avoid"]}
         if rec and rec in rec_label:
             signals.append(rec_label[rec])
         if roi:
-            label = "ROI" if not is_ru else "ROI"
-            signals.append(f"{label}: {round(float(roi), 1)}% /год" if is_ru else
-                            f"{label}: {round(float(roi), 1)}% /yr")
+            signals.append(f"{M['roi']}: {round(float(roi), 1)}% {M['yr']}")
         if growth:
-            label = "Рост цен" if is_ru else "Price growth"
-            signals.append(f"{label}: +{round(float(growth), 1)}%")
+            signals.append(f"{M['growth']}: +{round(float(growth), 1)}%")
         if vs_bank:
-            label = "Доходность vs банк" if is_ru else "vs Bank deposit"
-            signals.append(f"{label}: +{round(float(vs_bank), 1)} п.п."
-                            if is_ru else f"{label}: +{round(float(vs_bank), 1)} pp")
+            signals.append(f"{M['vs_bank']}: +{round(float(vs_bank), 1)} {M['pp']}")
     elif isinstance(score_dict, (int, float)):
-        label = "Инвестиционный балл" if is_ru else "Investment score"
-        signals.append(f"{label}: {int(score_dict)}/100")
+        signals.append(f"{M['inv_score']}: {int(score_dict)}/100")
     # listing-level
     roi = listing.get("roi_estimate")
     if roi and 0 < roi < 50:
-        label = "ROI оценка" if is_ru else "ROI estimate"
-        if not any("ROI" in s for s in signals):
-            signals.append(f"{label}: {round(float(roi), 1)}%")
+        if not any("ROI" in s or "العائد" in s for s in signals):
+            signals.append(f"{M['roi_est']}: {round(float(roi), 1)}%")
     return [s for s in signals if s][:5]
 
 
 def _build_pdf_risks(score_dict, listing, lang):
     """Build a list of human-readable risk strings in user's lang."""
-    is_ru = (lang == "ru")
-    is_ar = (lang == "ar")
+    risk_labels = {
+        "en": {
+            "defaults_used": "Estimated from defaults (verify)",
+            "price_well_below_market_verify": "Price much below market — verify",
+            "off_plan": "Off-plan: handover delay risk",
+            "no_market_data": "No market data for comparison",
+            "_default": ["AED/USD FX fluctuations",
+                          "DLD regulation changes",
+                          "Off-plan handover may shift"],
+        },
+        "ru": {
+            "defaults_used": "Расчёт по дефолтным данным (проверьте)",
+            "price_well_below_market_verify": "Цена сильно ниже рынка — проверить",
+            "off_plan": "Off-plan: риск задержки сдачи",
+            "no_market_data": "Нет рыночных данных для сравнения",
+            "_default": ["Курсовые колебания AED/USD",
+                          "Изменения регуляций DLD",
+                          "Сроки сдачи off-plan могут смещаться"],
+        },
+        "ar": {
+            "defaults_used": "تقدير من قيم افتراضية (تحقق)",
+            "price_well_below_market_verify": "السعر أقل بكثير من السوق — تحقق",
+            "off_plan": "قيد الإنشاء: خطر تأخير التسليم",
+            "no_market_data": "لا توجد بيانات سوقية للمقارنة",
+            "_default": ["تقلبات سعر الصرف AED/USD",
+                          "تغيرات لوائح DLD",
+                          "قد يتأخر تسليم المشاريع قيد الإنشاء"],
+        },
+    }
+    M = risk_labels.get(lang, risk_labels["en"])
     risks = []
     if isinstance(score_dict, dict):
         rf = score_dict.get("risk_factors")
         if isinstance(rf, list):
-            label_map_ru = {
-                "defaults_used": "Расчёт по дефолтным данным (проверьте)",
-                "price_well_below_market_verify": "Цена сильно ниже рынка — проверить",
-                "off_plan": "Off-plan: риск задержки сдачи",
-                "no_market_data": "Нет рыночных данных для сравнения",
-            }
-            label_map_en = {
-                "defaults_used": "Estimated from defaults (verify)",
-                "price_well_below_market_verify": "Price much below market — verify",
-                "off_plan": "Off-plan: handover delay risk",
-                "no_market_data": "No market data for comparison",
-            }
-            label_map = label_map_ru if is_ru else label_map_en
             for r in rf[:5]:
-                risks.append(label_map.get(r, r.replace("_", " ")))
-    # Default fallback risks (always relevant)
+                risks.append(M.get(r, r.replace("_", " ")))
     if not risks:
-        if is_ru:
-            risks = ["Курсовые колебания AED/USD",
-                     "Изменения регуляций DLD",
-                     "Сроки сдачи off-plan могут смещаться"]
-        else:
-            risks = ["AED/USD FX fluctuations",
-                     "DLD regulation changes",
-                     "Off-plan handover may shift"]
+        risks = list(M["_default"])
     return risks[:5]
 
 
@@ -1265,15 +1632,11 @@ def _send_pdf(cid, uid, listing):
             pdf_path = generate_pdf(listing, score, lang=lang)
 
         if not pdf_path or not os.path.exists(pdf_path):
-            _send(cid, {"en":"PDF failed","ru":"PDF не создан","ar":"فشل"}.get(lang,"PDF failed"))
+            _send(cid, _t(uid, "pdf_failed"))
             return
         bld = (listing.get("building") or listing.get("area") or "Property")
         filename = f"investment-{listing.get('id', 'report')}.pdf"
-        caption = {
-            "en": f"📄 Investment Report — {bld}",
-            "ru": f"📄 Инвест-отчёт — {bld}",
-            "ar": f"📄 تقرير الاستثمار — {bld}",
-        }.get(lang, bld)
+        caption = _t(uid, "pdf_report_caption").format(bld=bld)
         with open(pdf_path, "rb") as f:
             requests.post(
                 f"{API}/sendDocument",
@@ -2776,7 +3139,7 @@ def format_card(listing, uid, rank=None):
                 if _top and float(_top) > 0 and _lp < float(_top):
                     _diff = round((1 - _lp / float(_top)) * 100, 1)
                     if 1 < _diff < 90:
-                        analytics.append(f"👑 {_diff}% below premium segment")
+                        analytics.append(f"👑 {_diff}% {_t(uid, 'det_premium_below')}")
     except Exception:
         pass
     if analytics:
@@ -2854,21 +3217,21 @@ def format_detail(listing, uid):
             if sqm > 0:
                 lines.append(f"📐 {int(price / sqm):,} AED/m²".replace(",", " "))
     else:
-        lines.append("💰 Цена по запросу")
+        lines.append(f"💰 {_t(uid, 'card_price_on_request')}")
 
     lines.append("")
-    if deal_type == "rent": lines.append(f"  Type        For Rent")
-    if ptype:  lines.append(f"  Property    {ptype}")
-    if br is not None: lines.append(f"  Bedrooms    {_fmt_br(br)}")
-    if size:   lines.append(f"  Size        {_fmt_size(size)}")
-    if floor:  lines.append(f"  Floor       {floor}")
-    if view:   lines.append(f"  View        {view}")
-    if stat:   lines.append(f"  Status      {stat.title()}")
-    if furn:   lines.append(f"  Furnishing  {furn.title()}")
+    if deal_type == "rent": lines.append(f"  {_t(uid,'det_type_label'):<11} {_t(uid,'det_for_rent')}")
+    if ptype:  lines.append(f"  {_t(uid,'det_property'):<11} {ptype}")
+    if br is not None: lines.append(f"  {_t(uid,'det_bedrooms'):<11} {_fmt_br(br)}")
+    if size:   lines.append(f"  {_t(uid,'det_size'):<11} {_fmt_size(size)}")
+    if floor:  lines.append(f"  {_t(uid,'det_floor'):<11} {floor}")
+    if view:   lines.append(f"  {_t(uid,'det_view'):<11} {view}")
+    if stat:   lines.append(f"  {_t(uid,'det_status'):<11} {stat.title()}")
+    if furn:   lines.append(f"  {_t(uid,'det_furn'):<11} {furn.title()}")
     if listing.get("is_off_plan"):
         hd = listing.get("handover_date")
-        hd_s = f" · Handover {hd}" if hd else ""
-        lines.append(f"  Stage       Off-plan{hd_s}")
+        hd_s = f" · {_t(uid,'det_handover')} {hd}" if hd else ""
+        lines.append(f"  {_t(uid,'det_stage'):<11} {_t(uid,'det_off_plan')}{hd_s}")
     # Extra info (commercial / plot / residential domain-specific)
     extra = listing.get("extra_info") or {}
     if isinstance(extra, dict) and extra:
@@ -2881,7 +3244,7 @@ def format_detail(listing, uid):
     desc = listing.get("description")
     if desc:
         lines.append("")
-        lines.append("  Description")
+        lines.append(f"  {_t(uid,'det_description')}")
         # Wrap at ~50 chars
         for chunk in [desc[i:i+50] for i in range(0, len(desc), 50)][:6]:
             lines.append(f"  {chunk}")
@@ -2899,26 +3262,26 @@ def format_detail(listing, uid):
     if deal_type == "sale":
         lines.append("")
         lines.append(_sep())
-        lines.append("  INVESTMENT ANALYSIS")
+        lines.append(f"  {_t(uid,'det_investment_analysis')}")
         lines.append(_sep())
-        if score:  lines.append(f"  Score       {score} / 10")
-        if roi:    lines.append(f"  ROI         {roi}% yearly")
-        if rent:   lines.append(f"  Long-term   {_fmt(rent)} / year")
+        if score:  lines.append(f"  {_t(uid,'det_score'):<11} {score} / 10")
+        if roi:    lines.append(f"  {_t(uid,'det_roi'):<11} {roi}{_t(uid,'det_roi_yearly')}")
+        if rent:   lines.append(f"  {_t(uid,'det_longterm'):<11} {_fmt(rent)} {_t(uid,'det_per_year')}")
         if alow and ahigh:
-            lines.append(f"  Airbnb      {_fmt(alow)} – {_fmt(ahigh)} / year")
-        if growth: lines.append(f"  Area growth {growth}% annually")
+            lines.append(f"  {_t(uid,'det_airbnb'):<11} {_fmt(alow)} – {_fmt(ahigh)} {_t(uid,'det_per_year')}")
+        if growth: lines.append(f"  {_t(uid,'det_area_growth'):<11} {growth}{_t(uid,'det_annually')}")
 
     if dq in ("very_good", "good", "interesting"):
         lines.append("")
         lines.append(_sep())
-        if dq == "very_good":   lines.append("  ▸ VERY GOOD DEAL")
-        elif dq == "good":      lines.append("  ▸ GOOD DEAL")
-        else:                   lines.append("  ▸ INTERESTING OFFER")
+        if dq == "very_good":   lines.append(f"  ▸ {_t(uid,'det_very_good_deal')}")
+        elif dq == "good":      lines.append(f"  ▸ {_t(uid,'det_good_deal')}")
+        else:                   lines.append(f"  ▸ {_t(uid,'det_interesting_offer')}")
         # Sanity: hide nonsense like "99.8% below market" (artefact of bad parsing).
         if pct and -70 < pct < 0:
-            lines.append(f"  {abs(round(pct,1))}% below market average")
+            lines.append(f"  {abs(round(pct,1))}% {_t(uid,'det_below_market')}")
         if disc and 3 <= disc < 80:
-            lines.append(f"  {disc}% below original price")
+            lines.append(f"  {disc}% {_t(uid,'det_below_original')}")
 
     # Market insight from DB
     if area:
@@ -3497,21 +3860,21 @@ def send_results(cid, uid, mid=None):
         filters = s.get("filters", {})
         relax_buttons = []
         if filters.get("building"):
-            relax_buttons.append([_btn(f"❌ Без здания: «{filters['building'][:20]}»",
+            relax_buttons.append([_btn(_t(uid, "relax_no_building").format(q=filters['building'][:20]),
                                         "relax|building")])
         if filters.get("min_price") or filters.get("max_price"):
-            relax_buttons.append([_btn("💰 Без ограничения бюджета", "relax|budget")])
+            relax_buttons.append([_btn(_t(uid, "relax_no_budget"), "relax|budget")])
         if filters.get("bedrooms") is not None:
-            relax_buttons.append([_btn("🛏 Без фильтра спален", "relax|bedrooms")])
+            relax_buttons.append([_btn(_t(uid, "relax_no_bedrooms"), "relax|bedrooms")])
         if filters.get("area"):
-            relax_buttons.append([_btn(f"📍 Без района: «{filters['area'][:20]}»",
+            relax_buttons.append([_btn(_t(uid, "relax_no_area").format(q=filters['area'][:20]),
                                         "relax|area")])
         relax_buttons.append([_btn(_t(uid, "btn_menu"), "menu|main")])
         kb = _kb(*relax_buttons)
         # Текст с подсказкой что фильтры можно ослабить
         hint_text = _t(uid, "no_results")
         if any(filters.get(k) for k in ("building","area","bedrooms","min_price","max_price")):
-            hint_text += "\n\n_Попробуйте убрать один из фильтров ниже:_"
+            hint_text += _t(uid, "relax_hint")
         if mid: _edit(cid, mid, hint_text, kb)
         else:   _send(cid, hint_text, kb)
         return
@@ -3570,9 +3933,7 @@ def send_results(cid, uid, mid=None):
             _btn("🇨🇳 CN", f"tr|zh|{lid}"),
         ])
         if PDF_OK:
-            pdf_lbl = {"en":"📄 Investment PDF","ru":"📄 Инвест-отчёт PDF",
-                       "ar":"📄 تقرير PDF"}.get(_get_lang(uid), "📄 Investment PDF")
-            kb_rows.append([_btn(pdf_lbl, f"pdf|{lid}")])
+            kb_rows.append([_btn(_t(uid, "pdf_label"), f"pdf|{lid}")])
         kb = _kb(*kb_rows)
         # Send with photos (file_id stored directly from Bot API upload)
         images = get_listing_images(lid) if lid else []
@@ -4340,27 +4701,26 @@ def show_detail(cid, uid, mid, lid):
         [_btn(fav_label,              f"fav|{lid}"),    _btn(_t(uid, "btn_compare"), f"cmp|{lid}")],
         [_btn(watch_label,            f"watch|{lid}")],
         [_btn(_t(uid, "btn_map"),     f"map|{lid}"),    _btn(_t(uid, "btn_photos"),  f"photos|{lid}")],
-        [_btn("🌐 Translate",         f"translate|{lid}|{lang_user}")],
+        [_btn(_t(uid, "det_translate"), f"translate|{lid}|{lang_user}")],
     ]
     # All-in-building button — только если есть building
     if has_building:
         kb_rows.append([_btn(_t(uid, "btn_all_in_bld"), f"allbld|{lid}")])
     # ── Premium buttons (gated) ──────────────────────────────────────────────
-    _seller_lbl = {"en": "👤 Seller Contacts 🔒", "ru": "👤 Данные продавца 🔒", "ar": "👤 بيانات البائع 🔒"}.get(lang_user, "👤 Seller Contacts 🔒")
-    _deals_lbl  = {"en": "📊 DLD Deal History 🔒", "ru": "📊 Сделки DLD 🔒", "ar": "📊 سجل DLD 🔒"}.get(lang_user, "📊 DLD Deal History 🔒")
-    kb_rows.append([_btn(_seller_lbl, f"seller|{lid}"), _btn(_deals_lbl, f"deals|{lid}")])
+    kb_rows.append([_btn(_t(uid, "det_seller_contacts_locked"), f"seller|{lid}"),
+                    _btn(_t(uid, "det_dld_deals_locked"),       f"deals|{lid}")])
     kb_rows.append([_btn(_t(uid, "btn_similar"), f"similar|{lid}"), _btn(_t(uid, "btn_back"), "results|back")])
     # v47 ECOSYSTEM cross-nav: subtle marketing — leads пользователя в смежные боты
     # когда он смотрит конкретный listing (highly intent moment).
     # v55: расширили payload до from_resale_utm_resale_card_detail для UTM tracking.
     kb_rows.append([
-        _url_btn("🏗 Новостройки от застройщика",
+        _url_btn(_t(uid, "cta_new_projects"),
                  "https://t.me/dubai_projects_monitor_bot?start=from_resale_utm_resale_card_detail"),
     ])
     kb_rows.append([
-        _url_btn("📊 ROI калькулятор",
+        _url_btn(_t(uid, "cta_roi_calc"),
                  "https://t.me/dubai_roi_fpr_bot?start=from_resale_utm_resale_card_detail"),
-        _url_btn("📈 Аналитика района",
+        _url_btn(_t(uid, "cta_area_analytics"),
                  "https://t.me/Analitik_price_bot?start=from_resale_utm_resale_card_detail"),
     ])
     kb_rows.append([_btn(_t(uid, "btn_menu"), "menu|main")])
@@ -4595,20 +4955,22 @@ _AI_INTRO = {
     ),
     "ar": (
         "🤖 *مستشار AI*\n\n"
-        "صف ما تبحث عنه بحرية. سأسألك أسئلة توضيحية وأجد خيارات."
+        "صف ما تبحث عنه بحرية. سأسألك أسئلة توضيحية وأجد خيارات.\n\n"
+        "_مثال:_ «أريد شقة بغرفتي نوم بإطلالة على مارينا حتى 4 ملايين، استثمار 5 سنوات»\n\n"
+        "اكتب رسالتك أدناه ↓"
     ),
 }
 
 _AI_DONE = {
     "ru": "✅ Отлично, рад был помочь! Спасибо за обратную связь.",
     "en": "✅ Glad to help! Thanks for the feedback.",
-    "ar": "✅ سعدت بمساعدتك! شكراً عлى التعليق.",
+    "ar": "✅ سعدت بمساعدتك! شكراً على التعليق.",
 }
 
 _AI_SORRY = {
     "ru": "😕 Понял. Попробуй уточнить критерии или выбери другой район/бюджет.",
     "en": "😕 Got it. Try adjusting criteria or pick a different area / budget.",
-    "ar": "😕 حسнاً. حاول تعديل اлмعايير أو اختيار مнطقة / ميزانية أخرى.",
+    "ar": "😕 حسناً. حاول تعديل المعايير أو اختيار منطقة / ميزانية أخرى.",
 }
 
 
@@ -4767,19 +5129,12 @@ def _ai_format_results(state, listings):
 
 
 def _kb_ai_results(uid, consult_id):
-    lang = user_lang.get(uid, "en")
-    if lang == "ru":
-        labels = ("👍 Помогло", "👎 Не то", "🔍 Уточнить поиск", "📊 Сравнить эти 5", "🏠 В меню")
-    elif lang == "ar":
-        labels = ("👍 ساعد", "👎 ليس ما أريد", "🔍 تحسين البحث", "📊 مقارнة الخمسة", "🏠 القائمة")
-    else:
-        labels = ("👍 Helpful", "👎 Not it", "🔍 Refine search", "📊 Compare these 5", "🏠 Main menu")
     return _kb(
-        [_btn(labels[0], f"aic|fb|1|{consult_id or 0}"),
-         _btn(labels[1], f"aic|fb|0|{consult_id or 0}")],
-        [_btn(labels[2], "aic|refine")],
-        [_btn(labels[3], "aic|compare")],
-        [_btn(labels[4], "aic|home")],
+        [_btn(_t(uid, "aic_helpful"),  f"aic|fb|1|{consult_id or 0}"),
+         _btn(_t(uid, "aic_not_it"),   f"aic|fb|0|{consult_id or 0}")],
+        [_btn(_t(uid, "aic_refine"),   "aic|refine")],
+        [_btn(_t(uid, "aic_compare5"), "aic|compare")],
+        [_btn(_t(uid, "aic_home"),     "aic|home")],
     )
 
 
@@ -4806,11 +5161,7 @@ def ai_consultant_handle_text(cid, uid, text):
 
     parsed = _ai_parse_llm_json(raw)
     if not parsed:
-        fallback = {
-            "ru": "Понял. Уточни, пожалуйста: район, бюджет и число спален?",
-            "en": "Got it. Could you clarify area, budget and number of bedrooms?",
-            "ar": "فهمت. هل يمكнك توضيح الмنطقة والميزانية وعدد الغرف?",
-        }.get(lang, "Could you clarify area, budget and bedrooms?")
+        fallback = _t(uid, "aic_clarify")
         state["history"].append(("bot", fallback))
         _send(cid, fallback)
         return
@@ -4827,11 +5178,7 @@ def ai_consultant_handle_text(cid, uid, text):
 
     action = parsed.get("action")
     if action == "ask":
-        q = parsed.get("message") or {
-            "ru": "Какой район или бюджет?",
-            "en": "Which area or budget?",
-            "ar": "أي مнطقة أو мيزانية?",
-        }.get(lang, "Which area or budget?")
+        q = parsed.get("message") or _t(uid, "aic_which_area")
         state["history"].append(("bot", q))
         _send(cid, q)
         return
@@ -4878,11 +5225,7 @@ def ai_consultant_handle_text(cid, uid, text):
             return
 
         body = _ai_format_results(state, results)
-        header = {
-            "ru": f"📊 Нашёл {total} вариантов. Топ-{len(results)}:\n\n",
-            "en": f"📊 Found {total} matches. Top-{len(results)}:\n\n",
-            "ar": f"📊 وجدت {total} نتيجة. أعلى {len(results)}:\n\n",
-        }.get(lang, f"📊 Found {total} matches. Top-{len(results)}:\n\n")
+        header = _t(uid, "aic_results_hdr").format(total=total, n=len(results))
         full = header + body
         if len(full) > 3800:
             full = full[:3800]
@@ -4896,11 +5239,7 @@ def ai_consultant_handle_text(cid, uid, text):
         return
 
     # Unknown action — just echo a polite line.
-    fallback = {
-        "ru": "Не совсем понял. Можешь добавить детали (район, бюджет)?",
-        "en": "Not sure I follow. Could you add details (area, budget)?",
-        "ar": "لست мتأкداً. هل يмкنك إضافة تفاصيل (مнطقة، мيزانية)?",
-    }.get(lang, "Could you add more details?")
+    fallback = _t(uid, "aic_need_details")
     state["history"].append(("bot", fallback))
     _send(cid, fallback)
 
@@ -5724,27 +6063,12 @@ def dispatch_main_button(cid, uid, rkey):
     elif rkey == "rbtn_ai_consult":
         ai_consultant_start(cid, uid)
     elif rkey == "rbtn_voice":
-        lang_v = _get_lang(uid)
-        _vp_ru = ("🎙 *Голосовой поиск*\n\n"
-                  "Просто запиши голосовое следующим сообщением.\n"
-                  "_Например:_ «2 спальни в Марине до 5 миллионов»\n\n"
-                  "Подсказки: /voice_help")
-        _vp_ar = ("🎙 *البحث الصوتي*\n\n"
-                  "أرسل ملاحظة صوتية في الرسالة التالية.\n"
-                  "مثال: «شقة بغرفتي نوم في دبي مارينا حتى 5 ملايين»\n\n"
-                  "تلميحات: /voice_help")
-        _vp_en = ("🎙 *Voice search*\n\n"
-                  "Just record a voice note as your next message.\n"
-                  "_Example:_ \"2BR in Marina under 5M\"\n\n"
-                  "Hints: /voice_help")
-        _send(cid, {"ru": _vp_ru, "ar": _vp_ar}.get(lang_v, _vp_en),
-              kb_main_reply(uid))
+        _send(cid, _t(uid, "voice_prompt"), kb_main_reply(uid))
     elif rkey == "rbtn_add":
         start_add_listing(cid, uid)
     elif rkey == "rbtn_lang":
         # Bottom reply keyboard for language change too
-        _send(cid, "🌐  Select your language / Выберите язык / اختر لغتك",
-              kb_lang_reply())
+        _send(cid, _t(uid, "lang_picker"), kb_lang_reply())
     elif rkey == "rbtn_home":
         # B036: clear any wizard/filter state so stray text after Home
         # doesn't accidentally re-enter a half-finished wizard step.
@@ -6078,7 +6402,7 @@ def dispatch_wizard_button(cid, uid, text):
                 if area_lbl:
                     label = f"{it['name']}  · {area_lbl}"
                 if cnt > 0:
-                    label = f"{label} · {cnt} сделок"
+                    label = f"{label} · " + _t(uid, "deals_count_suffix").format(n=cnt)
             elif cnt > 0:
                 label = f"{it['name']}  · {cnt}"
             rows.append([_btn(label, f"pickbld|{it['name']}")])
@@ -6086,7 +6410,7 @@ def dispatch_wizard_button(cid, uid, text):
         header = _t(uid, "wiz_bld_match")
         if is_suggest:
             # «У нас нет объявлений в этом здании, но возможно вы имели в виду:»
-            header = "💡 Возможно, вы имели в виду (из DLD-архива):"
+            header = _t(uid, "wiz_bld_dld_suggest")
         _send(cid, header, {"inline_keyboard": rows})
         return True
 
@@ -7168,16 +7492,15 @@ def handle_cb(cb):
         except Exception as _e:
             print(f"[tr] db err lid={lid}: {_e}", flush=True)
         if not _row or not _row[0]:
-            _no_msg = {
-                "ru": "Перевод ещё не готов. Попробуйте позже.",
-                "en": "Translation not ready yet. Try later.",
-                "ar": "الترجمة غير جاهزة بعد. حاول لاحقًا.",
-                "zh": "翻译尚未准备就绪。请稍后再试。",
-            }.get(tlang, "Translation not ready yet.")
+            # zh не входит в bot UI langs — fallback на EN.
+            if tlang == "zh":
+                _no_msg = "翻译尚未准备就绪。请稍后再试。"
+            else:
+                _no_msg = _t(uid, "tr_not_ready")
             _send(cid, _no_msg)
         else:
             _flag = {"ru": "RU", "en": "EN", "ar": "AR", "zh": "CN"}.get(tlang, "")
-            _send(cid, f"{_flag} *Description*\n\n{_row[0]}")
+            _send(cid, f"{_flag} *{_t(uid,'det_description')}*\n\n{_row[0]}")
 
     elif action == "pdf":
         if not _gate(uid, "pdf"):
@@ -7186,12 +7509,10 @@ def handle_cb(cb):
         listing = get_listing_by_id(lid)
         if not listing:
             # ACK was already sent at the top — show via normal message
-            _send(cid, "Not found.")
+            _send(cid, _t(uid, "not_found_short"))
             return
-        ack = {"en": "📄 Generating PDF…", "ru": "📄 Готовлю PDF…",
-                "ar": "📄 جاري التحضير…"}.get(_get_lang(uid), "📄 Generating PDF…")
         # Send as message (toast won't fire — ACK already sent at top of handle_cb)
-        _send(cid, ack)
+        _send(cid, _t(uid, "pdf_generating"))
         threading.Thread(target=_send_pdf, args=(cid, uid, dict(listing)),
                           daemon=True).start()
 
@@ -7207,7 +7528,7 @@ def handle_cb(cb):
                 _api("sendInvoice", **invoice)
             except Exception as e:
                 print(f"[sub] stars invoice err uid={uid}: {e}", flush=True)
-                _send(cid, "⚠️ Could not create payment. Try again later.")
+                _send(cid, _t(uid, "pay_failed_generic"))
 
         elif sub_type in ("ton_month", "ton_year"):
             # Create CryptoBot TON invoice
@@ -7215,54 +7536,35 @@ def handle_cb(cb):
                 is_year = (sub_type == "ton_year")
                 pay_url = _ton_invoice_year(uid) if is_year else _ton_invoice(uid)
                 if pay_url:
-                    lang = _get_lang(uid)
                     amt_str = "~20 TON (~$50)" if is_year else "~2 TON (~$5)"
-                    plan_str = ("1 год" if is_year else "1 месяц") if lang == "ru" else ("1 year" if is_year else "1 month")
-                    if lang == "ru":
-                        msg = (f"💎 *Оплата TON — {plan_str}*\n\n"
-                               f"Сумма: {amt_str}\n\n"
-                               f"[Оплатить через @CryptoBot]({pay_url})\n\n"
-                               "_После оплаты подписка активируется автоматически (до 5 мин)._")
-                    else:
-                        msg = (f"💎 *TON Payment — {plan_str}*\n\n"
-                               f"Amount: {amt_str}\n\n"
-                               f"[Pay via @CryptoBot]({pay_url})\n\n"
-                               "_Subscription activates automatically after payment (up to 5 min)._")
-                    _send(cid, msg, _kb([_url_btn("💎 Open payment link", pay_url)]))
+                    plan_str = _t(uid, "plan_year") if is_year else _t(uid, "plan_month")
+                    msg = (f"{_t(uid,'ton_pay_title').format(plan=plan_str)}\n\n"
+                           f"{_t(uid,'ton_pay_amount')}: {amt_str}\n\n"
+                           f"[{_t(uid,'ton_pay_via')}]({pay_url})\n\n"
+                           f"{_t(uid,'ton_pay_note')}")
+                    _send(cid, msg, _kb([_url_btn(_t(uid,"ton_open_link"), pay_url)]))
                 else:
-                    _send(cid, "⚠️ TON payments are temporarily unavailable. Please use Telegram Stars.")
+                    _send(cid, _t(uid, "ton_unavailable"))
             except Exception as e:
                 print(f"[sub] ton invoice err uid={uid}: {e}", flush=True)
-                _send(cid, "⚠️ Could not create TON invoice. Try Stars payment instead.")
+                _send(cid, _t(uid, "ton_invoice_failed"))
 
         elif sub_type == "info":
-            lang = _get_lang(uid)
-            if lang == "ru":
-                info_text = (
-                    "⭐ *Dubai Realty Pro — $5/месяц*\n\n"
-                    "Что входит:\n"
-                    f"• 🤖 AI Умный Подбор — без лимитов (бесплатно: {_SUB_FREE_LIMIT} раз)\n"
-                    f"• 📄 Инвест-PDF отчёт — без лимитов (бесплатно: {_SUB_FREE_LIMIT} раз)\n"
-                    f"• 📊 История сделок DLD — без лимитов (бесплатно: {_SUB_FREE_LIMIT} раз)\n"
-                    f"• 👤 Контакты продавца — без лимитов (бесплатно: {_SUB_FREE_LIMIT} раз)\n\n"
-                    "Оплата:\n"
-                    "• ⭐ Telegram Stars (250 XTR) — мгновенно\n"
-                    "• 💎 TON (~2 TON) — через @CryptoBot\n\n"
-                    "_Подписка активна 30 дней. Продление — новая оплата._"
-                )
-            else:
-                info_text = (
-                    "⭐ *Dubai Realty Pro — $5/month*\n\n"
-                    "What's included:\n"
-                    f"• 🤖 AI Smart Pick — unlimited (free: {_SUB_FREE_LIMIT} uses)\n"
-                    f"• 📄 Investment PDF — unlimited (free: {_SUB_FREE_LIMIT} uses)\n"
-                    f"• 📊 DLD Deal History — unlimited (free: {_SUB_FREE_LIMIT} uses)\n"
-                    f"• 👤 Seller Contacts — unlimited (free: {_SUB_FREE_LIMIT} uses)\n\n"
-                    "Payment methods:\n"
-                    "• ⭐ Telegram Stars (250 XTR) — instant\n"
-                    "• 💎 TON (~2 TON) — via @CryptoBot\n\n"
-                    "_Subscription is valid for 30 days. Renew by paying again._"
-                )
+            n_free = _SUB_FREE_LIMIT
+            unlim   = _t(uid, "sub_info_unlimited")
+            free_h  = _t(uid, "sub_info_free_uses").format(n=n_free)
+            info_text = (
+                f"{_t(uid,'sub_info_title_m')}\n\n"
+                f"{_t(uid,'sub_info_includes')}\n"
+                f"• {_t(uid,'sub_info_smart')} — {unlim} {free_h}\n"
+                f"• {_t(uid,'sub_info_pdf')} — {unlim} {free_h}\n"
+                f"• {_t(uid,'sub_info_deals')} — {unlim} {free_h}\n"
+                f"• {_t(uid,'sub_info_seller')} — {unlim} {free_h}\n\n"
+                f"{_t(uid,'sub_info_payments')}\n"
+                f"• {_t(uid,'sub_info_stars')}\n"
+                f"• {_t(uid,'sub_info_ton')}\n\n"
+                f"{_t(uid,'sub_info_note')}"
+            )
             raw_rows = _sub_paywall_kb_raw()
             kb_rows = [[_btn(lbl, cb) for lbl, cb in row] for row in raw_rows]
             _send(cid, info_text, _kb(*kb_rows) if kb_rows else None)
@@ -7275,32 +7577,28 @@ def handle_cb(cb):
                 conn.close()
             except Exception:
                 info = {"premium": False, "expires_at": None, "usage": {}}
-            lang = _get_lang(uid)
             if info["premium"]:
                 exp = info["expires_at"]
                 exp_str = exp.strftime("%d.%m.%Y") if exp else "?"
-                if lang == "ru":
-                    st_text = f"✅ *Подписка активна* до {exp_str}\n\nВсе функции разблокированы."
-                else:
-                    st_text = f"✅ *Subscription active* until {exp_str}\n\nAll features unlocked."
+                st_text = (f"{_t(uid,'sub_status_active_until').format(dt=exp_str)}\n\n"
+                           f"{_t(uid,'sub_status_unlocked')}")
             else:
                 usage = info.get("usage", {})
                 feat_labels = {
-                    "smart_pick": "🤖 AI Smart Pick",
-                    "pdf": "📄 PDF Report",
-                    "deals": "📊 DLD Deals",
-                    "seller_data": "👤 Seller Contacts",
+                    "smart_pick":  _t(uid, "sub_info_smart"),
+                    "pdf":         _t(uid, "sub_info_pdf"),
+                    "deals":       _t(uid, "sub_info_deals"),
+                    "seller_data": _t(uid, "sub_info_seller"),
                 }
                 lines = []
                 for feat, label in feat_labels.items():
                     cnt = usage.get(feat, 0)
                     left = max(0, _SUB_FREE_LIMIT - cnt)
-                    lines.append(f"{label}: {left}/{_SUB_FREE_LIMIT} free left")
+                    lines.append(_t(uid, "sub_status_free_left").format(
+                        label=label, left=left, total=_SUB_FREE_LIMIT))
                 usage_str = "\n".join(lines)
-                if lang == "ru":
-                    st_text = f"📊 *Статус подписки*\n\n{usage_str}\n\nПодпишитесь за $5/мес для безлимитного доступа."
-                else:
-                    st_text = f"📊 *Subscription status*\n\n{usage_str}\n\nSubscribe for $5/month for unlimited access."
+                st_text = (f"{_t(uid,'sub_status_title')}\n\n{usage_str}\n\n"
+                           f"{_t(uid,'sub_status_cta')}")
             raw_rows = _sub_paywall_kb_raw()
             kb_rows = [[_btn(lbl, cb) for lbl, cb in row] for row in raw_rows]
             _send(cid, st_text, _kb(*kb_rows) if kb_rows else None)
@@ -7315,7 +7613,6 @@ def handle_cb(cb):
             _api("answerCallbackQuery", callback_query_id=cb["id"],
                  text="Listing not found", show_alert=True)
             return
-        lang = _get_lang(uid)
         seller   = listing.get("seller_username") or "—"
         phone    = listing.get("phone") or "—"
         whatsapp = listing.get("whatsapp") or phone
@@ -7324,24 +7621,14 @@ def handle_cb(cb):
         msg_id   = listing.get("telegram_message_id") or ""
         msg_link = (f"https://t.me/{source.lstrip('@')}/{msg_id}"
                     if source and msg_id else "—")
-        if lang == "ru":
-            seller_text = (
-                f"👤 *Данные продавца*\n\n"
-                f"👤 Продавец: {'@' + seller if seller != '—' else '—'}\n"
-                f"📞 Телефон: `{phone}`\n"
-                f"📱 WhatsApp: `{whatsapp}`\n"
-                f"👔 Агент: {agent}\n"
-                f"🔗 Объявление: {msg_link}"
-            )
-        else:
-            seller_text = (
-                f"👤 *Seller Contacts*\n\n"
-                f"👤 Seller: {'@' + seller if seller != '—' else '—'}\n"
-                f"📞 Phone: `{phone}`\n"
-                f"📱 WhatsApp: `{whatsapp}`\n"
-                f"👔 Agent: {agent}\n"
-                f"🔗 Listing: {msg_link}"
-            )
+        seller_text = (
+            f"{_t(uid,'seller_title')}\n\n"
+            f"👤 {_t(uid,'seller_seller')}: {'@' + seller if seller != '—' else '—'}\n"
+            f"📞 {_t(uid,'seller_phone')}: `{phone}`\n"
+            f"📱 {_t(uid,'seller_whatsapp')}: `{whatsapp}`\n"
+            f"👔 {_t(uid,'seller_agent')}: {agent}\n"
+            f"🔗 {_t(uid,'seller_listing')}: {msg_link}"
+        )
         _send(cid, seller_text)
 
     # ── DLD deal history for area (gated) ─────────────────────────────────────
@@ -7355,19 +7642,13 @@ def handle_cb(cb):
                  text="Listing not found", show_alert=True)
             return
         area = listing.get("area") or listing.get("emirate") or "Dubai"
-        lang = _get_lang(uid)
-        ack_txt = {"en": "📊 Loading deal data…", "ru": "📊 Загружаю сделки…"}.get(lang, "📊 Loading…")
-        _send(cid, ack_txt)
+        _send(cid, _t(uid, "deals_loading"))
         summary = get_market_summary(area)
         if summary:
-            if lang == "ru":
-                header = f"📊 *Сделки DLD — {area}*"
-            else:
-                header = f"📊 *DLD Market Data — {area}*"
+            header = _t(uid, "deals_title").format(area=area)
             _send(cid, f"{header}\n{summary}")
         else:
-            no_data = {"en": f"📊 No DLD data available for *{area}* yet.", "ru": f"📊 Данные по *{area}* пока недоступны."}.get(lang, f"No DLD data for {area}.")
-            _send(cid, no_data)
+            _send(cid, _t(uid, "deals_no_data").format(area=area))
 
     elif action == "similar":
         lid = int(parts[1]) if len(parts) > 1 else 0
@@ -7399,10 +7680,7 @@ def handle_cb(cb):
             s = gs(uid)
             s["wizard"] = "results"
             has_more = bool(s.get("results_has_more"))
-            back_lbl = {"en": "🔙 Back to results",
-                        "ru": "🔙 К результатам",
-                        "ar": "🔙 إلى النتائج"}.get(_get_lang(uid), "🔙 Back to results")
-            _send(cid, back_lbl, kb_reply_results(uid, has_more=has_more))
+            _send(cid, _t(uid, "back_to_results"), kb_reply_results(uid, has_more=has_more))
 
     # ── Favorites ─────────────────────────────────────────────────────────────
     # ── All units in this building ──────────────────────────────────────
@@ -7427,7 +7705,7 @@ def handle_cb(cb):
             new_filters["emirate"] = listing["emirate"]
         s["filters"] = new_filters
         s["wizard"] = None
-        _send(cid, f"🏢 Все объекты в *{bld}*", kb_main_reply(uid))
+        _send(cid, _t(uid, "all_in_bld_caption").format(bld=bld), kb_main_reply(uid))
         do_search(uid)
         send_results(cid, uid)
 
@@ -7768,26 +8046,16 @@ def handle_msg(msg):
     if voice and not text:
         try:
             _vfile_id = voice.get("file_id")
-            _hint_msg = {"ru": "🎙 Распознаю голосовое…",
-                         "ar": "🎙 جارٍ التعرف على الصوت…"}.get(lang,
-                         "🎙 Transcribing voice…")
-            _send(cid, _hint_msg)
+            _send(cid, _t(uid, "voice_recognizing"))
             transcript = transcribe_voice_groq(_vfile_id, lang_hint=lang)
             if not transcript or len(transcript.strip()) < 5:
-                _send(cid,
-                      {"ru": "⚠️ Не разобрал голосовое — попробуй повторить или набери текстом.",
-                       "ar": "⚠️ لم أفهم الصوت — حاول مرة أخرى أو اكتب رسالة."}.get(
-                          lang, "⚠️ Could not understand the voice — please try again or type your query."),
-                      kb_main_reply(uid))
+                _send(cid, _t(uid, "voice_not_understood"), kb_main_reply(uid))
                 return
-            heard_lbl = {"ru": "🎙 Услышал:",
-                         "ar": "🎙 سمعت:"}.get(lang, "🎙 Heard:")
-            _send(cid, f"{heard_lbl} _{transcript[:300]}_")
+            _send(cid, f"{_t(uid,'voice_heard')} _{transcript[:300]}_")
             text = transcript.strip()
         except Exception as _ve:
             print(f"[voice] handler err: {_ve}", flush=True)
-            _send(cid, "⚠️ Voice transcription failed. Please type your query.",
-                  kb_main_reply(uid))
+            _send(cid, _t(uid, "voice_failed"), kb_main_reply(uid))
             return
 
     # Handle photo upload for add listing wizard
@@ -7798,7 +8066,7 @@ def handle_msg(msg):
             s.setdefault("photos", []).append(file_id)
             add_states[uid] = s
             count = len(s["photos"])
-            _send(cid, f"✅ Photo {count} received. Send more or tap Skip.",
+            _send(cid, _t(uid, "photo_received").format(n=count),
                   _reply_with_skip_cancel(uid))
             return
 
@@ -7817,24 +8085,17 @@ def handle_msg(msg):
                                     amount_stars=sp.get("total_amount"),
                                     amount_usd=_USD_PRICE_YEAR if is_year else _USD_PRICE_MONTH)
                 conn.close()
-                lang = _get_lang(uid)
                 exp_str = exp.strftime("%d.%m.%Y") if exp else "?"
-                plan_lbl = ("1 год" if is_year else "1 месяц") if lang == "ru" else ("1 year" if is_year else "1 month")
-                if lang == "ru":
-                    ok_txt = (f"✅ *Подписка активирована!*\n\n"
-                              f"Dubai Realty Pro · {plan_lbl}\n"
-                              f"Активна до *{exp_str}*.\n"
-                              f"Все функции разблокированы 🚀")
-                else:
-                    ok_txt = (f"✅ *Subscription activated!*\n\n"
-                              f"Dubai Realty Pro · {plan_lbl}\n"
-                              f"Active until *{exp_str}*.\n"
-                              f"All features unlocked 🚀")
+                plan_lbl = _t(uid, "plan_year") if is_year else _t(uid, "plan_month")
+                ok_txt = (f"{_t(uid,'sub_activated')}\n\n"
+                          f"Dubai Realty Pro · {plan_lbl}\n"
+                          f"{_t(uid,'sub_active_until').format(dt=exp_str)}\n"
+                          f"{_t(uid,'sub_unlocked_emoji')}")
                 _send(cid, ok_txt)
                 print(f"[sub] Stars payment OK uid={uid} plan={'year' if is_year else 'month'} charge={charge_id}", flush=True)
             except Exception as e:
                 print(f"[sub] Stars activate err uid={uid}: {e}", flush=True)
-                _send(cid, "✅ Payment received! Your subscription will be activated shortly.")
+                _send(cid, _t(uid, "sub_payment_received"))
         return
 
     if not text:
@@ -7909,27 +8170,10 @@ def handle_msg(msg):
             show_heatmap(cid, uid); return
         if cmd in ("language", "lang"):
             # v54 UX (Layla follow-up): команда /language заменяет «🌐 Язык» в меню.
-            _send(cid, "🌐  Select your language / Выберите язык / اختر لغتك",
-                  kb_lang_reply())
+            _send(cid, _t(uid, "lang_picker"), kb_lang_reply())
             return
         if cmd == "voice_help":
-            _vhelp_ru = ("🎙 *Голосовой поиск* — примеры:\n\n"
-                        "• «2 спальни в Марине до 5 миллионов»\n"
-                        "• «Студия в JVC до 800 тысяч»\n"
-                        "• «Вилла в Palm с видом на море»\n"
-                        "• «Горячие сделки в Downtown»\n\n"
-                        "_Файл до 25 МБ, длительность до 2 мин._")
-            _vhelp_en = ("🎙 *Voice search* — examples:\n\n"
-                        "• \"2BR in Marina under 5M\"\n"
-                        "• \"Studio in JVC under 800k\"\n"
-                        "• \"Villa on Palm with sea view\"\n"
-                        "• \"Hot deals in Downtown\"\n\n"
-                        "_File up to 25 MB, ideally under 2 min._")
-            _vhelp_ar = ("🎙 *أمثلة بحث صوتي:*\n\n"
-                        "• شقة غرفتي نوم في دبي مارينا حتى 5 ملايين\n"
-                        "• فيلا في Palm بإطلالة بحر")
-            _send(cid, {"ru": _vhelp_ru, "ar": _vhelp_ar}.get(lang, _vhelp_en),
-                  kb_main_reply(uid))
+            _send(cid, _t(uid, "voice_help"), kb_main_reply(uid))
             return
         if cmd == "compare":
             # /compare Burj Crown vs Address Opera   -> instant DLD compare
@@ -8355,7 +8599,7 @@ def handle_msg(msg):
                 existing["deal_type"] = s["default_deal"]
             s["filters"] = existing
             if _llm_timed_out:
-                _send(cid, "Не все параметры понял — попробуйте уточнить (район, тип сделки, бюджет).")
+                _send(cid, _t(uid, "nl_partial_understood"))
             resp = _send(cid, _t(uid, "searching"))
             do_search(uid)
             mid = resp.get("result", {}).get("message_id")
