@@ -1133,6 +1133,86 @@ except Exception:
     _antispam_mod = None
 
 
+def _build_pdf_signals(score_dict, listing, lang):
+    """Build a list of human-readable positive signal strings in user's lang.
+
+    score_dict may be a dict from compute_investment_score (with keys like
+    'roi', 'recommendation', 'growth_pct'...) OR a plain number OR None.
+    """
+    is_ru = (lang == "ru")
+    is_ar = (lang == "ar")
+    signals = []
+    # Safe-extract numeric score
+    if isinstance(score_dict, dict):
+        rec = score_dict.get("recommendation")
+        roi = score_dict.get("roi") or score_dict.get("roi_estimate")
+        growth = score_dict.get("growth_pct") or score_dict.get("growth_yoy")
+        vs_bank = score_dict.get("vs_bank_pp")
+        rec_label = {"BUY": "Рекомендация: ПОКУПАТЬ" if is_ru else
+                            ("توصية: شراء" if is_ar else "Recommendation: BUY"),
+                     "HOLD": "Рекомендация: ДЕРЖАТЬ" if is_ru else "Recommendation: HOLD",
+                     "AVOID": "Рекомендация: ОТКЛОНИТЬ" if is_ru else "Recommendation: AVOID"}
+        if rec and rec in rec_label:
+            signals.append(rec_label[rec])
+        if roi:
+            label = "ROI" if not is_ru else "ROI"
+            signals.append(f"{label}: {round(float(roi), 1)}% /год" if is_ru else
+                            f"{label}: {round(float(roi), 1)}% /yr")
+        if growth:
+            label = "Рост цен" if is_ru else "Price growth"
+            signals.append(f"{label}: +{round(float(growth), 1)}%")
+        if vs_bank:
+            label = "Доходность vs банк" if is_ru else "vs Bank deposit"
+            signals.append(f"{label}: +{round(float(vs_bank), 1)} п.п."
+                            if is_ru else f"{label}: +{round(float(vs_bank), 1)} pp")
+    elif isinstance(score_dict, (int, float)):
+        label = "Инвестиционный балл" if is_ru else "Investment score"
+        signals.append(f"{label}: {int(score_dict)}/100")
+    # listing-level
+    roi = listing.get("roi_estimate")
+    if roi and 0 < roi < 50:
+        label = "ROI оценка" if is_ru else "ROI estimate"
+        if not any("ROI" in s for s in signals):
+            signals.append(f"{label}: {round(float(roi), 1)}%")
+    return [s for s in signals if s][:5]
+
+
+def _build_pdf_risks(score_dict, listing, lang):
+    """Build a list of human-readable risk strings in user's lang."""
+    is_ru = (lang == "ru")
+    is_ar = (lang == "ar")
+    risks = []
+    if isinstance(score_dict, dict):
+        rf = score_dict.get("risk_factors")
+        if isinstance(rf, list):
+            label_map_ru = {
+                "defaults_used": "Расчёт по дефолтным данным (проверьте)",
+                "price_well_below_market_verify": "Цена сильно ниже рынка — проверить",
+                "off_plan": "Off-plan: риск задержки сдачи",
+                "no_market_data": "Нет рыночных данных для сравнения",
+            }
+            label_map_en = {
+                "defaults_used": "Estimated from defaults (verify)",
+                "price_well_below_market_verify": "Price much below market — verify",
+                "off_plan": "Off-plan: handover delay risk",
+                "no_market_data": "No market data for comparison",
+            }
+            label_map = label_map_ru if is_ru else label_map_en
+            for r in rf[:5]:
+                risks.append(label_map.get(r, r.replace("_", " ")))
+    # Default fallback risks (always relevant)
+    if not risks:
+        if is_ru:
+            risks = ["Курсовые колебания AED/USD",
+                     "Изменения регуляций DLD",
+                     "Сроки сдачи off-plan могут смещаться"]
+        else:
+            risks = ["AED/USD FX fluctuations",
+                     "DLD regulation changes",
+                     "Off-plan handover may shift"]
+    return risks[:5]
+
+
 def _send_pdf(cid, uid, listing):
     """Generate investment PDF for a listing + send as document."""
     try:
@@ -1171,12 +1251,12 @@ def _send_pdf(cid, uid, listing):
                 "yield": (mkt or {}).get("yield") if mkt else None,
                 "growth_yoy": (mkt or {}).get("growth_yoy") if mkt else None,
                 "deals": (dld_b or {}).get("deals") if dld_b else None,
-                "description": f"{listing.get('bedrooms','?')} BR · {listing.get('property_type','')} · score {score}",
-                "signals": [
-                    f"Investment score: {score}" if score else None,
-                    f"ROI estimate: {listing.get('roi_estimate')}%" if listing.get('roi_estimate') else None,
-                    f"Discount vs market: {listing.get('discount_percent')}%" if listing.get('discount_percent') else None,
-                ],
+                "description": (
+                    f"{listing.get('bedrooms','?')} BR · "
+                    f"{listing.get('property_type','')}"
+                ),
+                "signals": _build_pdf_signals(score, listing, lang),
+                "risks":   _build_pdf_risks(score, listing, lang),
             }
             payload["signals"] = [s for s in payload["signals"] if s]
             pdf_path = generate_pdf_report("listing", payload, lang=lang)
