@@ -108,7 +108,7 @@ PROVIDERS = [
         "name":   "cerebras",
         "env_keys": ["CEREBRAS_API_KEY", "CEREBRAS_API_KEY_2", "CEREBRAS_API_KEY_3"],
         "url":    "https://api.cerebras.ai/v1/chat/completions",
-        "model":  "qwen-3-235b-a22b-instruct-2507",
+        "model":  "gpt-oss-120b",
         "format": "openai",
         "proxy_via_cf": True,
         "rpm":    14,
@@ -243,8 +243,20 @@ _KEY_COOLDOWN_LOCK = threading.Lock()
 _COOLDOWN_SEC = 60   # short вЂ” we have other keys
 _LONG_COOLDOWN = 86400
 
+# в”Ђв”Ђ Secondary safety net: LLMKeyHealth (auto-disable + revive) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+# Tracks rolling success rate per key over 10 min. If <20% success or
+# 5+ consecutive 429s the key is marked DEAD for 1 hour. This catches
+# sustained failures the short cooldown doesn't.
+try:
+    from fsst_core import LLMKeyHealth as _FsstLLMKeyHealth
+    _LLM_HEALTH = _FsstLLMKeyHealth()
+except Exception:
+    _LLM_HEALTH = None
+
 
 def _key_cooled(provider_name: str, key_idx: int) -> bool:
+    if _LLM_HEALTH is not None and _LLM_HEALTH.is_dead(provider_name, key_idx):
+        return True
     with _KEY_COOLDOWN_LOCK:
         until = _KEY_COOLDOWN.get((provider_name, key_idx), 0)
     return time.time() < until
@@ -254,6 +266,23 @@ def _mark_key_cooldown(provider_name: str, key_idx: int,
                       seconds: int = _COOLDOWN_SEC):
     with _KEY_COOLDOWN_LOCK:
         _KEY_COOLDOWN[(provider_name, key_idx)] = time.time() + seconds
+    # Mirror into health tracker so secondary stats include this signal.
+    if _LLM_HEALTH is not None:
+        try:
+            _LLM_HEALTH.record_failure(
+                provider_name, key_idx,
+                code=429 if seconds <= _COOLDOWN_SEC else 0,
+            )
+        except Exception:
+            pass
+
+
+def _record_llm_success(provider_name: str, key_idx: int):
+    if _LLM_HEALTH is not None:
+        try:
+            _LLM_HEALTH.record_success(provider_name, key_idx)
+        except Exception:
+            pass
 
 
 # в”Ђв”Ђ Per-key hourly cap (500 req/hour) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
@@ -618,7 +647,20 @@ def _call_openai_compat(provider: dict, key_idx: int, key: str, prompt: str,
             timeout=timeout,
         )
         if r.status_code == 200:
-            return r.json()["choices"][0]["message"]["content"].strip()
+            _record_llm_success(provider["name"], key_idx)
+            try:
+                msg = r.json()["choices"][0]["message"]
+                content = msg.get("content")
+                if content:
+                    return content.strip()
+                # Some reasoning models put text under 'reasoning' when content
+                # is empty (gpt-oss-120b refusal/empty). Fall back gracefully.
+                reasoning = msg.get("reasoning") or msg.get("refusal")
+                if reasoning:
+                    return reasoning.strip()
+            except Exception as e:
+                print(f"[llm_chain] {provider['name']}#{key_idx} parse err: {e}")
+            return None
         if r.status_code == 429:
             _mark_key_cooldown(provider["name"], key_idx, _COOLDOWN_SEC)
             print(f"[llm_chain] {provider['name']}#{key_idx} 429 -> 60s cooldown")
@@ -658,6 +700,7 @@ def _call_gemini(provider: dict, key_idx: int, key: str, prompt: str,
             timeout=timeout,
         )
         if r.status_code == 200:
+            _record_llm_success(provider["name"], key_idx)
             data = r.json()
             cands = data.get("candidates") or []
             if cands:
@@ -700,6 +743,7 @@ def _call_anthropic(provider: dict, key_idx: int, key: str, prompt: str,
             timeout=timeout,
         )
         if r.status_code == 200:
+            _record_llm_success(provider["name"], key_idx)
             data = r.json()
             usage = data.get("usage") or {}
             _anthropic_add_usage(
