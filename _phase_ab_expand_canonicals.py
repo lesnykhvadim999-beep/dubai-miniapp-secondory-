@@ -190,24 +190,253 @@ def main():
     print(f"\nWritten {out_path}")
     print(f"Total entries: {len(canonical)}")
 
-    # 5. Also build BUILDING_CANONICAL — top-2000 buildings
+    # 5. Build BUILDING_CANONICAL — ALL DLD buildings (no LIMIT)
     icur.execute("""
         SELECT building_name_en, master_project_en, area_name_en, COUNT(*) AS n
         FROM dld_sale_archive
         WHERE building_name_en IS NOT NULL AND building_name_en <> ''
         GROUP BY 1, 2, 3
         ORDER BY 4 DESC
-        LIMIT 2000
     """)
     buildings = []
     for b, mp, an, n in icur.fetchall():
         area = mp if mp and mp.strip() and mp.lower() != "n/a" else (an or "")
         buildings.append({
             "name": b.strip(),
-            "canonical": b.strip().title(),  # rough title-case canonical
+            "canonical": b.strip().title(),
             "area": area.strip(),
             "tx_count": n,
         })
+
+    # 5b. Hardcoded off-plan + landmark buildings DLD might not cover
+    HARDCODED_BLD = {
+        # Off-plan & landmark
+        "emaar beachfront": "Emaar Beachfront",
+        "beach isle": "Emaar Beachfront",
+        "beach vista": "Emaar Beachfront",
+        "beach mansion": "Emaar Beachfront",
+        "marina vista": "Emaar Beachfront",
+        "sunrise bay": "Emaar Beachfront",
+        "address residences emaar beachfront": "Emaar Beachfront",
+        "address residences the bay": "Emaar Beachfront",
+        "address harbour point": "Dubai Creek Harbour",
+        "address harbour gate": "Dubai Creek Harbour",
+        "atlantis the royal": "Palm Jumeirah",
+        "atlantis royal": "Palm Jumeirah",
+        "the royal atlantis resort": "Palm Jumeirah",
+        "bluewaters residence": "Bluewaters Island",
+        "bluewaters residences": "Bluewaters Island",
+        "the residences at the st regis dubai the palm": "Palm Jumeirah",
+        "address residences dubai opera": "Downtown Dubai",
+        "address dubai opera": "Downtown Dubai",
+        "address opera": "Downtown Dubai",
+        "the address dubai opera": "Downtown Dubai",
+        "address residences": "Downtown Dubai",
+        # Sobha
+        "sobha hartland waves": "Sobha Hartland",
+        "sobha hartland waves opulence": "Sobha Hartland",
+        "sobha creek vistas": "Sobha Hartland",
+        "sobha one": "Sobha Hartland",
+        "sobha hartland ii": "Sobha Hartland 2",
+        "sobha hartland 2": "Sobha Hartland 2",
+        "the crest": "Sobha Hartland",
+        "crest grande": "Sobha Hartland",
+        "sobha the crest": "Sobha Hartland",
+        "sobha the crest tower a": "Sobha Hartland",
+        "sobha the crest tower b": "Sobha Hartland",
+        "sobha the crest tower c": "Sobha Hartland",
+        "sobha seahaven": "Dubai Harbour",
+        "sobha solis": "Motor City",
+        # Business Bay
+        "vision tower": "Business Bay",
+        "peninsula": "Business Bay",
+        "peninsula 1": "Business Bay",
+        "peninsula 2": "Business Bay",
+        "peninsula 3": "Business Bay",
+        "peninsula 4": "Business Bay",
+        "peninsula 5": "Business Bay",
+        "peninsula three": "Business Bay",
+        "peninsula four": "Business Bay",
+        "select peninsula": "Business Bay",
+        "the edge tower a": "Business Bay",
+        "the edge tower b": "Business Bay",
+        "the edge tower c": "Business Bay",
+        "the edge": "Business Bay",
+        # Binghatti
+        "binghatti corner": "Jumeirah Village Circle",
+        "binghatti skyrise": "Business Bay",
+        "binghatti onyx": "Jumeirah Village Circle",
+        "binghatti crystals": "Jumeirah Village Circle",
+        "binghatti emerald": "Jumeirah Village Circle",
+        "binghatti orchid": "Jumeirah Village Circle",
+        "binghatti gardenia": "Jumeirah Village Circle",
+        "binghatti tulip": "Jumeirah Village Circle",
+        "binghatti lavender": "Jumeirah Village Circle",
+        "binghatti rose": "Jumeirah Village Circle",
+        "binghatti jasmine": "Jumeirah Village Circle",
+        "binghatti point": "Dubai Silicon Oasis",
+        "binghatti azure": "Jumeirah Village Circle",
+        "binghatti house": "Jumeirah Village Circle",
+        # Creek
+        "creek waters": "Dubai Creek Harbour",
+        "creek vista grande": "Dubai Creek Harbour",
+        "creek vista heights": "Dubai Creek Harbour",
+        "creek edge": "Dubai Creek Harbour",
+        "creek rise": "Dubai Creek Harbour",
+        "creek beach": "Dubai Creek Harbour",
+        "creek gate": "Dubai Creek Harbour",
+        "creek harbour": "Dubai Creek Harbour",
+        "creek palace": "Dubai Creek Harbour",
+        "harbour gate": "Dubai Creek Harbour",
+        "harbour views": "Dubai Creek Harbour",
+        # The Valley & The Oasis
+        "valley by emaar": "The Valley",
+        "the valley": "The Valley",
+        "elora the valley": "The Valley",
+        "rivana the valley": "The Valley",
+        "alana the valley": "The Valley",
+        "talia the valley": "The Valley",
+        "nara the valley": "The Valley",
+        "the oasis": "The Oasis",
+        "grand polo": "The Oasis",
+        # Azizi
+        "azizi riviera": "Meydan",
+        # Marina classics
+        "marina shores": "Dubai Marina",
+        "marina star": "Dubai Marina",
+        "marina arcade tower": "Dubai Marina",
+        "marina pinnacle": "Dubai Marina",
+        "marina gate": "Dubai Marina",
+        "marina gate 1": "Dubai Marina",
+        "marina gate 2": "Dubai Marina",
+        "marina gate 3": "Dubai Marina",
+        "stella maris": "Dubai Marina",
+        "studio one": "Dubai Marina",
+        "five at jumeirah village circle": "Jumeirah Village Circle",
+        # JLT
+        "dubai gate 1": "Jumeirah Lake Towers",
+        "dubai gate 2": "Jumeirah Lake Towers",
+        "dubai gate one": "Jumeirah Lake Towers",
+        "dubai gate two": "Jumeirah Lake Towers",
+        "armada towers": "Jumeirah Lake Towers",
+        "armada tower 1": "Jumeirah Lake Towers",
+        "armada tower 2": "Jumeirah Lake Towers",
+        "armada tower 3": "Jumeirah Lake Towers",
+        "se7en city jlt": "Jumeirah Lake Towers",
+        # DIFC + landmark
+        "icd brookfield place": "DIFC",
+        "fairmont residences": "Sheikh Zayed Road",
+        "st regis residences": "Downtown Dubai",
+        "the st regis residences": "Downtown Dubai",
+        "serenia living": "Palm Jumeirah",
+        "serenia residences": "Palm Jumeirah",
+        # Brand new (2024-2026)
+        "ghaf woods": "Dubailand",
+        "midtown": "Production City",
+        "midtown noor": "Production City",
+        "midtown afnan": "Production City",
+        "the 8": "Palm Jumeirah",
+        "the highbury": "Mohammed Bin Rashid City",
+        "haven by aldar": "Dubailand",
+        "haven aldar": "Dubailand",
+        "haven": "Dubailand",
+        "downtown boulevard crescent": "Downtown Dubai",
+        # Dubai Hills
+        "acacia": "Dubai Hills Estate",
+        "acacia a": "Dubai Hills Estate",
+        "acacia b": "Dubai Hills Estate",
+        "acacia c": "Dubai Hills Estate",
+        "park ridge": "Dubai Hills Estate",
+        "park ridge tower a": "Dubai Hills Estate",
+        "park ridge tower b": "Dubai Hills Estate",
+        "park ridge tower c": "Dubai Hills Estate",
+        "park heights": "Dubai Hills Estate",
+        "park field": "Dubai Hills Estate",
+        "park gate": "Dubai Hills Estate",
+        "park horizon": "Dubai Hills Estate",
+        # Island
+        "island park": "Dubai Creek Harbour",
+        "island park 1": "Dubai Creek Harbour",
+        "island park 2": "Dubai Creek Harbour",
+        "rixos dubai islands": "Dubai Islands",
+        "lcd rixos": "Dubai Islands",
+        # JBR
+        "address jbr": "Jumeirah Beach Residence",
+        "the address jbr": "Jumeirah Beach Residence",
+        "address residences jumeirah resort": "Jumeirah Beach Residence",
+        "palm beach towers": "Palm Jumeirah",
+        "palm beach towers 1": "Palm Jumeirah",
+        "palm beach towers 2": "Palm Jumeirah",
+        "palm beach towers 3": "Palm Jumeirah",
+        # W
+        "w residences": "Palm Jumeirah",
+        "w residences dubai downtown": "Downtown Dubai",
+        # MBR
+        "the highbury mbr": "Mohammed Bin Rashid City",
+        # Aykon
+        "aykon city": "Business Bay",
+        "aykon city tower a": "Business Bay",
+        "aykon city tower b": "Business Bay",
+        "aykon city tower c": "Business Bay",
+        "aykon city 2": "Business Bay",
+        "aykon city tower 2": "Business Bay",
+        # Damac
+        "damac bay": "Dubai Harbour",
+        "damac bay 1": "Dubai Harbour",
+        "damac bay 2": "Dubai Harbour",
+        "damac bay tower 2": "Dubai Harbour",
+        "damac heights": "Dubai Marina",
+        "damac residenze": "Dubai Marina",
+        "damac maison": "Business Bay",
+        "damac maison the distinction": "Downtown Dubai",
+        # Boutique 23
+        "boutique 23": "Business Bay",
+        # MBR / Meydan
+        "maple": "Dubai Hills Estate",
+        "maple 1": "Dubai Hills Estate",
+        "maple 2": "Dubai Hills Estate",
+        "maple 3": "Dubai Hills Estate",
+    }
+    # Convert hardcoded into the buildings list shape
+    for k, area in HARDCODED_BLD.items():
+        buildings.append({
+            "name": k.title(),
+            "canonical": k.title(),
+            "area": area,
+            "tx_count": 999999,  # high tx_count to override
+        })
+
+    # 5c. Self-discovery: from our own listings, find building→area pairs
+    #     where many listings already have both filled — use that as map
+    print("\nSelf-discovery from listings...")
+    rb = psycopg2.connect(DB, connect_timeout=10)
+    rb_cur = rb.cursor()
+    rb_cur.execute("""
+        SELECT LOWER(TRIM(building)) AS b, area, COUNT(*) AS n
+        FROM listings
+        WHERE v2_extracted_at IS NOT NULL AND is_active=TRUE
+          AND building IS NOT NULL AND area IS NOT NULL
+        GROUP BY 1, 2
+        HAVING COUNT(*) >= 2
+        ORDER BY 3 DESC
+    """)
+    self_pairs = rb_cur.fetchall()
+    self_map: dict[str, Counter] = {}
+    for b, area, n in self_pairs:
+        self_map.setdefault(b, Counter())[area] += n
+    self_added = 0
+    for b, c in self_map.items():
+        area, _ = c.most_common(1)[0]
+        if b and area:
+            buildings.append({
+                "name": b.title(),
+                "canonical": b.title(),
+                "area": area,
+                "tx_count": 100,
+            })
+            self_added += 1
+    rb.close()
+    print(f"  self-discovery added: {self_added}")
 
     bld_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              "building_canonical.py")
