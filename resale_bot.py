@@ -1468,6 +1468,42 @@ admin_states = {}   # uid → {queue, idx, edits, edit_field, edit_qid}
 # AI consultant FSM state (#52): uid → {active, history, filters, consult_id, results}
 ai_consult_states = {}
 
+# Memory-leak guard (2026-05-30, audit STEP 9): cap each in-memory state dict
+# at MAX_STATE_USERS. When a dict exceeds the cap, drop the oldest 25% of
+# entries (FIFO via list of keys). user_lang is small + persisted in DB so we
+# only drop transient state dicts here.
+_STATE_DICTS = ("user_states", "add_states", "admin_states", "ai_consult_states")
+_MAX_STATE_USERS = int(os.environ.get("MAX_STATE_USERS", "5000"))
+
+
+def _gc_state_dicts():
+    """Background pruner — runs every hour, evicts oldest 25% if a state dict
+    exceeds MAX_STATE_USERS. Prevents unbounded growth over weeks of uptime."""
+    import time as _t
+    g = globals()
+    while True:
+        try:
+            _t.sleep(3600)
+            for name in _STATE_DICTS:
+                d = g.get(name)
+                if not isinstance(d, dict):
+                    continue
+                if len(d) <= _MAX_STATE_USERS:
+                    continue
+                # Drop oldest 25% (dict preserves insertion order in 3.7+)
+                drop_n = len(d) - int(_MAX_STATE_USERS * 0.75)
+                victims = list(d.keys())[:drop_n]
+                for k in victims:
+                    d.pop(k, None)
+                print(f"[gc] {name}: evicted {drop_n} entries ({len(d)} left)",
+                      flush=True)
+        except Exception as _gc_err:
+            print(f"[gc] error: {_gc_err}", flush=True)
+
+
+import threading as _gc_th
+_gc_th.Thread(target=_gc_state_dicts, name="state_gc", daemon=True).start()
+
 import threading
 # v53: централизованный error logger → push в intel DB
 try:

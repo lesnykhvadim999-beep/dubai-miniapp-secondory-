@@ -719,28 +719,45 @@ def lead_followup_loop():
             print(f"[cron:lead_followup] error: {e}")
 
 
+def _safe_thread_start(target, name=None):
+    """Launch a daemon thread, never raise. Returns Thread or None."""
+    try:
+        t = threading.Thread(target=target, name=name or target.__name__, daemon=True)
+        t.start()
+        return t
+    except Exception as e:
+        print(f"[cron] failed to start {name or target.__name__}: {e}", flush=True)
+        return None
+
+
 def start_all():
-    threading.Thread(target=alerts_loop, daemon=True).start()
-    threading.Thread(target=digest_loop, daemon=True).start()
-    threading.Thread(target=rebenchmark_loop, daemon=True).start()
-    threading.Thread(target=photo_dedup_loop, daemon=True).start()
-    threading.Thread(target=buildings_backfill_loop, daemon=True).start()
-    threading.Thread(target=watchlist_daily_loop, daemon=True).start()
-    threading.Thread(target=watchlist_weekly_loop, daemon=True).start()
-    threading.Thread(target=parser_quality_monitor_loop, daemon=True).start()
-    threading.Thread(target=hourly_report_loop, daemon=True).start()
-    threading.Thread(target=realtime_accuracy_loop, daemon=True).start()
-    # New jobs (29.05.2026)
-    threading.Thread(target=saved_searches_loop, daemon=True).start()
-    threading.Thread(target=price_alerts_loop, daemon=True).start()
-    threading.Thread(target=cross_source_loop, daemon=True).start()
-    threading.Thread(target=daily_backup_loop, daemon=True).start()
-    threading.Thread(target=channel_quality_loop, daemon=True).start()
-    threading.Thread(target=daily_digest_loop, daemon=True).start()
-    threading.Thread(target=weekly_aliases_loop, daemon=True).start()
-    threading.Thread(target=lead_followup_loop, daemon=True).start()
-    start_health_server(port=int(os.environ.get("PORT", "8080")))
-    print("[cron] All workers started: 10 legacy + 8 new (saved/price/dups/backup/channel-q/digest/aliases/followup).")
+    """Launch all cron daemon threads. NEVER blocks — always returns quickly.
+
+    Each thread is daemon=True so they die with the main process. Each loop
+    body has try/except so single failure doesn't kill the thread.
+    Health server is launched LAST and never blocks (binds in a daemon thread).
+    """
+    started = 0
+    for fn in (alerts_loop, digest_loop, rebenchmark_loop, photo_dedup_loop,
+               buildings_backfill_loop, watchlist_daily_loop,
+               watchlist_weekly_loop, parser_quality_monitor_loop,
+               hourly_report_loop, realtime_accuracy_loop,
+               # New jobs (29.05.2026)
+               saved_searches_loop, price_alerts_loop, cross_source_loop,
+               daily_backup_loop, channel_quality_loop, daily_digest_loop,
+               weekly_aliases_loop, lead_followup_loop):
+        if _safe_thread_start(fn):
+            started += 1
+
+    # Health server: only start if HEALTH_PORT explicitly set (to avoid
+    # conflict with start_metrics_server, which already binds $PORT).
+    health_port_env = os.environ.get("HEALTH_PORT")
+    if health_port_env:
+        try:
+            start_health_server(port=int(health_port_env))
+        except Exception as e:
+            print(f"[cron] health server skipped: {e}", flush=True)
+    print(f"[cron] All workers started: {started}/18 daemon threads.", flush=True)
 
 
 if __name__ == "__main__":
