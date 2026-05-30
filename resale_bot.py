@@ -1381,7 +1381,7 @@ def kb_main_reply(uid):
         [_t(uid, "rbtn_commercial"), _t(uid, "rbtn_plot")],
         [_t(uid, "rbtn_hot"),        _t(uid, "rbtn_new"),   _t(uid, "rbtn_ai")],
         [_t(uid, "rbtn_ai_consult")],
-        [_t(uid, "rbtn_voice"),      conf_btn,              top_btn],
+        [conf_btn,                   top_btn],
         [_t(uid, "rbtn_favs"),       _t(uid, "rbtn_alerts"), _t(uid, "rbtn_heatmap")],
         [_t(uid, "rbtn_lang")],
         [_t(uid, "rbtn_compare_bld")],
