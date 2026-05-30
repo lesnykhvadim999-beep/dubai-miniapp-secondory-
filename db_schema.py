@@ -4,15 +4,134 @@ Tables: emirates, areas, buildings, listings, listing_images,
         price_history, sync_log, users, leads
 """
 import os
+import threading
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
+# Stability hooks (optional, soft-fail)
+try:
+    from stability import ttl_cache, count_db, log_event
+except Exception:
+    def ttl_cache(maxsize=500, ttl=300):
+        def d(f): return f
+        return d
+    def count_db(table, status="ok"): pass
+    def log_event(level="INFO", **kw): pass
+
+
+# ── Connection pool (lazy) ───────────────────────────────────────────────────
+# Backs get_conn() so callers don't open a fresh TCP socket per query.
+# Keeps get_conn() API: returns a connection-like object whose .close() returns
+# it to the pool. Fully backwards-compatible with `with get_conn() as c:` usage.
+_pool = None
+_pool_lock = threading.Lock()
+_POOL_MIN = int(os.environ.get("PG_POOL_MIN", "2"))
+_POOL_MAX = int(os.environ.get("PG_POOL_MAX", "10"))
+
+
+def _build_pool():
+    global _pool
+    if _pool is not None:
+        return _pool
+    with _pool_lock:
+        if _pool is not None:
+            return _pool
+        if not DATABASE_URL:
+            return False
+        try:
+            from psycopg2 import pool as _pp
+            _pool = _pp.ThreadedConnectionPool(
+                _POOL_MIN, _POOL_MAX, DATABASE_URL, connect_timeout=5,
+            )
+        except Exception as e:
+            print(f"[db_schema] pool init failed, using direct connect: {e}")
+            _pool = False  # sentinel: pool unavailable
+        return _pool
+
+
+class _PooledConn:
+    """Wraps a pooled psycopg2 connection so .close() returns it to the pool."""
+
+    def __init__(self, conn, pool):
+        self._conn = conn
+        self._pool = pool
+        self._closed = False
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def __enter__(self):
+        return self._conn.__enter__()
+
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            self._conn.__exit__(exc_type, exc, tb)
+        finally:
+            self.close()
+        return False
+
+    def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        broken = False
+        try:
+            if getattr(self._conn, "closed", 0):
+                broken = True
+        except Exception:
+            broken = True
+        try:
+            self._pool.putconn(self._conn, close=broken)
+        except Exception:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+
+    @property
+    def closed(self):
+        try:
+            return self._closed or bool(self._conn.closed)
+        except Exception:
+            return self._closed
+
 
 def get_conn():
+    """Return a psycopg2 connection (RealDictCursor cursor_factory).
+
+    Backed by a ThreadedConnectionPool when available; falls back to a fresh
+    psycopg2.connect on any pool issue. .close() returns to the pool.
+    """
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL not set")
+    pool = _build_pool()
+    if pool and pool is not False:
+        try:
+            conn = pool.getconn()
+            try:
+                conn.cursor_factory = RealDictCursor
+            except Exception:
+                pass
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT 1")
+                cur.fetchone()
+                cur.close()
+            except Exception:
+                try:
+                    pool.putconn(conn, close=True)
+                except Exception:
+                    pass
+                conn = pool.getconn()
+                try:
+                    conn.cursor_factory = RealDictCursor
+                except Exception:
+                    pass
+            return _PooledConn(conn, pool)
+        except Exception as e:
+            print(f"[db_schema] pool getconn failed, falling back: {e}")
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
@@ -589,6 +708,49 @@ def get_building_by_name(name: str, area: str = None):
         conn.close()
 
 
+def _normalize_date_field(v):
+    """Coerce common LLM/parser date strings (YYYY, YYYY-MM, Q3 2026, etc.)
+    to a valid YYYY-MM-DD string. Returns None for empty/unparseable input.
+
+    Fixes 2026-05-30 bug: parser_v2 returned 'YYYY-MM' (per LLM schema) for
+    handover_date, but listings.handover_date is a DATE column → INSERT failed
+    with 'invalid input syntax for type date: "2027-01"'.
+    """
+    if v is None or v == "":
+        return None
+    if not isinstance(v, str):
+        # date / datetime objects: let psycopg2 handle natively
+        return v
+    s = v.strip()
+    if not s:
+        return None
+    import re as _re
+    # already YYYY-MM-DD
+    if _re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+        return s
+    # YYYY-MM → last day approx (use 01)
+    m = _re.fullmatch(r"(\d{4})-(\d{2})", s)
+    if m:
+        return f"{m.group(1)}-{m.group(2)}-01"
+    # YYYY alone
+    if _re.fullmatch(r"\d{4}", s):
+        return f"{s}-12-31"
+    # Q3 2026, Q3-2026, Q3/2026
+    m = _re.fullmatch(r"[qQ]([1-4])[\s\-/]?(\d{4})", s)
+    if m:
+        q = int(m.group(1)); yr = m.group(2)
+        month = (q - 1) * 3 + 1
+        return f"{yr}-{month:02d}-01"
+    # MM/YYYY
+    m = _re.fullmatch(r"(\d{1,2})/(\d{4})", s)
+    if m:
+        mm = int(m.group(1))
+        if 1 <= mm <= 12:
+            return f"{m.group(2)}-{mm:02d}-01"
+    # Unparseable → drop rather than crash insert
+    return None
+
+
 def upsert_listing(data: dict) -> tuple[int, bool]:
     """
     Insert or update listing. Returns (id, is_new).
@@ -600,6 +762,10 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
         очистку базы (audit flags, building/area corrections и т.д.).
       - Новые записи (INSERT) — is_frozen=FALSE по умолчанию.
     """
+    # Normalize DATE-typed fields early so INSERT cannot crash on
+    # 'YYYY-MM' or other LLM-formatted strings.
+    if "handover_date" in data:
+        data["handover_date"] = _normalize_date_field(data.get("handover_date"))
     conn = get_conn()
     try:
         with conn.cursor() as cur:
@@ -757,6 +923,9 @@ def _insert_to_staging(cur, conn, data: dict) -> int:
     Background worker _staging_processor.py дотягивает поля через LLM
     и promotes в listings когда complete.
     """
+    # Same date-field guard as upsert_listing (LLM may write 'YYYY-MM').
+    if "handover_date" in data:
+        data["handover_date"] = _normalize_date_field(data.get("handover_date"))
     # Same column set as listings, plus staging columns
     cols = [
         "listing_key","source","telegram_chat_id","telegram_message_id","message_date",
@@ -906,6 +1075,7 @@ def log_sync(channel: str, parsed: int, new: int, dupes: int, hot: int, errors: 
         conn.close()
 
 
+@ttl_cache(maxsize=4, ttl=120)
 def get_full_stats() -> dict:
     """
     ИСПРАВЛЕНО:

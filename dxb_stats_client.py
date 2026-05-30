@@ -46,6 +46,13 @@ import time
 from typing import Any, Dict, List, Optional
 
 try:
+    from stability import ttl_cache as _ttl_cache
+except Exception:
+    def _ttl_cache(maxsize=500, ttl=300):
+        def d(f): return f
+        return d
+
+try:
     import psycopg2
     import psycopg2.extras
     _PSYCOPG2_OK = True
@@ -197,6 +204,7 @@ def is_available() -> bool:
         return False
 
 
+@_ttl_cache(maxsize=500, ttl=300)
 def get_area_stats(area_name: str,
                    months: int = 12,
                    property_type: Optional[str] = None,
@@ -264,6 +272,7 @@ def get_area_stats(area_name: str,
     return row
 
 
+@_ttl_cache(maxsize=500, ttl=300)
 def get_building_stats(building_name: str,
                        months: int = 12,
                        rooms: Optional[str] = None,
@@ -317,6 +326,7 @@ def get_building_stats(building_name: str,
     return row
 
 
+@_ttl_cache(maxsize=8, ttl=300)
 def get_market_overview(months: int = 12) -> Optional[Dict[str, Any]]:
     """Общий обзор рынка Дубая."""
     if not AVAILABLE:

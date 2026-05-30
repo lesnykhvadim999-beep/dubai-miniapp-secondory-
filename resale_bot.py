@@ -18,14 +18,24 @@ from datetime import datetime, timezone
 import sys as _fsst_sys, os as _fsst_os
 _fsst_sys.path.insert(0, _fsst_os.path.dirname(__file__))
 try:
-    from fsst_core import CallbackDeduplicator, setup_sigterm, start_health_server
+    from fsst_core import (
+        CallbackDeduplicator, setup_sigterm, start_health_server,
+        UpdateDeduplicator, LLMKeyHealth,
+    )
     _cb_dedup = CallbackDeduplicator()
+    _upd_dedup = UpdateDeduplicator(maxlen=1000)
+    _llm_health = LLMKeyHealth()
     _fsst_ok = True
 except Exception as _fsst_e:
     print(f"[fsst] import failed: {_fsst_e}")
     class _FallbackDedup:
         def is_dup_raw(self, cb): return False
+    class _FallbackUpdDedup:
+        def seen_update(self, u): return False
+        def seen_callback(self, cb): return False
     _cb_dedup = _FallbackDedup()
+    _upd_dedup = _FallbackUpdDedup()
+    _llm_health = None
     _fsst_ok = False
 
 from db_schema import (
@@ -87,6 +97,46 @@ if not LEAD_BOT_TOKEN:
 ANTHROPIC_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
 API            = f"https://api.telegram.org/bot{BOT_TOKEN}"
 PER_PAGE       = 10
+
+# ── Stability hooks (cache / logs / retry / validation / metrics) ────────────
+try:
+    from stability import (
+        set_bot_name, log_event, ttl_cache, retry_on_transient,
+        metrics, start_metrics_server, count_request, count_error, count_db,
+        validate_price, validate_bedrooms, validate_area_name,
+        validate_lang, validate_user_text, ValidationError,
+    )
+    set_bot_name("resale-bot")
+    _STAB_OK = True
+except Exception as _stab_e:
+    print(f"[stability] disabled: {_stab_e}", flush=True)
+    _STAB_OK = False
+    def log_event(level="INFO", **kw): pass
+    def count_request(command="unknown"): pass
+    def count_error(err_type="unknown"): pass
+    def count_db(table, status="ok"): pass
+    def ttl_cache(maxsize=500, ttl=300):
+        def d(f): return f
+        return d
+    def retry_on_transient(retries=3, base_delay=0.5, max_delay=30.0):
+        def d(f): return f
+        return d
+    def start_metrics_server(port=None): return None
+    class ValidationError(ValueError):
+        def __init__(self, code, message=""):
+            self.code = code
+            super().__init__(message or code)
+    def validate_price(v, lang="en"):
+        f = float(str(v).replace(",", "").replace(" ", ""))
+        if not (1000 <= f <= 1_000_000_000): raise ValidationError("price")
+        return f
+    def validate_bedrooms(v, lang="en"):
+        i = int(float(v))
+        if not (0 <= i <= 15): raise ValidationError("br")
+        return i
+    def validate_area_name(v, lang="en", max_len=150): return str(v).strip()[:max_len]
+    def validate_lang(v, default="en"): return default
+    def validate_user_text(v, lang="en", max_len=4000): return str(v or "")[:max_len]
 
 # ── Logo ─────────────────────────────────────────────────────────────────────
 _LOGO_FILE_ID_PATH = os.path.join(os.path.dirname(__file__), "logo_file_id.txt")
@@ -1674,11 +1724,29 @@ def _reset(uid):
                         "wiz_history": []}  # B045: чистим стек back-навигации
 
 # ── Telegram helpers ──────────────────────────────────────────────────────────
+@retry_on_transient(retries=3, base_delay=0.5, max_delay=15.0)
+def _api_raw(method, **kw):
+    r = requests.post(f"{API}/{method}", json=kw, timeout=10)
+    # Telegram 429/5xx -> raise so retry decorator catches
+    if r.status_code == 429:
+        try:
+            ra = r.json().get("parameters", {}).get("retry_after")
+        except Exception:
+            ra = None
+        e = ConnectionError(f"429 retry_after={ra}")
+        setattr(e, "retry_after", ra or 1)
+        raise e
+    if 500 <= r.status_code < 600:
+        raise ConnectionError(f"telegram {r.status_code}")
+    return r.json()
+
+
 def _api(method, **kw):
     try:
-        r = requests.post(f"{API}/{method}", json=kw, timeout=10)
-        return r.json()
+        return _api_raw(method, **kw)
     except Exception as e:
+        count_error(err_type=f"tg_{method}")
+        log_event("ERROR", msg="tg_api_fail", method=method, err=str(e))
         print(f"[bot] {method}: {e}")
         return {}
 
@@ -8608,9 +8676,24 @@ def handle_msg(msg):
 
 # ── Polling ───────────────────────────────────────────────────────────────────
 def run_bot():
-    # FSST: health endpoint + graceful SIGTERM
+    # FSST: health endpoint (with DB ping) + graceful SIGTERM
     if _fsst_ok:
-        start_health_server(bot_name="resale-bot")
+        def _db_ping_for_health():
+            try:
+                c = get_conn()
+                cur = c.cursor()
+                cur.execute("SELECT 1")
+                cur.fetchone()
+                cur.close()
+                c.close()
+                return True
+            except Exception:
+                return False
+        start_health_server(
+            bot_name="resale-bot",
+            bot_username="dubai_resale_fpr_bot",
+            db_ping=_db_ping_for_health,
+        )
         _stop = [False]
         setup_sigterm(_stop, "resale-bot")
     else:
@@ -8629,6 +8712,11 @@ def run_bot():
             if not data.get("ok"): time.sleep(5); continue
             for upd in data.get("result", []):
                 offset = upd["update_id"] + 1
+                # Idempotency: skip duplicate updates / callback double-clicks
+                if _upd_dedup.seen_update(upd):
+                    continue
+                if "callback_query" in upd and _upd_dedup.seen_callback(upd["callback_query"]):
+                    continue
                 _b031_uid = None
                 _b031_handler = "update_loop"
                 _b031_payload = ""
@@ -8707,6 +8795,12 @@ def run_bot():
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     print("[bot] Dubai Resale Intelligence Bot v5")
+    try:
+        p = start_metrics_server()
+        if p:
+            print(f"[bot] /metrics on :{p}")
+    except Exception as _e:
+        print(f"[bot] metrics server failed: {_e}")
     init_db()
     print("[bot] DB ready.")
     if os.environ.get("SESSION_STRING"):
@@ -8718,17 +8812,28 @@ def main():
     from market_updater import start_market_scheduler
     start_market_scheduler()
     print("[bot] Market updater started.")
-    # Cron worker disabled — was crashing main polling loop on Railway.
-    # Re-enable via CRON_WORKER_ENABLED=1 once cron_worker.start_all is fixed.
-    if os.environ.get("CRON_WORKER_ENABLED") == "1":
+    # Cron worker: fixed 2026-05-30 (steps 6-10 audit).
+    # start_all() now uses _safe_thread_start so single-thread failure can't
+    # break the others, and health-server only binds when HEALTH_PORT is set
+    # (no more PORT conflict with start_metrics_server).
+    # Default = ENABLED. Set CRON_WORKER_ENABLED=0 to disable.
+    if os.environ.get("CRON_WORKER_ENABLED", "1") != "0":
         try:
-            from cron_worker import start_all as _start_cron
-            _start_cron()
-            print("[bot] cron_worker started.")
+            # Launch on a side-thread so even a hypothetical block in
+            # start_all() can't stall main polling loop.
+            import threading as _th
+            def _boot_cron():
+                try:
+                    from cron_worker import start_all as _start_cron
+                    _start_cron()
+                    print("[bot] cron_worker started.", flush=True)
+                except Exception as e:
+                    print(f"[bot] cron_worker init failed: {e}", flush=True)
+            _th.Thread(target=_boot_cron, name="cron_boot", daemon=True).start()
         except Exception as e:
-            print(f"[bot] cron_worker init failed: {e}")
+            print(f"[bot] cron_worker boot thread failed: {e}", flush=True)
     else:
-        print("[bot] cron_worker DISABLED (set CRON_WORKER_ENABLED=1 to enable).")
+        print("[bot] cron_worker DISABLED (CRON_WORKER_ENABLED=0).")
     print("[bot] About to call run_bot()...")
     run_bot()
 
