@@ -604,17 +604,21 @@ def _strip_to_json(raw: str) -> Optional[dict]:
 
 
 # ── Pipeline ──────────────────────────────────────────────────────────────
-def split_message(text: str) -> tuple[bool, list[str]]:
-    """Split a Telegram message into listing-blocks via LLM.
+try:
+    from split_helpers import regex_split, collapse_duplicate_blocks  # type: ignore
+    _HAS_SPLIT_HELPERS = True
+except Exception:
+    _HAS_SPLIT_HELPERS = False
 
-    Returns (is_spam, list_of_block_texts)."""
+
+def _llm_split(text: str) -> tuple[bool, list[str]]:
+    """LLM-only split (legacy path)."""
     prompt = SPLIT_PROMPT.format(text=(text or "")[:3000])
     raw = llm_call(prompt, max_tokens=900, timeout=15)
     parsed = _strip_to_json(raw or "")
     text_clean = (text or "").strip()
     fallback_blocks = [text_clean] if len(text_clean) > 20 else []
     if not isinstance(parsed, dict):
-        # Fallback: treat as single block (LLM failed)
         return (False, fallback_blocks) if fallback_blocks else (True, [])
     if parsed.get("is_spam"):
         return True, []
@@ -623,9 +627,47 @@ def split_message(text: str) -> tuple[bool, list[str]]:
         return False, fallback_blocks
     blocks = [b for b in blocks if isinstance(b, str) and len(b.strip()) > 15]
     if not blocks:
-        # LLM said not spam but gave no blocks → use the full text
         return (False, fallback_blocks) if fallback_blocks else (True, [])
     return False, blocks
+
+
+def split_message(text: str) -> tuple[bool, list[str]]:
+    """Split a Telegram message into listing-blocks.
+
+    Strategy:
+      1. Regex pre-pass for explicit separators (FOR SALE!, ===, numbered,
+         inline "5BR HAVEN 12M | 4BR PALM 8M"). Fast, no LLM, robust.
+      2. If regex finds 1 block but text is suspicious of multi → LLM split.
+      3. LLM split for spam classification on short/single-block text.
+      4. POST: collapse blocks that have identical building+price signature
+         (over-split detection).
+
+    Returns (is_spam, list_of_block_texts)."""
+    if not text or not text.strip():
+        return (True, [])
+
+    text_clean = text.strip()
+
+    # 1. Regex pre-pass
+    if _HAS_SPLIT_HELPERS:
+        blocks = regex_split(text_clean)
+        if len(blocks) >= 2:
+            # Post-collapse: undo over-split (same building+price → merge)
+            blocks = collapse_duplicate_blocks(blocks)
+            if len(blocks) >= 2:
+                return (False, blocks)
+
+    # 2. Check if single-block text looks suspicious of multi-listing
+    suspicious = (
+        len(text_clean) > 500 and (
+            text_clean.lower().count("for sale") >= 2 or
+            text_clean.lower().count("for rent") >= 2 or
+            text_clean.count("AED") + text_clean.lower().count("aed") >= 3
+        )
+    )
+
+    # 3. LLM split (always for spam classification, or if suspicious)
+    return _llm_split(text)
 
 
 def _build_extract_prompt(block: str) -> str:
