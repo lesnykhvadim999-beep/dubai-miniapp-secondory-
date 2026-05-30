@@ -340,6 +340,16 @@ T = {
     "btn_analysis":"Investment Analysis",
     "btn_send":    "Send to Client",
     "btn_all_in_bld": "🏢 All units in this building",
+    "btn_contacts":  "📞 Agent Contacts",
+    "btn_contacts_n": "👥 {n} Agents · Contacts",
+    "btn_write":     "✉️ Write to Agent",
+    "btn_write_wa":  "📱 WhatsApp",
+    "btn_write_tg":  "📨 Telegram",
+    "btn_agent_prices": "💸 Compare Agent Prices",
+    "btn_agent_score":  "⭐ Agent Reliability",
+    "agents_title": "👥 Agents selling this property",
+    "agents_no_data": "No contact info available for this listing.",
+    "agents_price_min_max": "Lowest: {lo} · Highest: {hi}",
     "btn_fav_add":   "❤️ Save",
     "btn_fav_rem":   "💔 Remove",
     "btn_map":       "🗺 Map",
@@ -620,6 +630,16 @@ T = {
     "btn_analysis":"Инвестиционный анализ",
     "btn_send":    "Отправить клиенту",
     "btn_all_in_bld": "🏢 Все объекты в этом доме",
+    "btn_contacts":  "📞 Контакты агента",
+    "btn_contacts_n": "👥 {n} агентов · контакты",
+    "btn_write":     "✉️ Написать агенту",
+    "btn_write_wa":  "📱 WhatsApp",
+    "btn_write_tg":  "📨 Telegram",
+    "btn_agent_prices": "💸 Сравнить цены агентов",
+    "btn_agent_score":  "⭐ Надёжность агента",
+    "agents_title": "👥 Агенты, продающие этот объект",
+    "agents_no_data": "Нет контактных данных по этому объявлению.",
+    "agents_price_min_max": "Минимум: {lo} · Максимум: {hi}",
     "btn_fav_add":   "❤️ В избранное",
     "btn_fav_rem":   "💔 Убрать",
     "btn_map":       "🗺 На карте",
@@ -919,6 +939,16 @@ T = {
     "btn_analysis":"التحليل الاستثماري",
     "btn_send":    "إرسال للعميل",
     "btn_all_in_bld": "🏢 جميع الوحدات في هذا المبنى",
+    "btn_contacts":  "📞 جهات اتصال الوكيل",
+    "btn_contacts_n": "👥 {n} وكلاء · جهات الاتصال",
+    "btn_write":     "✉️ راسل الوكيل",
+    "btn_write_wa":  "📱 واتساب",
+    "btn_write_tg":  "📨 تيليجرام",
+    "btn_agent_prices": "💸 مقارنة أسعار الوكلاء",
+    "btn_agent_score":  "⭐ موثوقية الوكيل",
+    "agents_title": "👥 الوكلاء الذين يبيعون هذا العقار",
+    "agents_no_data": "لا تتوفر بيانات اتصال لهذا الإعلان.",
+    "agents_price_min_max": "الأدنى: {lo} · الأعلى: {hi}",
     "btn_fav_add":   "❤️ حفظ",
     "btn_fav_rem":   "💔 إزالة",
     "btn_map":       "🗺 الخريطة",
@@ -3434,8 +3464,13 @@ def send_results(cid, uid, mid=None):
         # cluttering CTA. Кнопка остаётся на детальном экране (btn_analysis →
         # «Инвестиционный анализ»), где сохранена _url_btn lead-bot (см. ~строку 3251).
         # Callback `book|{lid}` handler не удалён — обратная совместимость.
+        # Agent contacts button label (shows count if dedup'd)
+        _ac = (lst.get("agent_count") or 1) if isinstance(lst, dict) else 1
+        _contacts_label = (_t(uid, "btn_contacts_n").format(n=_ac)
+                            if _ac > 1 else _t(uid, "btn_contacts"))
         kb_rows = [
             [_btn(_t(uid, "btn_analysis"), f"detail|{lid}")],
+            [_btn(_contacts_label,         f"agents|{lid}")],
             [_btn(fav_label,               f"fav|{lid}"),    _btn(_t(uid, "btn_compare"), f"cmp|{lid}")],
             [_btn(_t(uid, "btn_map"),      f"map|{lid}"),    _btn(_t(uid, "btn_photos"),  f"photos|{lid}")],
         ]
@@ -3989,6 +4024,166 @@ def handle_ai(cid, uid, mid, parts):
         send_results(cid, uid)
 
 
+# ── Agent contacts (PHASE W + W2 data) ───────────────────────────────────────
+def _fmt_phone(p):
+    """Display +971 50 583 7047 — readable, but allow tg://copy."""
+    if not p:
+        return None
+    digits = "".join(c for c in str(p) if c.isdigit())
+    if len(digits) >= 10:
+        # UAE format: +971 50 583 7047
+        return "+" + digits[:-9] + " " + digits[-9:-7] + " " + digits[-7:-4] + " " + digits[-4:]
+    return "+" + digits if not str(p).startswith("+") else str(p)
+
+
+def _wa_url(phone):
+    """WhatsApp deep link from phone."""
+    if not phone:
+        return None
+    digits = "".join(c for c in str(phone) if c.isdigit())
+    if len(digits) < 8:
+        return None
+    return f"https://wa.me/{digits}"
+
+
+def _tg_url(username):
+    """Telegram deep link from @username."""
+    if not username:
+        return None
+    u = str(username).lstrip("@")
+    if not u:
+        return None
+    return f"https://t.me/{u}"
+
+
+def get_agent_contacts(lid):
+    """Pull all agents (PHASE W2) for a listing. Returns list of dicts.
+
+    Each dict: {name, phone, telegram, wa_url, tg_url, price, listing_id}.
+    Includes the canonical itself + all dedup'd siblings."""
+    import psycopg2
+    contacts = []
+    try:
+        with _pg_conn() as conn:
+            cur = conn.cursor()
+            # Get canonical
+            cur.execute("""
+                SELECT id, phone, agent_name, seller_username, price,
+                       agent_phones, agent_names, agent_channels, dup_listing_ids,
+                       COALESCE(agent_count, 1) AS ac
+                FROM listings WHERE id = %s
+            """, (lid,))
+            r = cur.fetchone()
+            if not r:
+                return []
+            (canon_id, ph, an, su, price,
+             ap, an_arr, ac_arr, dup_ids, ac) = r
+            # Add canonical
+            contacts.append({
+                "id": canon_id,
+                "name": an or "—",
+                "phone": ph,
+                "telegram": "@" + su.lstrip("@") if su else None,
+                "price": price,
+                "is_canonical": True,
+            })
+            # Add all duplicates
+            if dup_ids:
+                cur.execute("""
+                    SELECT id, phone, agent_name, seller_username, price
+                    FROM listings WHERE id = ANY(%s)
+                """, (list(dup_ids),))
+                for r2 in cur.fetchall():
+                    did, dph, dan, dsu, dprice = r2
+                    contacts.append({
+                        "id": did,
+                        "name": dan or "—",
+                        "phone": dph,
+                        "telegram": "@" + dsu.lstrip("@") if dsu else None,
+                        "price": dprice,
+                        "is_canonical": False,
+                    })
+    except Exception as e:
+        print(f"get_agent_contacts err: {e}")
+    return contacts
+
+
+def _pg_conn():
+    """Direct psycopg2 connection — uses same DSN as db_schema."""
+    import psycopg2, os
+    return psycopg2.connect(os.environ.get(
+        "DATABASE_URL",
+        "postgresql://postgres:REDACTED_DSN_PASSWORD"
+        "@tramway.proxy.rlwy.net:23228/railway"),
+        connect_timeout=8)
+
+
+def show_agents(cid, uid, mid, lid):
+    """Render agent contacts list with action buttons (WA, TG, write)."""
+    listing = get_listing_by_id(lid)
+    if not listing:
+        _api("answerCallbackQuery", callback_query_id="", text="Listing not found")
+        return
+    contacts = get_agent_contacts(lid)
+    if not contacts:
+        _send(cid, _t(uid, "agents_no_data"))
+        return
+
+    # Header
+    title = _t(uid, "agents_title")
+    bld = listing.get("building") or ""
+    area = listing.get("area") or ""
+    head = f"*{title}*\n"
+    if bld:
+        head += f"🏢 *{bld}*"
+        if area:
+            head += f"  ·  {area}"
+        head += "\n"
+
+    # Price comparison if multiple
+    prices = [c["price"] for c in contacts if c.get("price")]
+    if len(prices) > 1 and min(prices) != max(prices):
+        lo = f"{min(prices):,} AED".replace(",", " ")
+        hi = f"{max(prices):,} AED".replace(",", " ")
+        head += "\n" + _t(uid, "agents_price_min_max").format(lo=lo, hi=hi) + "\n"
+
+    head += f"\n*{len(contacts)} agent(s) selling this property:*\n"
+
+    # Build per-agent block + inline kbd
+    kb_rows = []
+    body = ""
+    for i, c in enumerate(contacts, 1):
+        body += f"\n*{i}. {c['name']}*\n"
+        if c["phone"]:
+            body += f"   📞 `{_fmt_phone(c['phone'])}`\n"
+        if c["telegram"]:
+            body += f"   💬 {c['telegram']}\n"
+        if c["price"] and len(prices) > 1:
+            body += f"   💰 {c['price']:,} AED\n".replace(",", " ")
+        # Buttons: WhatsApp + Telegram per agent (if available)
+        row = []
+        wa_url = _wa_url(c["phone"])
+        tg_url = _tg_url(c["telegram"])
+        if wa_url:
+            row.append(_url_btn(f"📱 WA {i}", wa_url))
+        if tg_url:
+            row.append(_url_btn(f"📨 TG {i}", tg_url))
+        if row:
+            kb_rows.append(row)
+        # Truncate if too many agents
+        if i >= 10:
+            body += f"\n_+ {len(contacts) - 10} more agents…_\n"
+            break
+
+    text = head + body
+    if len(text) > 4000:
+        text = text[:3900] + "\n\n_…truncated_"
+
+    kb_rows.append([_btn(_t(uid, "btn_back"), f"detail|{lid}")])
+    kb = _kb(*kb_rows)
+    _send(cid, text, kb)
+
+
 # ── Detail view ───────────────────────────────────────────────────────────────
 def show_detail(cid, uid, mid, lid):
     listing = get_listing_by_id(lid)
@@ -4018,8 +4213,13 @@ def show_detail(cid, uid, mid, lid):
     watch_label = _t(uid, "btn_watch_rem") if watch_now else _t(uid, "btn_watch_add")
     lang_user = user_lang.get(uid, "en")
     has_building = bool(listing.get("building"))
+    # Agent contacts label (shows count if multi-agent)
+    _ac_d = (listing.get("agent_count") or 1)
+    _contacts_label_d = (_t(uid, "btn_contacts_n").format(n=_ac_d)
+                          if _ac_d > 1 else _t(uid, "btn_contacts"))
     kb_rows = [
         [_url_btn(_t(uid, "btn_book"), lead_url)],
+        [_btn(_contacts_label_d,       f"agents|{lid}")],
         [_btn(fav_label,              f"fav|{lid}"),    _btn(_t(uid, "btn_compare"), f"cmp|{lid}")],
         [_btn(watch_label,            f"watch|{lid}")],
         [_btn(_t(uid, "btn_map"),     f"map|{lid}"),    _btn(_t(uid, "btn_photos"),  f"photos|{lid}")],
@@ -7217,6 +7417,14 @@ def handle_cb(cb):
                  text=_t(uid, "compare_added", n=len(cart)))
 
     # ── Map link ──────────────────────────────────────────────────────────────
+    elif action == "agents":
+        # Show agent contacts (PHASE W + W2 dedup data) + WA/TG action buttons.
+        # Free for all users (no monetization yet).
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        if lid:
+            show_agents(cid, uid, mid, lid)
+        return
+
     elif action == "map":
         lid = int(parts[1]) if len(parts) > 1 else 0
         listing = get_listing_by_id(lid)
