@@ -245,7 +245,8 @@ Return a single JSON object with exactly these keys:
   "furnishing": "furnished" | "unfurnished" | "semi-furnished" | null,
   "is_off_plan": true | false | null,
   "handover_date": "YYYY-MM" | null,
-  "price": <integer AED, NO decimal places> | null,
+  "price": <integer AED — the CURRENT asking/selling price> | null,
+  "price_original": <integer AED — launch/developer/original price if different from current> | null,
   "currency": "AED" | "USD" | null,
   "price_period": "year" | "month" | null,
   "agent_name": "<name>" | null,
@@ -258,6 +259,13 @@ Rules:
 - For "AED 50k/year" set price=50000, currency=AED, price_period=year, deal_type=rent.
 - For rent prices >5M AED → deal_type is likely sale, set deal_type=sale.
 - For sale prices <100K AED → likely rent (annual), set deal_type=rent.
+- PRICE FIELD = the CURRENT asking/selling/distress/discounted price (what
+  the buyer actually pays today). NEVER use the "original price", "launch
+  price", "developer price", "OP", or "list price" for the `price` field —
+  those go to `price_original` instead.
+- When both are present (e.g. "Original 5.4M / Selling 4.9M") → `price=4900000`,
+  `price_original=5400000`. When only one price → `price=<that price>`,
+  `price_original=null`.
 - Area should be the USER-FRIENDLY community name buyers actually search
   for ("Dubai Marina", NOT "Marsa Dubai"; "JLT" or "Jumeirah Lake Towers",
   NOT "Al Thanyah Fifth"; "Dubai Hills Estate", NOT
@@ -675,7 +683,13 @@ def extract_block(block: str) -> Optional[dict]:
     parsed["size_sqft"] = _coerce_number(parsed.get("size_sqft"))
     parsed["size_sqm"] = _coerce_number(parsed.get("size_sqm"))
     parsed["price"] = _coerce_number(parsed.get("price"), integer=True)
+    parsed["price_original"] = _coerce_number(parsed.get("price_original"), integer=True)
     parsed["floor"] = _coerce_number(parsed.get("floor"), integer=True)
+    # Discount % if both prices present
+    p_now = parsed.get("price")
+    p_orig = parsed.get("price_original")
+    if p_now and p_orig and p_orig > 0 and p_orig != p_now:
+        parsed["discount_pct"] = round((p_orig - p_now) * 100 / p_orig, 1)
     # Cross-fill size_sqft from sqm if missing (1 sqm = 10.7639 sqft)
     if parsed.get("size_sqft") is None and parsed.get("size_sqm"):
         parsed["size_sqft"] = round(parsed["size_sqm"] * 10.7639, 1)
