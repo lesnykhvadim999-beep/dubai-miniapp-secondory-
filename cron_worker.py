@@ -654,6 +654,30 @@ def daily_backup_loop():
     _run_script_periodic("_daily_backup.py", 24 * 3600, "backup")
 
 
+def daily_backup_github_loop():
+    """Daily at 03:00 UTC — pg_dump + GitHub Releases upload (improvement #6).
+
+    Sleeps until next 03:00 UTC, then runs `_backup_to_github.py`. On error,
+    sleeps 1h and retries (rather than skipping a full day).
+    """
+    import subprocess
+    while True:
+        time.sleep(_wait_until_utc(3, 0))
+        try:
+            here = os.path.dirname(os.path.abspath(__file__))
+            script = os.path.join(here, "_backup_to_github.py")
+            if os.path.exists(script):
+                print("[cron:backup_github] running", flush=True)
+                subprocess.run(["python", script], timeout=2400, check=False)
+            else:
+                print(f"[cron:backup_github] script missing: {script}",
+                      flush=True)
+                time.sleep(3600)
+        except Exception as e:
+            print(f"[cron:backup_github] error: {e}", flush=True)
+            time.sleep(3600)
+
+
 def channel_quality_loop():
     """Daily — per-channel quality digest."""
     _run_script_periodic("_channel_quality.py", 24 * 3600, "channel_quality")
@@ -744,7 +768,8 @@ def start_all():
                hourly_report_loop, realtime_accuracy_loop,
                # New jobs (29.05.2026)
                saved_searches_loop, price_alerts_loop, cross_source_loop,
-               daily_backup_loop, channel_quality_loop, daily_digest_loop,
+               daily_backup_loop, daily_backup_github_loop,
+               channel_quality_loop, daily_digest_loop,
                weekly_aliases_loop, lead_followup_loop):
         if _safe_thread_start(fn):
             started += 1
