@@ -18,11 +18,9 @@ DB = os.environ.get(
     "DATABASE_URL",
     os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set")),
 )
-INTEL = os.environ.get(
-    "INTEL_DB_URL",
-    "postgresql://postgres:REDACTED_ARCHIVE_DB_PASSWORD"
-    "@switchback.proxy.rlwy.net:23244/railway",
-)
+INTEL = os.environ.get("INTEL_DB_URL") or os.environ.get("ARCHIVE_DATABASE_URL")
+if not INTEL:
+    raise RuntimeError("INTEL_DB_URL / ARCHIVE_DATABASE_URL not set")
 
 # Non-Dubai emirate communities (manually curated)
 NON_DUBAI = {

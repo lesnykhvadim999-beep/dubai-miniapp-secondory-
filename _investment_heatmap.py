@@ -23,10 +23,9 @@ from typing import List, Tuple
 import psycopg2
 import psycopg2.extras
 
-DLD_DB = (
-    "postgresql://postgres:REDACTED_ARCHIVE_DB_PASSWORD"
-    "@switchback.proxy.rlwy.net:23244/railway"
-)
+DLD_DB = os.environ.get("DLD_DATABASE_URL") or os.environ.get("ARCHIVE_DATABASE_URL")
+if not DLD_DB:
+    raise RuntimeError("DLD_DATABASE_URL / ARCHIVE_DATABASE_URL not set")
 
 # Approx coords (lat, lon) для районов Dubai. Используем DLD area_name_en,
 # плюс несколько алиасов под Intel-style имена.

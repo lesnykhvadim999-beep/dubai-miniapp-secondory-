@@ -35,11 +35,9 @@ except Exception:
 import psycopg2
 from psycopg2.extras import Json, execute_batch
 
-DLD_DSN = os.environ.get(
-    "DLD_DATABASE_URL",
-    "postgresql://postgres:REDACTED_ARCHIVE_DB_PASSWORD"
-    "@switchback.proxy.rlwy.net:23244/railway",
-)
+DLD_DSN = os.environ.get("DLD_DATABASE_URL") or os.environ.get("ARCHIVE_DATABASE_URL")
+if not DLD_DSN:
+    raise RuntimeError("DLD_DATABASE_URL / ARCHIVE_DATABASE_URL not set")
 RESALE_DSN = os.environ.get(
     "DATABASE_URL",
     os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set")),
