@@ -80,9 +80,10 @@ except ImportError as _e:
 BOT_TOKEN      = os.environ.get("RESALE_BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ADMIN_ID       = 353806371
 LEAD_BOT_URL   = "https://t.me/dubai_fpr_lead_bot"
-LEAD_BOT_TOKEN = os.environ.get("LEAD_BOT_TOKEN")
+LEAD_BOT_TOKEN = os.environ.get("LEAD_BOT_TOKEN", "")
 if not LEAD_BOT_TOKEN:
-    raise RuntimeError("LEAD_BOT_TOKEN required")
+    print("[startup] LEAD_BOT_TOKEN not set — lead-bot notifications disabled",
+          flush=True)
 ANTHROPIC_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
 API            = f"https://api.telegram.org/bot{BOT_TOKEN}"
 PER_PAGE       = 10
@@ -2927,6 +2928,8 @@ def send_lead_to_bot(uid, uname, fname, lang, listing_id):
         f"{_sep()}"
     )
 
+    if not LEAD_BOT_TOKEN:
+        return  # graceful degrade — no lead-bot token configured
     try:
         requests.post(
             f"https://api.telegram.org/bot{LEAD_BOT_TOKEN}/sendMessage",
