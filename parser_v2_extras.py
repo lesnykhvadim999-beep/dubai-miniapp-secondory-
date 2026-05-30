@@ -18,7 +18,9 @@ from typing import Optional, Tuple
 def _norm(text: Optional[str]) -> str:
     if not text:
         return ""
-    return text.lower()
+    # Strip Telegram markdown (**bold**, __italic__, `code`, ~~strike~~)
+    cleaned = re.sub(r"[*_~`]+", " ", text)
+    return cleaned.lower()
 
 
 # ── 1. Furnishing ─────────────────────────────────────────────────────────
@@ -122,9 +124,22 @@ _FLOOR_NUM_PATTERNS = [
 ]
 
 _PENTHOUSE_RE = re.compile(r"\bpenthouse\b|\bпентхаус\b|بنتهاوس", re.IGNORECASE)
-_HIGH_FLOOR_RE = re.compile(r"\bhigh\s+floor\b|\bhigh\s+level\b|высок\w+\s+этаж|طابق\s+عالي", re.IGNORECASE)
-_MID_FLOOR_RE = re.compile(r"\bmid(?:dle)?\s+floor\b|\bmid\s+level\b|средн\w+\s+этаж|طابق\s+متوسط", re.IGNORECASE)
-_LOW_FLOOR_RE = re.compile(r"\blow\s+floor\b|\blower\s+floor\b|\blow\s+level\b|низк\w+\s+этаж|طابق\s+منخفض", re.IGNORECASE)
+_HIGH_FLOOR_RE = re.compile(
+    r"\bhigh\s+floor\b|\bhigh\s+level\b|\bhigher\s+floor\b|\bhigher\s+level\b|"
+    r"\bupper\s+floor\b|\btop\s+floor\b|\bупper\s+level\b|"
+    r"высок\w+\s+этаж|верхн\w+\s+этаж|طابق\s+عالي",
+    re.IGNORECASE,
+)
+_MID_FLOOR_RE = re.compile(
+    r"\bmid(?:dle)?\s+floor\b|\bmid\s+level\b|\bmedium\s+floor\b|\bmedium\s+level\b|"
+    r"средн\w+\s+этаж|سطو\w+\s+متوسط|طابق\s+متوسط",
+    re.IGNORECASE,
+)
+_LOW_FLOOR_RE = re.compile(
+    r"\blow\s+floor\b|\blower\s+floor\b|\blow\s+level\b|\blower\s+level\b|"
+    r"низк\w+\s+этаж|нижн\w+\s+этаж|طابق\s+منخفض",
+    re.IGNORECASE,
+)
 _GROUND_FLOOR_RE = re.compile(r"\bground\s+floor\b|\bgf\b|первый\s+этаж|الطابق\s+الأرضي", re.IGNORECASE)
 
 
@@ -149,6 +164,8 @@ def extract_floor(text: Optional[str]) -> Tuple[Optional[int], Optional[str]]:
     s = text or ""
     if not s:
         return None, None
+    # Strip markdown formatting (Telegram-style **bold**, __italic__, `code`, ~~strike~~)
+    s = re.sub(r"[*_~`]+", " ", s)
     low = s.lower()
 
     # Specific number
