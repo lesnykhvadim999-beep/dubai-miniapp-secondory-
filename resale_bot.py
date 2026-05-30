@@ -4147,19 +4147,54 @@ def show_agents(cid, uid, mid, lid):
         hi = f"{max(prices):,} AED".replace(",", " ")
         head += "\n" + _t(uid, "agents_price_min_max").format(lo=lo, hi=hi) + "\n"
 
-    head += f"\n*{len(contacts)} agent(s) selling this property:*\n"
+    # Deduplicate by phone+telegram — collapse same agent's multi-reposts
+    seen = {}
+    for c in contacts:
+        key = (
+            "".join(d for d in str(c["phone"] or "") if d.isdigit())[-9:],
+            (c["telegram"] or "").lower().lstrip("@"),
+        )
+        if key == ("", ""):
+            # No identifier — keep as separate entry
+            key = ("noid", id(c))
+        if key not in seen:
+            seen[key] = dict(c)
+            seen[key]["reposts"] = 1
+            seen[key]["min_price"] = c["price"]
+            seen[key]["max_price"] = c["price"]
+        else:
+            seen[key]["reposts"] += 1
+            if c["price"]:
+                if seen[key]["min_price"] is None or c["price"] < seen[key]["min_price"]:
+                    seen[key]["min_price"] = c["price"]
+                if seen[key]["max_price"] is None or c["price"] > seen[key]["max_price"]:
+                    seen[key]["max_price"] = c["price"]
+            # Prefer non-empty name
+            if not seen[key]["name"] or seen[key]["name"] == "—":
+                if c["name"] and c["name"] != "—":
+                    seen[key]["name"] = c["name"]
+    unique = list(seen.values())
+
+    head += f"\n*{len(unique)} unique agent(s) ({len(contacts)} listings total):*\n"
 
     # Build per-agent block + inline kbd
     kb_rows = []
     body = ""
-    for i, c in enumerate(contacts, 1):
-        body += f"\n*{i}. {c['name']}*\n"
+    for i, c in enumerate(unique[:10], 1):
+        body += f"\n*{i}. {c['name'] or '—'}*"
+        if c["reposts"] > 1:
+            body += f"  _×{c['reposts']} reposts_"
+        body += "\n"
         if c["phone"]:
             body += f"   📞 `{_fmt_phone(c['phone'])}`\n"
         if c["telegram"]:
             body += f"   💬 {c['telegram']}\n"
-        if c["price"] and len(prices) > 1:
-            body += f"   💰 {c['price']:,} AED\n".replace(",", " ")
+        # Price (and range if changed)
+        if c["min_price"] and c["max_price"]:
+            if c["min_price"] != c["max_price"]:
+                body += f"   💰 {c['min_price']:,}–{c['max_price']:,} AED\n".replace(",", " ")
+            else:
+                body += f"   💰 {c['min_price']:,} AED\n".replace(",", " ")
         # Buttons: WhatsApp + Telegram per agent (if available)
         row = []
         wa_url = _wa_url(c["phone"])
@@ -4170,10 +4205,9 @@ def show_agents(cid, uid, mid, lid):
             row.append(_url_btn(f"📨 TG {i}", tg_url))
         if row:
             kb_rows.append(row)
-        # Truncate if too many agents
-        if i >= 10:
-            body += f"\n_+ {len(contacts) - 10} more agents…_\n"
-            break
+
+    if len(unique) > 10:
+        body += f"\n_+ {len(unique) - 10} more agents…_\n"
 
     text = head + body
     if len(text) > 4000:
