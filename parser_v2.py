@@ -240,11 +240,13 @@ def _coerce_number(v, *, integer: bool = False) -> Optional[float]:
         return int(v) if integer else float(v)
     if not isinstance(v, str):
         return None
-    s = v.strip().replace(",", "").replace(" ", "")
-    # strip unit suffix words at the end
-    s = re.sub(r"(aed|usd|eur|sqft|sq\.?ft|sqm|sq\.?m|sm|/year|/month|/yr|/mo|годовая)$",
+    s = v.strip().replace(",", "")
+    # strip currency prefix and trailing unit words
+    s = re.sub(r"^\s*(aed|usd|eur|\$|€)\s*", "", s, flags=re.IGNORECASE)
+    s = re.sub(r"\s*(aed|usd|eur|sqft|sq\.?\s*ft|sqm|sq\.?\s*m|sm|"
+               r"/year|/month|/yr|/mo|годовая|per\s+year|per\s+month)\s*$",
                "", s, flags=re.IGNORECASE)
-    s = s.strip().lstrip("$")
+    s = s.replace(" ", "").strip().lstrip("$")
     # match number + optional suffix M/K/B
     m = re.fullmatch(r"(-?\d+(?:\.\d+)?)([KkMmBb]|mn|MN|mln)?", s)
     if not m:
@@ -427,6 +429,29 @@ def parse_message_v2(text: str, source_channel: str | None = None) -> list[dict]
         fields["v2_total_blocks"] = len(blocks)
         fields["v2_source_block_text"] = block[:1500]
         fields["v2_source_channel"] = source_channel
+        # ── Rule-based extras: furnishing / view / floor / handover ──
+        # Don't overwrite anything the LLM already produced; just fill gaps
+        # and populate the dedicated extras columns.
+        try:
+            extras = extract_extras(block)
+        except Exception:
+            extras = {}
+        if extras:
+            if not fields.get("furnishing") and extras.get("furnishing"):
+                fields["furnishing"] = extras["furnishing"]
+            if not fields.get("view") and extras.get("view"):
+                fields["view"] = extras["view"]
+            if not fields.get("floor") and extras.get("floor_number") is not None:
+                fields["floor"] = extras["floor_number"]
+            fields["floor_number"] = extras.get("floor_number")
+            fields["floor_category"] = extras.get("floor_category")
+            fields["handover_year"] = extras.get("handover_year")
+            fields["handover_quarter"] = extras.get("handover_quarter")
+            fields["handover_text"] = extras.get("handover_text")
+            if not fields.get("handover_date") and extras.get("handover_year"):
+                y = extras["handover_year"]; q = extras.get("handover_quarter")
+                month = {1: "03", 2: "06", 3: "09", 4: "12"}.get(q or 0, "12")
+                fields["handover_date"] = f"{y}-{month}"
         out.append(fields)
     return out
 
