@@ -765,7 +765,8 @@ def extract_block(block: str) -> Optional[dict]:
         elif parsed.get("deal_type") == "sale" and 30_000 < p < 200_000:
             parsed["deal_type"] = "rent"
     # Studio rule: bedrooms 0 + has size → property_type=studio
-    if parsed.get("bedrooms") == 0 and not parsed.get("property_type"):
+    # Studio rule: bedrooms=0 → studio (override 'apartment' misclassification too)
+    if parsed.get("bedrooms") == 0 and parsed.get("property_type") in (None, "apartment"):
         parsed["property_type"] = "studio"
     return parsed
 
@@ -851,7 +852,8 @@ def _coerce_v2(parsed: dict) -> dict:
             parsed["deal_type"] = "sale"
         elif parsed.get("deal_type") == "sale" and 30_000 < p < 200_000:
             parsed["deal_type"] = "rent"
-    if parsed.get("bedrooms") == 0 and not parsed.get("property_type"):
+    # Studio rule: bedrooms=0 → studio (override 'apartment' misclassification too)
+    if parsed.get("bedrooms") == 0 and parsed.get("property_type") in (None, "apartment"):
         parsed["property_type"] = "studio"
     return parsed
 
