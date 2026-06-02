@@ -2413,8 +2413,173 @@ def _build_page2(story: list, st: dict, payload: dict, lang: str):
 
 
 # ── Page 3: Comparison + detailed ROI + disclaimer ──
+# ── PDF Intelligence v2 helpers ──────────────────────────────────────────
+# Optional cosmic-grade upgrade: thesis, forecast, liquidity tier, photo analysis.
+# Each rendered inside its own try/except wrapper inside _build_page3 so a
+# failure in any single feature can NEVER break PDF generation.
+
+def _v2_pkg():
+    """Lazy-import the pdf_intelligence package; return module or None."""
+    try:
+        from pdf_intelligence import (  # type: ignore
+            generate_thesis,
+            forecast_prices,
+            build_forecast_chart,
+            compute_liquidity_tier,
+            analyze_property_photos,
+            format_photo_analysis,
+        )
+        return {
+            "generate_thesis": generate_thesis,
+            "forecast_prices": forecast_prices,
+            "build_forecast_chart": build_forecast_chart,
+            "compute_liquidity_tier": compute_liquidity_tier,
+            "analyze_property_photos": analyze_property_photos,
+            "format_photo_analysis": format_photo_analysis,
+        }
+    except Exception as e:
+        log.debug(f"pdf_intelligence import skipped: {e}")
+        return None
+
+
+def _v2_render_liquidity_badge(story: list, st: dict, payload: dict, lang: str):
+    """Render a small A/B/C/D liquidity badge above the comparison header."""
+    pkg = _v2_pkg()
+    if not pkg:
+        return
+    building = (payload.get("building") or payload.get("name") or "").strip()
+    area = (payload.get("area") or payload.get("location") or "").strip()
+    deals_12m = payload.get("deals_12m") or payload.get("deals")
+    tier = pkg["compute_liquidity_tier"](
+        building=building if building and building != area else None,
+        area=area or None,
+        deals_12m=int(deals_12m) if deals_12m else None,
+        lang=lang,
+    )
+    if not tier or not tier.get("tier"):
+        return
+    label_key = "kpi_liquidity" if "kpi_liquidity" in I18N.get(lang, {}) else ""
+    label_text = _t(lang, "kpi_liquidity", "Ликвидность")
+    days = tier.get("avg_days_between")
+    days_part = f" · ~{int(days)} {_t(lang, 'u_days_short', 'd')} между сделками" if days else ""
+    badge_text = (
+        f'<b>💧 {label_text}: '
+        f'<font color="{tier["color"]}">Tier {tier["tier"]} · {tier["label"]}</font></b>'
+        f'<font size="7" color="#78716C">{days_part}</font>'
+    )
+    try:
+        story.append(Paragraph(badge_text, st["body_l"]))
+        story.append(Spacer(1, 0.15 * cm))
+    except Exception as e:
+        log.debug(f"v2 badge paragraph failed: {e}")
+
+
+def _v2_render_intelligence_block(story: list, st: dict, payload: dict, lang: str):
+    """Render the new cosmic intelligence sections: thesis, forecast, photos."""
+    pkg = _v2_pkg()
+    if not pkg:
+        return
+
+    building = (payload.get("building") or payload.get("name") or "—").strip() or "—"
+    area = (payload.get("area") or payload.get("location") or "—").strip() or "—"
+    deal_type = (payload.get("deal_type")
+                 or payload.get("stage")
+                 or "secondary")
+
+    # ── Feature 1: Investment Thesis ──
+    try:
+        dld_stats = {
+            "deals_count": int(payload.get("deals_12m") or payload.get("deals") or 0),
+            "median_price": float(payload.get("median_price") or payload.get("avg_price") or 0),
+            "median_per_sqft": float(payload.get("price_per_m2") or 0),
+            "trend_pct": float(payload.get("growth_yoy") or 0),
+            "days_to_sell": int(payload.get("days_on_market") or 60),
+        }
+        market_context = {
+            "area_roi": float(payload.get("yield") or 6.5),
+            "dubai_roi": float(payload.get("dubai_median_roi") or 6.5),
+            "liquidity_rank": int(payload.get("liquidity_rank")
+                                  or (8 if (payload.get("deals_12m") or 0) > 100 else 5)),
+        }
+        thesis_text = pkg["generate_thesis"](
+            building=building, area=area, deal_type=str(deal_type),
+            dld_stats=dld_stats, market_context=market_context,
+        )
+        if thesis_text:
+            story.append(Spacer(1, 0.3 * cm))
+            heading = "🧠 " + _t(lang, "investment_analysis", "Инвестиционный анализ")
+            story.append(Paragraph(heading, st["h2"]))
+            # break thesis to paragraphs for nicer wrapping
+            for chunk in thesis_text.strip().split("\n\n"):
+                if chunk.strip():
+                    story.append(Paragraph(chunk.strip(), st["body"]))
+    except Exception as e:
+        log.warning(f"v2 thesis failed: {e}")
+
+    # ── Feature 3: Price Forecast 36mo (only if we have history) ──
+    try:
+        series = payload.get("dynamics_series") or payload.get("price_series") or []
+        # tuples (label, value) or plain values
+        vals: List[float] = []
+        for item in series:
+            if isinstance(item, (tuple, list)) and len(item) >= 2:
+                try:
+                    vals.append(float(item[1]))
+                except Exception:
+                    pass
+            elif isinstance(item, (int, float)):
+                vals.append(float(item))
+        if len(vals) >= 3:
+            forecast = pkg["forecast_prices"](vals, months_ahead=36)
+            chart_png = pkg["build_forecast_chart"](
+                vals, forecast,
+                title="Forecast 12 / 24 / 36 months",
+            )
+            if chart_png:
+                story.append(Spacer(1, 0.3 * cm))
+                story.append(Paragraph("🔮 " + _t(lang, "roi_forecast_10y",
+                                                  "Прогноз 36 мес"), st["h2"]))
+                story.append(_png_image(chart_png, width_cm=16.0, height_cm=6.0))
+                # mini summary
+                p12 = forecast["point"][11] if len(forecast["point"]) >= 12 else None
+                p36 = forecast["point"][35] if len(forecast["point"]) >= 36 else None
+                if p12 and p36:
+                    pct12 = (p12 / vals[-1] - 1) * 100 if vals[-1] else 0
+                    pct36 = (p36 / vals[-1] - 1) * 100 if vals[-1] else 0
+                    conf_map = {"high": "высокая", "medium": "средняя", "low": "низкая"}
+                    conf_ru = conf_map.get(forecast["confidence"], "—")
+                    note = (f"Через 12 мес: ~{p12:,.0f} ({pct12:+.1f}%), "
+                            f"через 36 мес: ~{p36:,.0f} ({pct36:+.1f}%). "
+                            f"Уверенность модели: {conf_ru} (RMSE {forecast['rmse_pct']:.0f}%).")
+                    story.append(Paragraph(note, st["muted"]))
+    except Exception as e:
+        log.warning(f"v2 forecast failed: {e}")
+
+    # ── Feature 5: Photo Analysis (only if photo paths provided) ──
+    try:
+        photo_paths = payload.get("photo_paths") or payload.get("photos_local") or []
+        if photo_paths and isinstance(photo_paths, list):
+            data = pkg["analyze_property_photos"](photo_paths[:5])
+            if data:
+                story.append(Spacer(1, 0.3 * cm))
+                story.append(Paragraph("🏠 Анализ фото объекта", st["h2"]))
+                text = pkg["format_photo_analysis"](data, lang=lang)
+                for line in text.split("\n"):
+                    if line.strip():
+                        story.append(Paragraph(line.strip(), st["body"]))
+                    else:
+                        story.append(Spacer(1, 0.1 * cm))
+    except Exception as e:
+        log.warning(f"v2 photo analysis failed: {e}")
+
+
 def _build_page3(story: list, st: dict, payload: dict, lang: str):
     """Page 3: comparison table + detailed ROI breakdown + legal disclaimer."""
+    # ── PDF Intelligence v2: liquidity tier badge (top of page 3) ──
+    try:
+        _v2_render_liquidity_badge(story, st, payload, lang)
+    except Exception as _e:
+        log.debug(f"v2 liquidity badge skipped: {_e}")
     story.append(Paragraph(_t(lang, "comparison"), st["h1"]))
     comp = payload.get("comparison") or payload.get("similar") or []
     if comp:
@@ -2523,6 +2688,12 @@ def _build_page3(story: list, st: dict, payload: dict, lang: str):
             if parts:
                 story.append(Paragraph(" · ".join(parts), st["body"]))
 
+    # ── PDF Intelligence v2: investment thesis + forecast + photo analysis ──
+    try:
+        _v2_render_intelligence_block(story, st, payload, lang)
+    except Exception as _e:
+        log.debug(f"v2 intelligence block skipped: {_e}")
+
     # ── Top buildings or extra ranking (если есть в payload) ──
     tb = payload.get("top_buildings") or []
     if tb and isinstance(tb, list):
@@ -2605,7 +2776,7 @@ def generate_pdf_report(
     # ── Cache key (v134: bump после enrichment-фикса B041) ──
     payload_norm = json.dumps(payload, sort_keys=True, default=str)[:32000]
     payload_hash = hashlib.sha256(
-        f"{report_type}|{lang}|{payload_norm}|v135-b050".encode("utf-8")).hexdigest()[:24]
+        f"{report_type}|{lang}|{payload_norm}|v200-intelligence".encode("utf-8")).hexdigest()[:24]
     report_key = f"{report_type}:{lang}"
     file_name = f"vadim_{report_type}_{payload_hash}.pdf"
     file_path = os.path.join(output_dir, file_name)
