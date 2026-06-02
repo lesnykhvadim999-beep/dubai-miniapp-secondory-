@@ -1058,8 +1058,19 @@ def parse_message_v2(text: str, source_channel: str | None = None) -> list[dict]
 
     Default = single-pass (v1). Enable two-pass via env PARSER_V2_TWO_PASS=1."""
     if TWO_PASS_ENABLED:
-        return parse_message_v2_two_pass(text, source_channel)
-    return parse_message_v2_v1(text, source_channel)
+        results = parse_message_v2_two_pass(text, source_channel)
+    else:
+        results = parse_message_v2_v1(text, source_channel)
+
+    # Self-improving parser hook (soft-fail; doesn't block parsing)
+    try:
+        from parser_self_improve.failed_collector import maybe_log_failure
+        for r in results:
+            maybe_log_failure(None, text, r)
+    except Exception:
+        pass
+
+    return results
 
 
 if __name__ == "__main__":
