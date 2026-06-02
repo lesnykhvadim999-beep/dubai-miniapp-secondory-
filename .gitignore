@@ -1,0 +1,81 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Local test/debug scripts (single-shot)
+_*.py
+_*.log
+_*.json
+_*.txt
+_*.md
+_*.bat
+check*.py
+check*.txt
+debug_*.py
+find*.py
+fix*.py
+fix*.txt
+patch*.py
+patch*.txt
+show_*.py
+test_*.py
+test2.py
+test3.py
+test4.py
+add_classify.py
+update_area_building.py
+refresh_*.py
+full_audit.py
+rescan_missing.py
+rewrite_beds.py
+agent_dedup.py
+antispam.py
+gen_session_v3.py
+generate_session*.py
+deploy.bat
+db_cleanup_cron.py
+db_state.py
+error_logger.py
+parser_quality_v2.py
+parsing_rules.json
+pdf_report.py
+report_api.py
+run_tests.py
+subscription.py
+area_missing.txt
+building_missing.txt
+detect_area_func.txt
+price_func.txt
+price_missing.txt
+size_missing.txt
+vf_missing.txt
+logo.jpg
+logo_file_id.txt
+logo_placeholder.txt
+price_benchmarks.json
+price_benchmarks.backup.*.json
+
+# Sessions / secrets
+.session_string.txt
+.env
+*.env
+
+# Local Claude config
+.claude/
+CLAUDE.md
+"C:Templlm_keys_raw.txt"
+
+# Junk files with garbled names
+"(DATE_TRUNC('day"
+"migrations* && cp*"
+
+# Local-only directories
+_post/
+fonts/
+tests/__pycache__/
+tools/__pycache__/
+tools/chaos_monkey.log
+tools/chaos_monkey_state.json
