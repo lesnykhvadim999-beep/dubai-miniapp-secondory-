@@ -530,6 +530,12 @@ async def run_parser_once(backfill: bool = False):
                             proxy=proxy)
 
     async with client:
+        # Cron heartbeat (best-effort; never blocks parser)
+        try:
+            from auto_audit._common import record_metric
+            record_metric("cron.tick.telethon_parser", 1.0, meta={"status": "ok"})
+        except Exception:
+            pass
         for channel in CHANNELS:
             await parse_channel(client, channel, backfill=backfill)
             await asyncio.sleep(2)
