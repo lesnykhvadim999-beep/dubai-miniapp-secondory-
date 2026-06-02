@@ -95,10 +95,22 @@ async def main():
     print(f"    Phone : {me.phone}")
     print(f"    ID    : {me.id}")
     print()
+    # P2-FIX: NEVER print session_string to stdout (logs are searchable).
+    import os as _os, secrets as _secrets, tempfile as _tempfile
+    _tmp_dir = _tempfile.gettempdir()
+    _fname = f"session_{_secrets.token_hex(8)}.txt"
+    _fpath = _os.path.join(_tmp_dir, _fname)
+    with open(_fpath, "w", encoding="utf-8") as _f:
+        _f.write(session_string)
+    try:
+        _os.chmod(_fpath, 0o600)
+    except Exception:
+        pass
+    _redacted = session_string[:6] + "***REDACTED***" + session_string[-4:]
     print("=" * 55)
-    print("  SESSION_STRING (copy this to Railway Variables):")
-    print("=" * 55)
-    print(session_string)
+    print(f"[session ready — len={len(session_string)} preview={_redacted}]")
+    print(f"[full session written to: {_fpath}]")
+    print(f"[retrieve locally: cat {_fpath}  (or `railway exec -- cat {_fpath}`)]")
     print("=" * 55)
     print()
     print("Next step: set SESSION_STRING in Railway → Variables → redeploy.")

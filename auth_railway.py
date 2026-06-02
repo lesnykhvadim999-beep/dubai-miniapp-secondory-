@@ -111,7 +111,7 @@ async def main():
         db_set("auth_phone_code_hash", result.phone_code_hash)
         db_set("auth_phone", PHONE)
         print(f"✅  Code sent! Type: {result.type.__class__.__name__}")
-        print(f"[auth] phone_code_hash = {result.phone_code_hash}")
+        print(f"[auth] phone_code_hash stored (len={len(result.phone_code_hash)})")  # safety: ignore redacted
         print(f"[auth] Polling DB for auth_code every {POLL_INTERVAL}s (timeout {TIMEOUT}s)")
         print(f"[auth] To inject code, run from Replit:")
         print(f"[auth]   python3 inject_code.py <CODE>")
@@ -140,7 +140,7 @@ async def main():
 
     # Sign in
     phone_code_hash = db_get("auth_phone_code_hash")
-    print(f"[auth] Signing in with code={code}, hash={phone_code_hash}...")
+    print(f"[auth] Signing in (code redacted, hash redacted)...")  # safety: ignore redacted
     try:
         await client.sign_in(PHONE, code, phone_code_hash=phone_code_hash)
     except SessionPasswordNeededError:
@@ -166,14 +166,27 @@ async def main():
     print(f"✅  Logged in as: {me.first_name} (@{me.username or 'no username'})")
     print(f"    Phone: {me.phone} | ID: {me.id}")
     print()
+    # P2-FIX: NEVER print session_string to stdout (Railway logs are searchable).
+    # Write to a private file readable only via `railway exec cat <path>`.
+    import os as _os, secrets as _secrets, tempfile as _tempfile
+    _tmp_dir = _tempfile.gettempdir()
+    _fname = f"session_{_secrets.token_hex(8)}.txt"
+    _fpath = _os.path.join(_tmp_dir, _fname)
+    with open(_fpath, "w", encoding="utf-8") as _f:
+        _f.write(session_string)
+    try:
+        _os.chmod(_fpath, 0o600)
+    except Exception:
+        pass
+    _redacted = session_string[:6] + "***REDACTED***" + session_string[-4:]
     print("=" * 60)
-    print("SESSION_STRING (copy this entire line):")
-    print("=" * 60)
-    print(session_string)
+    print(f"[session ready — len={len(session_string)} preview={_redacted}]")
+    print(f"[full session written to: {_fpath}]")
+    print(f"[retrieve via: railway exec -- cat {_fpath}]")
     print("=" * 60)
     print()
     print("Next steps:")
-    print("  1. Copy the SESSION_STRING above")
+    print(f"  1. railway exec -- cat {_fpath}   # copy the SESSION_STRING")
     print("  2. Set it in Railway: railway variables set SESSION_STRING='...'")
     print("  3. Restore railway.toml startCommand to python3 resale_bot.py")
     print("  4. Redeploy")
