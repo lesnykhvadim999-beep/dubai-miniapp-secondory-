@@ -9,6 +9,6 @@ restartPolicyMaxRetries = 10
 # 503 → auto-restart. Без этого зомби-инстансы с упавшей БД продолжали "жить".
 healthcheckPath = "/health"
 healthcheckTimeout = 30
-# Critical product — 2 replicas чтобы юзеры не словили downtime во время redeploy.
-# Если Railway plan не позволяет — снизить до 1.
-numReplicas = 2
+# PHASE BN/BO post-rotation: numReplicas=1 защищает Telethon SESSION_STRING
+# (Telegram блокирует session при использовании из 2 разных IP/контейнеров).
+numReplicas = 1
