@@ -62,15 +62,23 @@ price_benchmarks.backup.*.json
 .session_string.txt
 .env
 *.env
+*_raw.txt
+*_keys.txt
+*_keys_raw.*
+_tmp_env.sh
+_tmp_env*.json
+_tmp_*
+tmp_*
+CTempllm_keys_raw.txt
 
 # Local Claude config
 .claude/
 CLAUDE.md
-"C:Templlm_keys_raw.txt"
 
 # Junk files with garbled names
 "(DATE_TRUNC('day"
 "migrations* && cp*"
+"(DATE_TRUNC*"
 
 # Local-only directories
 _post/
