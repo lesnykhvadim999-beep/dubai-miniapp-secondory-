@@ -190,6 +190,33 @@ JOBS.append(
               "--agent", "admin-notifier", "--once", "--batch", "50"]}
 )
 
+# ── PHASE BO O1: Disaster Recovery jobs ───────────────────────────────────
+JOBS.extend([
+    {"name": "dr_backup_daily",   "cron": "0 1 * * *",
+     "argv": [PYTHON, "-m", "shared.disaster_recovery.backup",
+              "--db", "intelligence"]},
+    {"name": "dr_verify_weekly",  "cron": "30 2 * * 0",
+     "argv": [PYTHON, "-m", "shared.disaster_recovery.verify",
+              "--db", "intelligence", "--bucket", "daily"]},
+    {"name": "dr_retention_prune","cron": "0 4 * * *",
+     "argv": [PYTHON, "-m", "shared.disaster_recovery.retention", "--apply"]},
+])
+
+# ── PHASE BN N4: Autonomous Audit Loop ────────────────────────────────────
+JOBS.extend([
+    {"name": "hourly_audit",       "cron": "0 * * * *",
+     "argv": [PYTHON, "-m", "shared.autonomous_audit.runner",
+              "--type", "hourly"]},
+    {"name": "daily_audit",        "cron": "0 3 * * *",
+     "argv": [PYTHON, "-m", "shared.autonomous_audit.runner",
+              "--type", "daily"]},
+    {"name": "weekly_audit",       "cron": "0 4 * * 0",
+     "argv": [PYTHON, "-m", "shared.autonomous_audit.runner",
+              "--type", "weekly"]},
+    {"name": "audit_daily_digest", "cron": "30 8 * * *",
+     "argv": [PYTHON, "-m", "shared.autonomous_audit.reporter"]},
+])
+
 
 # ── tiny cron matcher (no external dep) ───────────────────────────────────
 def _expand_field(expr: str, lo: int, hi: int) -> set[int]:
