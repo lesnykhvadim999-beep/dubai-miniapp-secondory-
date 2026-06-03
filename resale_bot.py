@@ -5918,7 +5918,10 @@ def show_watchlist(cid, uid):
         from db_schema import get_user_watchlists
         rows = get_user_watchlists(uid)
     except Exception as e:
-        _send(cid, f"⚠ Watchlist error: {e}")
+        # PHASE BN/BO Audit B3: friendly fallback — log traceback, show generic msg
+        print(f"[watchlist] error uid={uid}: {e}", flush=True)
+        _send(cid, "⚠ Подписки временно недоступны, попробуйте позже.\n\n"
+                   "<i>Vadim Realty · RERA BRN 65011</i>")
         return
     if not rows:
         _send(cid, _t(uid, "watch_empty"), kb_main_reply(uid))
@@ -8496,7 +8499,10 @@ def handle_cb(cb):
             from shared.market_world_model.explainer import explain_forecast
             text = explain_forecast(fc, lang="ru")
         except Exception as e:
-            text = f"🔮 Прогноз пока недоступен: {e}"
+            # PHASE BN/BO Audit B3: friendly fallback — no traceback to user
+            print(f"[mwm] forecast failed for target={target}: {e}", flush=True)
+            text = ("🔮 Прогноз рынка временно недоступен, попробуйте позже.\n\n"
+                    "<i>Vadim Realty · RERA BRN 65011</i>")
         _send(cid, text, kb_main_reply(uid))
 
     # ── Relax filter — убрать конкретный фильтр и заново поискать ──────
