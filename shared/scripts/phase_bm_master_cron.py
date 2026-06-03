@@ -249,6 +249,12 @@ JOBS.extend([
      "argv": [PYTHON, "-m", "shared.optimizer.dep_scan"]},
 ])
 
+# ── PHASE BO O2: Unified Observability — hourly system pulse digest ───────
+JOBS.append(
+    {"name": "obs_system_pulse_hourly", "cron": "0 * * * *",
+     "argv": [PYTHON, "-m", "shared.observability.digest", "send"]}
+)
+
 # ── PHASE BO O4: auto_docs_v2 — /help + runbook + quickstart ──────────────
 JOBS.extend([
     {"name": "auto_docs_help_daily",       "cron": "0 7 * * *",

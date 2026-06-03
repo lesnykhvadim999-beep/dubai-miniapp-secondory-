@@ -67,6 +67,17 @@ def install_agent_bus(
     except Exception as e:
         log.warning("safety_nets heartbeat skipped for %s: %s", bot_name, e)
 
+    # PHASE BO O5 — quota_tracker boot (idempotent schema apply + seed limits).
+    # Runs once in a daemon thread to avoid blocking boot on slow DB connect.
+    def _quota_boot():
+        try:
+            from shared.quota_tracker.boot import main as _qt_main
+            _qt_main()
+        except Exception as e:
+            log.debug("quota_tracker boot skipped for %s: %s", bot_name, e)
+    threading.Thread(target=_quota_boot, daemon=True,
+                     name=f"quota_tracker_boot_{bot_name}").start()
+
 
 def beat(bot_name: str) -> None:
     """Optional periodic heartbeat from main loop."""
