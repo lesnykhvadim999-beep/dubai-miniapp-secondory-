@@ -46,6 +46,14 @@ def install_agent_bus(
     t = threading.Thread(target=_run, daemon=True, name=f"agent_bus_boot_{bot_name}")
     t.start()
 
+    # Phase BN N3 — safety net heartbeat. Spawns a daemon thread that
+    # writes to bot_heartbeats every 30 sec. NEVER auto-restarts.
+    try:
+        from shared.safety_nets import start_heartbeat_thread
+        start_heartbeat_thread(bot_name)
+    except Exception as e:
+        log.warning("safety_nets heartbeat skipped for %s: %s", bot_name, e)
+
 
 def beat(bot_name: str) -> None:
     """Optional periodic heartbeat from main loop."""
