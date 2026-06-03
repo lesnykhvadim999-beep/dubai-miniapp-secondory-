@@ -12,6 +12,10 @@ _*.json
 _*.txt
 _*.md
 _*.bat
+# But DO include shared/ internal modules (_db.py, _embed.py, __init__.py)
+!shared/**/_*.py
+!shared/_*.py
+!shared/**/__init__.py
 check*.py
 check*.txt
 debug_*.py
