@@ -73,6 +73,98 @@ try:
 except Exception as _eg_e2:
     print(f"[empty_guard] resale init failed (non-fatal): {_eg_e2}")
 
+# ── Phase BL: behavior tracking + feedback (best-effort) ──────────────────────
+_BT_OK = False
+try:
+    import sys as _bt_sys, os as _bt_os
+    for _bt_p in ("/app/shared", r"C:\Projects\shared", "../shared"):
+        if _bt_os.path.isdir(_bt_p) and _bt_p not in _bt_sys.path:
+            _bt_sys.path.insert(0, _bt_p)
+    from behavior_tracking import (
+        log_interaction as _bt_log,
+        update_outcome as _bt_update,
+        feedback_kb as _bt_feedback_kb,
+        is_enabled as _bt_is_enabled,
+        is_feedback_enabled as _bt_fb_enabled,
+        ensure_schema as _bt_ensure_schema,
+    )
+    from behavior_tracking.feedback import parse_callback as _bt_parse_cb, record_feedback as _bt_record_fb
+    try:
+        _bt_ensure_schema()
+    except Exception:
+        pass
+    _BT_OK = bool(_bt_is_enabled())
+    print(f"[behavior_tracking] resale init OK enabled={_BT_OK} feedback={_bt_fb_enabled()}", flush=True)
+except Exception as _bt_e:
+    print(f"[behavior_tracking] resale init failed (non-fatal): {_bt_e}", flush=True)
+    def _bt_log(**kw): return None
+    def _bt_update(*a, **kw): return False
+    def _bt_feedback_kb(*a, **kw): return None
+    def _bt_is_enabled(): return False
+    def _bt_fb_enabled(): return False
+    def _bt_parse_cb(*a, **kw): return None
+    def _bt_record_fb(*a, **kw): return None
+
+# ── Phase BM: long-term user memory + proactive agent (best-effort) ───────────
+_BM_OK = False
+try:
+    import sys as _bm_sys, os as _bm_os
+    for _bm_p in ("/app", r"C:\Projects", "../"):
+        if _bm_os.path.isdir(_bm_p) and _bm_p not in _bm_sys.path:
+            _bm_sys.path.insert(0, _bm_p)
+    from shared.user_memory.integration import (
+        enrich_context as _bm_enrich_context,
+        record_turn as _bm_record_turn,
+    )
+    from shared.proactive_agent import (
+        register_trigger as _bm_register_trigger,
+        handle_opt_out_callback as _bm_opt_out_cb,
+        OPT_OUT_CALLBACK_PREFIX as _BM_OPT_OUT_PREFIX,
+    )
+    _BM_OK = True
+    print("[phase_bm] resale init OK (memory+proactive)", flush=True)
+except Exception as _bm_e:
+    print(f"[phase_bm] resale init failed (non-fatal): {_bm_e}", flush=True)
+    def _bm_enrich_context(*a, **kw): return ""
+    def _bm_record_turn(*a, **kw): return None
+    def _bm_register_trigger(*a, **kw): return None
+    def _bm_opt_out_cb(*a, **kw): return (False, "")
+    _BM_OPT_OUT_PREFIX = "pa_optout_"
+
+
+def _bm_safe_record_turn(user_id, language=None, last_user_text=None):
+    """Wrap record_turn so it never breaks the bot."""
+    if not _BM_OK or not user_id:
+        return
+    try:
+        _bm_record_turn(int(user_id), bot_name="resale-bot",
+                        language=language, last_user_text=last_user_text)
+    except Exception:
+        pass
+
+
+def _bm_safe_enrich(user_id, query, language=None):
+    """Returns a short context block to prepend to an LLM prompt, or ''."""
+    if not _BM_OK or not user_id:
+        return ""
+    try:
+        return _bm_enrich_context(int(user_id), query or "",
+                                  bot_name="resale-bot",
+                                  language=language) or ""
+    except Exception:
+        return ""
+
+
+def _bm_safe_opt_out_callback(data, user_id):
+    """Returns (handled, reply_text). True if the callback was an opt-out one."""
+    if not _BM_OK or not data or not str(data).startswith(_BM_OPT_OUT_PREFIX):
+        return (False, "")
+    try:
+        ok, msg = _bm_opt_out_cb(data, int(user_id), "resale-bot")
+        return (True, msg if ok else "")
+    except Exception:
+        return (True, "")
+
 # ── Subscription / monetisation ───────────────────────────────────────────────
 try:
     import sys as _sys, os as _os
@@ -2331,22 +2423,32 @@ def _master_zone_aliases(q: str) -> list:
     """Если query разрешается в master-zone, возвращает список её алиасов
     (master_zone + display_en + display_ru). Используется как первый фильтр
     в search_areas_by_query, чтобы JVC / Marina / Al Hebiah First попадали
-    в одну сгруппированную область."""
-    if not _v110_canonical_search:
-        return []
+    в одну сгруппированную область.
+
+    Level 5 KG: дополнительно проверяет shared.knowledge_graph для area_alias
+    маппингов добавленных другими ботами (read-through, 100ms timeout).
+    """
+    out: list = []
+    if _v110_canonical_search:
+        try:
+            rows = _v110_canonical_search(q, limit=1) or []
+            if rows and rows[0].get("kind") == "master_zone":
+                r = rows[0]
+                for k in ("master_zone", "display_en", "display_ru"):
+                    v = r.get(k)
+                    if v and v not in out:
+                        out.append(v)
+        except Exception as _e:
+            print(f"[resale_bot] master_zone alias err: {_e}")
+    # Level 5 KG augmentation
     try:
-        rows = _v110_canonical_search(q, limit=1) or []
-        if rows and rows[0].get("kind") == "master_zone":
-            r = rows[0]
-            out = []
-            for k in ("master_zone", "display_en", "display_ru"):
-                v = r.get(k)
-                if v and v not in out:
-                    out.append(v)
-            return out
-    except Exception as _e:
-        print(f"[resale_bot] master_zone alias err: {_e}")
-    return []
+        from shared.knowledge_graph import KG  # type: ignore
+        for cand in KG.get_aliases(q, category="area_alias", fallback=[]) or []:
+            if cand and cand not in out:
+                out.append(cand)
+    except Exception:
+        pass
+    return out
 
 
 def search_areas_by_query(q: str, emirate: str = None, limit: int = 8) -> list:
@@ -4173,6 +4275,8 @@ def send_results(cid, uid, mid=None):
         if has_building:
             emoji_row.append(_btn("🏢", f"allbld|{lid}"))
         emoji_row.append(_btn("🔄", f"similar|{lid}"))
+        # PHASE BM Layer 13: Market World Model forecast button
+        emoji_row.append(_btn("🔮", f"mwmfc|{lid}"))
         kb_rows.append(emoji_row)
         # Language flags for translation
         kb_rows.append([
@@ -4226,6 +4330,62 @@ def send_results(cid, uid, mid=None):
     if remaining > 0:
         footer += f"\n\n{_t(uid, 'btn_more', n=remaining)}"
     _send(cid, footer, kb_reply_results(uid, has_more=remaining > 0))
+
+    # Phase BL: log search result + (optionally) attach feedback inline buttons
+    try:
+        if _BT_OK:
+            _flt = s.get("filters", {}) or {}
+            _iid = _bt_log(
+                bot_name="resale",
+                user_id=uid,
+                user_message_type="search_results",
+                query_type="search",
+                query_params={k: v for k, v in _flt.items() if v is not None},
+                result_count=int(total or 0),
+                outcome="success" if total else "empty",
+                language=user_lang.get(uid, "en"),
+            )
+            if _iid and _bt_fb_enabled():
+                _fb_kb = _bt_feedback_kb(_iid, lang=user_lang.get(uid, "en"))
+                if _fb_kb:
+                    try:
+                        _api("sendMessage", chat_id=cid,
+                             text=("Полезен результат?" if user_lang.get(uid, "en") == "ru"
+                                   else "Were the results helpful?"),
+                             reply_markup=json.dumps(_fb_kb.to_dict()))
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+    # Phase BM L9+L10: remember user + auto-register a follow-up trigger
+    try:
+        _flt = s.get("filters", {}) or {}
+        _summary = (f"search area={_flt.get('area')} br={_flt.get('bedrooms')} "
+                    f"price<={_flt.get('price_max')}")
+        _bm_safe_record_turn(uid, language=user_lang.get(uid, "en"),
+                             last_user_text=_summary)
+        # If user did a real search → register a 30-day new_listing_match trigger
+        if _BM_OK and total is not None and _flt.get("area"):
+            try:
+                _bm_register_trigger(
+                    user_id=int(uid),
+                    bot_name="resale-bot",
+                    trigger_type="new_listing_match",
+                    condition={
+                        "area": _flt.get("area"),
+                        "bedrooms": _flt.get("bedrooms"),
+                        "price_max": _flt.get("price_max"),
+                        "price_min": _flt.get("price_min"),
+                        "since_hours": 24,
+                    },
+                    cooldown_hours=24,
+                    expires_days=30,
+                )
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 # ── LLM с fallback Claude → Groq → None ─────────────────────────────────────
@@ -4971,9 +5131,12 @@ def show_detail(cid, uid, mid, lid):
         _btn("🗺",                                  f"map|{lid}"),
         _btn("📸",                                  f"photos|{lid}"),
         _btn("🔄",                                  f"similar|{lid}"),
+        _btn("🧠",                                  f"why|{lid}"),
     ]
     if has_building:
         emoji_row_d.append(_btn("🏢", f"allbld|{lid}"))
+    # PHASE BM Layer 13: Market World Model forecast button
+    emoji_row_d.append(_btn("🔮", f"mwmfc|{lid}"))
     kb_rows = [
         # Row 1: pinned primary CTAs
         [_url_btn(_t(uid, "btn_book"), lead_url),
@@ -7558,6 +7721,43 @@ def handle_cb(cb):
         except Exception:
             pass
     _answer(cbid)
+    # Phase BL: feedback callbacks → record + short-circuit
+    try:
+        if _BT_OK and data and data.startswith("fb:"):
+            _parsed = _bt_parse_cb(data)
+            if _parsed:
+                _rating, _iid_fb = _parsed
+                _bt_record_fb(interaction_id=_iid_fb, user_id=uid,
+                              bot_name="resale", rating=_rating)
+                return
+    except Exception:
+        pass
+    # Phase BM L10: proactive opt-out buttons
+    try:
+        _handled, _msg = _bm_safe_opt_out_callback(data, uid)
+        if _handled:
+            try:
+                _api("answerCallbackQuery", callback_query_id=cb["id"],
+                     text=(_msg or "OK")[:200])
+            except Exception:
+                pass
+            return
+    except Exception:
+        pass
+    # Phase BL: log click (best-effort)
+    _bt_iid = None
+    try:
+        if _BT_OK and data:
+            _bt_iid = _bt_log(
+                bot_name="resale",
+                user_id=uid,
+                user_message=data[:200],
+                user_message_type="callback",
+                query_type=(data.split("|", 1)[0] if "|" in data else data)[:32],
+                language=user_lang.get(uid, "en"),
+            )
+    except Exception:
+        _bt_iid = None
     if "|" not in data: return
     parts  = data.split("|")
     action = parts[0]
@@ -8078,6 +8278,35 @@ def handle_cb(cb):
             _edit(cid, mid, _t(uid, "searching"))
             do_search(uid); send_results(cid, uid, mid)
 
+    # ── Layer 11: Causal "Why" explanation ────────────────────────────────────
+    elif action == "why":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        listing = get_listing_by_id(lid) or {}
+        try:
+            _api("answerCallbackQuery", callback_query_id=cb["id"], text="🧠…")
+        except Exception:
+            pass
+        try:
+            import sys as _sys
+            _shared_p = r"C:\Projects"
+            if _shared_p not in _sys.path:
+                _sys.path.insert(0, _shared_p)
+            from shared.causal_engine import explain, format_chain  # type: ignore
+            price = listing.get("price") or 0
+            area  = listing.get("area") or "Dubai"
+            beds  = listing.get("bedrooms")
+            features = {"area": area, "price": price, "bedrooms": beds,
+                        "deal_type": listing.get("deal_type", "sale")}
+            lang = user_lang.get(uid, "en")
+            q = (f"Почему цена ${price:,} в {area}?" if lang == "ru"
+                 else f"Why price ${price:,} in {area}?")
+            chain = explain(q, features, user_id=uid, bot_source="resale")
+            _send(cid, format_chain(chain, lang=lang))
+        except Exception as _why_e:
+            print(f"[causal] why failed: {_why_e}")
+            _send(cid, "🧠 Анализ временно недоступен." if user_lang.get(uid, "en") == "ru"
+                       else "🧠 Analysis temporarily unavailable.")
+
     elif action == "filter":
         if parts[1] == "deal_type_reset":
             gs(uid)["filters"].pop("deal_type", None)
@@ -8123,6 +8352,28 @@ def handle_cb(cb):
         _send(cid, _t(uid, "all_in_bld_caption").format(bld=bld), kb_main_reply(uid))
         do_search(uid)
         send_results(cid, uid)
+
+    # ── PHASE BM Layer 13: Market World Model forecast for a listing ──────
+    elif action == "mwmfc":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        listing = get_listing_by_id(lid)
+        if not listing:
+            _api("answerCallbackQuery", callback_query_id=cb["id"],
+                 text="Listing not found", show_alert=True)
+            return
+        _api("answerCallbackQuery", callback_query_id=cb["id"])
+        target = listing.get("building") or listing.get("area")
+        if not target:
+            _send(cid, "🔮 Нет данных о здании/районе для прогноза.", kb_main_reply(uid))
+            return
+        try:
+            from shared.market_world_model import api as _mwm
+            fc = _mwm.forecast(target, "price_per_sqft", 12)
+            from shared.market_world_model.explainer import explain_forecast
+            text = explain_forecast(fc, lang="ru")
+        except Exception as e:
+            text = f"🔮 Прогноз пока недоступен: {e}"
+        _send(cid, text, kb_main_reply(uid))
 
     # ── Relax filter — убрать конкретный фильтр и заново поискать ──────
     elif action == "relax":
@@ -8456,6 +8707,25 @@ def handle_msg(msg):
     lang  = user_lang.get(uid, "en")
     save_user(uid, uname, fname, lang)
 
+    # Phase BL: log interaction (best-effort, non-blocking)
+    _bt_iid = None
+    try:
+        if _BT_OK:
+            _mtype = "command" if (text or "").startswith("/") else (
+                     "photo" if photo else (
+                     "voice" if msg.get("voice") or msg.get("audio") else "text"))
+            _bt_iid = _bt_log(
+                bot_name="resale",
+                user_id=uid,
+                user_message=text or ("[voice]" if msg.get("voice") else
+                                     "[photo]" if photo else ""),
+                user_message_type=_mtype,
+                language=lang,
+                query_type="text_query",
+            )
+    except Exception:
+        _bt_iid = None
+
     # ── Voice-to-search (Groq Whisper) ─────────────────────────────────
     voice = msg.get("voice") or msg.get("audio")
     if voice and not text:
@@ -8583,6 +8853,33 @@ def handle_msg(msg):
             show_alerts(cid, uid); return
         if cmd == "heatmap":
             show_heatmap(cid, uid); return
+        # PHASE BM Layer 16: /news [query]
+        if cmd == "news":
+            try:
+                q = text.split(None, 1)[1].strip() if " " in text else "Dubai property market"
+                import sys as _sys
+                if "C:/Projects" not in _sys.path:
+                    _sys.path.insert(0, "C:/Projects")
+                from shared.external_knowledge import search_external_news
+                items = search_external_news(q, top_k=5)
+                if not items:
+                    _send(cid, "No recent news. Try later.")
+                else:
+                    lines = [f"<b>News: {q}</b>", ""]
+                    for i, it in enumerate(items, 1):
+                        title = (it.get("title") or "").strip()[:140]
+                        url = it.get("url") or ""
+                        summary = (it.get("summary") or "").strip()[:200]
+                        lines.append(f"{i}. <a href=\"{url}\">{title}</a>")
+                        if summary:
+                            lines.append(f"   <i>{summary}</i>")
+                    lines.append("")
+                    lines.append("— Vadim Realty · RERA BRN 65011")
+                    _api("sendMessage", chat_id=cid, text="\n".join(lines),
+                         parse_mode="HTML", disable_web_page_preview=True)
+            except Exception as _ne:
+                _send(cid, f"⚠ news error: {_ne}")
+            return
         if cmd in ("language", "lang"):
             # v54 UX (Layla follow-up): команда /language заменяет «🌐 Язык» в меню.
             _send(cid, _t(uid, "lang_picker"), kb_lang_reply())
@@ -9213,6 +9510,27 @@ def main():
         print("[contract] boot check scheduled", flush=True)
     except Exception as _cce:
         print(f"[contract] boot check skipped: {_cce!r}", flush=True)
+    # PHASE BM Layer 12: agent_bus install
+    try:
+        from agent_bus.boot_hook import install_agent_bus
+        install_agent_bus(
+            bot_name="resale",
+            subscribes_to=["user.lead_created", "market.shift_detected", "user.handoff_requested"],
+        )
+        print("[agent_bus] installed for resale", flush=True)
+    except Exception as _abe:
+        print(f"[agent_bus] install skipped: {_abe!r}", flush=True)
+
+    # PHASE BM Layer 18/20/22: multimodal + tours + background-think
+    try:
+        from phase_bm_bootstrap import wire_phase_bm
+        wire_phase_bm(dp)
+    except Exception as _e:
+        try:
+            logger.warning(f"PHASE BM wire failed: {_e}")
+        except Exception:
+            print(f"[phase_bm] wire failed: {_e!r}", flush=True)
+
     print("[bot] About to call run_bot()...")
     run_bot()
 
