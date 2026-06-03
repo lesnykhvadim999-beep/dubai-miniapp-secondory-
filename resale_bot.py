@@ -105,6 +105,39 @@ except Exception as _bt_e:
     def _bt_parse_cb(*a, **kw): return None
     def _bt_record_fb(*a, **kw): return None
 
+# ── PHASE BO O3: UX metrics (track menu/click/action, ≤2ms overhead) ──────────
+_UX_OK = False
+try:
+    from shared.ux_metrics.integration import (
+        track_menu_shown as _ux_menu_shown,
+        track_button_click as _ux_button_click,
+        track_action_completed as _ux_action_completed,
+        track_drop_off as _ux_drop_off,
+        track_error as _ux_error,
+        handle_no_analytics_command as _ux_handle_no_analytics,
+        resolve_variant as _ux_resolve_variant,
+    )
+    from shared.ux_metrics.tracker import ensure_schema as _ux_ensure_schema
+    try:
+        _ux_ensure_schema()
+    except Exception:
+        pass
+    _UX_OK = True
+    print("[ux_metrics] resale init OK", flush=True)
+except Exception as _ux_e:
+    print(f"[ux_metrics] resale init failed (non-fatal): {_ux_e}", flush=True)
+    def _ux_menu_shown(*a, **kw): return None
+    def _ux_button_click(*a, **kw): return None
+    def _ux_action_completed(*a, **kw): return None
+    def _ux_drop_off(*a, **kw): return None
+    def _ux_error(*a, **kw): return None
+    def _ux_handle_no_analytics(bot, uid, language='en'):
+        return ("Analytics disabled. Vadim Realty | RERA BRN 65011"
+                if language != 'ru'
+                else "Аналитика отключена. Vadim Realty | RERA BRN 65011")
+    def _ux_resolve_variant(*a, **kw): return "simple_menu_v2"
+
+
 # ── Phase BM: long-term user memory + proactive agent (best-effort) ───────────
 _BM_OK = False
 try:
@@ -7798,6 +7831,14 @@ def handle_cb(cb):
             )
     except Exception:
         _bt_iid = None
+    # PHASE BO O3: ux_metrics — log button_clicked with current variant
+    try:
+        if _UX_OK and data:
+            _ux_label = data.split("|", 1)[0][:64] if "|" in data else data[:64]
+            _ux_variant = _ux_resolve_variant()
+            _ux_button_click("resale", uid, _ux_label, variant=_ux_variant)
+    except Exception:
+        pass
     if "|" not in data: return
     parts  = data.split("|")
     action = parts[0]
@@ -8903,6 +8944,15 @@ def handle_msg(msg):
 
     if text.startswith("/"):
         cmd = text.split()[0].lower().lstrip("/").split("@")[0]
+        # PHASE BO O3: /no_analytics → opt-out of UX metrics for this bot
+        if cmd in ("no_analytics", "noanalytics", "stop_analytics"):
+            try:
+                _lang = user_lang.get(uid, "en")
+                _reply = _ux_handle_no_analytics("resale", uid, language=_lang)
+            except Exception:
+                _reply = ("Analytics disabled. Vadim Realty | RERA BRN 65011")
+            _send(cid, _reply, kb_main_reply(uid))
+            return
         # /alert_del_42 → remove alert id 42
         if cmd.startswith("alert_del_"):
             try:

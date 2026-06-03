@@ -249,6 +249,16 @@ JOBS.extend([
      "argv": [PYTHON, "-m", "shared.optimizer.dep_scan"]},
 ])
 
+# ── PHASE BO O4: auto_docs_v2 — /help + runbook + quickstart ──────────────
+JOBS.extend([
+    {"name": "auto_docs_help_daily",       "cron": "0 7 * * *",
+     "argv": [PYTHON, "-m", "shared.auto_docs_v2.help_generator"]},
+    {"name": "auto_docs_runbook_weekly",   "cron": "0 8 * * 0",
+     "argv": [PYTHON, "-m", "shared.auto_docs_v2.runbook_generator"]},
+    {"name": "auto_docs_quickstart_weekly","cron": "5 8 * * 0",
+     "argv": [PYTHON, "-m", "shared.auto_docs_v2.quickstart"]},
+])
+
 
 # ── tiny cron matcher (no external dep) ───────────────────────────────────
 def _expand_field(expr: str, lo: int, hi: int) -> set[int]:
