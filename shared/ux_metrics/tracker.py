@@ -262,6 +262,20 @@ def _ensure_writer():
 
 
 # ── PUBLIC: track_event ─────────────────────────────────────────────────────
+# ── PII whitelist (audit B5): properties must contain ONLY these keys ──────
+_PII_SAFE_KEYS = frozenset({
+    "label", "action_name", "variant", "screen", "step",
+    "duration_ms", "result", "error_code", "count", "value",
+})
+
+
+def _sanitize_properties(props: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Strip any non-whitelisted keys (names/emails/phones never reach DB)."""
+    if not props:
+        return None
+    return {k: v for k, v in props.items() if k in _PII_SAFE_KEYS}
+
+
 def track_event(
     bot_name: str,
     user_id: Optional[int],
@@ -286,7 +300,7 @@ def track_event(
             "bot_name": bot_name,
             "user_id": int(user_id) if user_id is not None else None,
             "event_type": event_type,
-            "properties": dict(properties) if properties else None,
+            "properties": _sanitize_properties(properties),
             "variant": variant,
         }
         _ensure_writer()
@@ -357,7 +371,7 @@ def log_friction(
                     bot_name,
                     int(user_id) if user_id is not None else None,
                     friction_type,
-                    json.dumps(context or {}, ensure_ascii=False, default=str),
+                    json.dumps(_sanitize_properties(context) or {}, ensure_ascii=False, default=str),
                 ),
             )
     except Exception as e:
