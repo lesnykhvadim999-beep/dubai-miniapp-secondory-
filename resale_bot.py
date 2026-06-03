@@ -1930,6 +1930,20 @@ def _build_pdf_risks(score_dict, listing, lang):
 
 def _send_pdf(cid, uid, listing):
     """Generate investment PDF for a listing + send as document."""
+    # PDF feature manually disabled 2026-06-03 by Vadim.
+    _disabled = (os.getenv("PDF_DISABLED") or "").strip() in ("1", "true", "True", "yes")
+    if not _disabled:
+        try:
+            from shared.safety_nets.feature_flags import is_feature_enabled
+            _disabled = not is_feature_enabled("pdf_generation")
+        except Exception:
+            pass
+    if _disabled:
+        try:
+            send_message(cid, "📄 PDF-отчёт временно отключён.\n\nVadim Realty · RERA BRN 65011")
+        except Exception:
+            pass
+        return
     # Feature flag: FF_PDF_REPORT_ENABLED=0 → skip PDF generation gracefully.
     try:
         from stability import ff as _ff, degrade_msg as _dmsg
