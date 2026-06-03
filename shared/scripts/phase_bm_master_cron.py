@@ -202,13 +202,17 @@ JOBS.extend([
      "argv": [PYTHON, "-m", "shared.disaster_recovery.retention", "--apply"]},
 ])
 
-# ── PHASE BO O2: Unified observability — hourly system pulse digest ──────
-# Sends compact health digest to admin chat. send_digest is itself fail-soft:
-# if ADMIN_BOT_TOKEN env is missing the underlying admin_notify is a no-op.
-JOBS.append(
-    {"name": "obs_system_pulse_hourly", "cron": "0 * * * *",
-     "argv": [PYTHON, "-m", "shared.observability.digest", "send"]},
-)
+# ── PHASE BO O3: UX metrics + auto-rollback ───────────────────────────────
+JOBS.extend([
+    # daily 06:00 UTC — compute funnels (logs results, used for heatmap reports)
+    {"name": "ux_metrics_daily_funnels", "cron": "0 6 * * *",
+     "argv": [PYTHON, "-m", "shared.ux_metrics.analyzer",
+              "funnel", "resale", "default", "1d"]},
+    # daily 07:00 UTC — auto-rollback check (2-day worse streak → disable flag)
+    {"name": "ux_rollback_check",        "cron": "0 7 * * *",
+     "argv": [PYTHON, "-m", "shared.ux_metrics.rollback"]},
+])
+
 
 # ── PHASE BN N2: Immune System ────────────────────────────────────────────
 JOBS.extend([
