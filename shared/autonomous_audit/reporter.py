@@ -156,6 +156,8 @@ def daily_digest(notify: bool = True) -> dict:
     if unr:
         parts.append(f"\n⚠️ Unresolved findings older than 7d: <b>{unr}</b>")
 
+    # PHASE BN/BO Audit B3 — brand footer for all admin digests
+    parts.append("\n<i>Vadim Realty | RERA BRN 65011</i>")
     msg = "\n".join(parts)
     sent = False
     if notify:
