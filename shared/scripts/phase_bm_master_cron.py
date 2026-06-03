@@ -202,6 +202,16 @@ JOBS.extend([
      "argv": [PYTHON, "-m", "shared.disaster_recovery.retention", "--apply"]},
 ])
 
+# ── PHASE BN N2: Immune System ────────────────────────────────────────────
+JOBS.extend([
+    {"name": "immune_diagnose_hourly", "cron": "0 * * * *",
+     "argv": [PYTHON, "-m", "shared.immune_system.diagnosis", "--limit", "10"]},
+    {"name": "immune_immunize_daily",  "cron": "0 2 * * *",
+     "argv": [PYTHON, "-m", "shared.immune_system.immunizer", "--limit", "5"]},
+    {"name": "immune_verify_weekly",   "cron": "0 3 * * 0",
+     "argv": [PYTHON, "-m", "shared.immune_system.registry"]},
+])
+
 # ── PHASE BN N4: Autonomous Audit Loop ────────────────────────────────────
 JOBS.extend([
     {"name": "hourly_audit",       "cron": "0 * * * *",
@@ -215,6 +225,16 @@ JOBS.extend([
               "--type", "weekly"]},
     {"name": "audit_daily_digest", "cron": "30 8 * * *",
      "argv": [PYTHON, "-m", "shared.autonomous_audit.reporter"]},
+])
+
+# ── PHASE BN N5: Continuous Performance Optimizer ─────────────────────────
+JOBS.extend([
+    {"name": "optimizer_query_perf",  "cron": "0 2 * * *",
+     "argv": [PYTHON, "-m", "shared.optimizer.query_perf"]},
+    {"name": "optimizer_dead_code",   "cron": "0 5 * * 0",
+     "argv": [PYTHON, "-m", "shared.optimizer.dead_code"]},
+    {"name": "optimizer_dep_scan",    "cron": "0 6 * * 0",
+     "argv": [PYTHON, "-m", "shared.optimizer.dep_scan"]},
 ])
 
 
