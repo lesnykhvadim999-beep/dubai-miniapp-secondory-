@@ -26,11 +26,24 @@ from .registry import register_agent, heartbeat
 log = logging.getLogger("agent_bus.boot_hook")
 
 
+def _install_immune(bot_name: str) -> None:
+    """PHASE BN N2 — install universal exception catcher. Best-effort."""
+    try:
+        from shared.immune_system.boot_hook import install_immune_catcher
+        install_immune_catcher(bot_name)
+    except Exception as e:
+        log.debug("immune_system install skipped for %s: %s", bot_name, e)
+
+
 def install_agent_bus(
     bot_name: str,
     subscribes_to: Optional[List[str]] = None,
     handler_endpoint: Optional[str] = None,
 ) -> None:
+    # PHASE BN N2 — install immune catcher synchronously (cheap; sets hooks)
+    # so any exception raised during the rest of boot still gets captured.
+    _install_immune(bot_name)
+
     def _run():
         try:
             start_event_publishing(bot_name)
