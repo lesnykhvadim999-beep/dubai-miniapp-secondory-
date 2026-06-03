@@ -563,6 +563,23 @@ T = {
     "btn_book":    "Request Consultation",
     "btn_similar": "Similar Properties",
     "btn_analysis":"Investment Analysis",
+    # v56 minimalist listing UI — actions submenu
+    "btn_actions_more":  "⚡ More actions ▾",
+    "btn_back_listing":  "← Back to listing",
+    "btn_save":          "❤️ Save",
+    "btn_save_rem":      "💔 Unsave",
+    "btn_compare":       "⚖️ Compare",
+    "btn_map":           "🗺 On map",
+    "btn_photos":        "📸 Photos",
+    "btn_building_all":  "🏢 Building",
+    "btn_similar_act":   "🔄 Similar",
+    "btn_alert_act":     "🔔 Alert",
+    "btn_refresh_act":   "🔄 Refresh",
+    "btn_forecast":      "🔮 Forecast",
+    "btn_tour":          "🎥 Tour",
+    "btn_ai_why":        "🧠 AI insight",
+    "btn_translate_menu":"🌐 Translate",
+    "score_no_data":     "Need market data — estimate only",
     "btn_send":    "Send to Client",
     "btn_all_in_bld": "🏢 All units in this building",
     "btn_contacts":  "📞 Agent Contacts",
@@ -983,6 +1000,23 @@ T = {
     "btn_book":    "Оставить заявку",
     "btn_similar": "Похожие объекты",
     "btn_analysis":"Инвестиционный анализ",
+    # v56 minimalist listing UI — actions submenu
+    "btn_actions_more":  "⚡ Действия ▾",
+    "btn_back_listing":  "← К объекту",
+    "btn_save":          "❤️ Сохранить",
+    "btn_save_rem":      "💔 Убрать",
+    "btn_compare":       "⚖️ Сравнить",
+    "btn_map":           "🗺 На карте",
+    "btn_photos":        "📸 Фото",
+    "btn_building_all":  "🏢 Здание",
+    "btn_similar_act":   "🔄 Похожие",
+    "btn_alert_act":     "🔔 Алерт",
+    "btn_refresh_act":   "🔄 Обновить",
+    "btn_forecast":      "🔮 Прогноз",
+    "btn_tour":          "🎥 Тур",
+    "btn_ai_why":        "🧠 ИИ-анализ",
+    "btn_translate_menu":"🌐 Перевод",
+    "score_no_data":     "Нужны рыночные данные — только оценка",
     "btn_send":    "Отправить клиенту",
     "btn_all_in_bld": "🏢 Все объекты в этом доме",
     "btn_contacts":  "📞 Контакты агента",
@@ -1418,6 +1452,23 @@ T = {
     "btn_more":    "عرض المزيد  ·  {n} متبقي",
     "btn_back":    "← رجوع",
     "btn_menu":    "القائمة الرئيسية",
+    # v56 minimalist listing UI — actions submenu
+    "btn_actions_more":  "⚡ المزيد ▾",
+    "btn_back_listing":  "← العودة للعقار",
+    "btn_save":          "❤️ حفظ",
+    "btn_save_rem":      "💔 إزالة",
+    "btn_compare":       "⚖️ مقارنة",
+    "btn_map":           "🗺 على الخريطة",
+    "btn_photos":        "📸 الصور",
+    "btn_building_all":  "🏢 المبنى",
+    "btn_similar_act":   "🔄 مماثلة",
+    "btn_alert_act":     "🔔 تنبيه",
+    "btn_refresh_act":   "🔄 تحديث",
+    "btn_forecast":      "🔮 توقع",
+    "btn_tour":          "🎥 جولة",
+    "btn_ai_why":        "🧠 تحليل AI",
+    "btn_translate_menu":"🌐 الترجمة",
+    "score_no_data":     "بحاجة لبيانات سوقية — تقدير فقط",
     "btn_book":    "طلب استشارة",
     "btn_similar": "عقارات مشابهة",
     "btn_analysis":"التحليل الاستثماري",
@@ -3515,17 +3566,42 @@ def format_card(listing, uid, rank=None):
         lines.append(f"📝 _{desc[:200].strip()}_")
 
     # 6. Analytics block (separator + items)
+    # v56 HONESTY FIX: gate "below market" / "premium-segment" / score on
+    # actual presence of market data. If invest_engine returns
+    # data_source == "estimated" — DO NOT broadcast "X% below market":
+    # those numbers come from a default seed (market_psf=1500, growth=6%),
+    # not real market comparison. Risk-factors block already says
+    # "no market data" — UI must not contradict it on the same card.
     analytics = []
-    # Show "below market" ONLY if reasonable range (-3% .. -70%).
-    # Anything > -70% means our parsed price is junk (service charge, fee, etc.) —
-    # don't broadcast nonsense like "99.8% below market".
-    if pct is not None and -70 < pct < -3:
+    _has_market = False
+    _has_dld    = False
+    try:
+        if INVEST_OK:
+            _dld_b = _lookup_benchmark(listing.get("building")) if listing.get("building") else None
+            _mkt   = None
+            try:
+                if listing.get("area"):
+                    _mkt = get_market_metrics(listing["area"])
+            except Exception:
+                _mkt = None
+            if _mkt is None and listing.get("area"):
+                _mkt = MARKET.get(listing["area"])
+            _ds = (compute_investment_score(listing, _dld_b, _mkt) or {}).get("data_source")
+            _has_dld    = (_ds == "dld")
+            _has_market = _ds in ("dld", "market")
+    except Exception:
+        _has_market = False
+
+    # "Below market" — only with real market psf comparison.
+    if _has_market and pct is not None and -70 < pct < -3:
         analytics.append(f"📉 {abs(round(pct, 1))}% {_t(uid, 'card_below_mkt')}")
+    # Discount vs original price is OK without market — it's seller's own anchor.
     if disc and 5 <= disc < 80:
         analytics.append(f"🏷 {disc}% {_t(uid, 'card_below_op')}")
     if roi and deal_type == "sale" and roi < 30:    # ROI > 30%/yr тоже мусор
-        analytics.append(f"📈 {_t(uid, 'card_roi')} {roi}%{_t(uid, 'card_per_year_short')}")
-    if score:
+        _roi_suffix = "" if _has_market else "  ·  ~"
+        analytics.append(f"📈 {_t(uid, 'card_roi')} {roi}%{_t(uid, 'card_per_year_short')}{_roi_suffix}")
+    if score and _has_market:
         # Investment Score 2.0 is 0..100; legacy was 0..10. Detect by magnitude.
         if score > 10:
             _rating_lbl = None
@@ -3554,17 +3630,21 @@ def format_card(listing, uid, rank=None):
                                  + ("  ✅" if _bd['risk']   >= 20 else ""))
         else:
             analytics.append(f"⭐ {score}/10  ·  {_t(uid, 'card_score')}")
-    # v107: sравнение с премиум-сегментом района из read-model
+    elif score and not _has_market:
+        # No market data → don't claim "10/10"; show honest placeholder.
+        analytics.append(f"📊 {_t(uid, 'card_score')}: N/A  ·  _{_t(uid, 'score_no_data')}_")
+    # v107: comparison with area premium segment — ONLY when real market data present.
     try:
-        _lp = listing.get("price") or 0
-        if deal_type == "sale" and _lp and area and _DXB_STATS_OK:
-            _agg = get_area_aggregate(area)
-            if _agg:
-                _top = _agg.get("top_quartile_price")
-                if _top and float(_top) > 0 and _lp < float(_top):
-                    _diff = round((1 - _lp / float(_top)) * 100, 1)
-                    if 1 < _diff < 90:
-                        analytics.append(f"👑 {_diff}% {_t(uid, 'det_premium_below')}")
+        if _has_market:
+            _lp = listing.get("price") or 0
+            if deal_type == "sale" and _lp and area and _DXB_STATS_OK:
+                _agg = get_area_aggregate(area)
+                if _agg:
+                    _top = _agg.get("top_quartile_price")
+                    if _top and float(_top) > 0 and _lp < float(_top):
+                        _diff = round((1 - _lp / float(_top)) * 100, 1)
+                        if 1 < _diff < 90:
+                            analytics.append(f"👑 {_diff}% {_t(uid, 'det_premium_below')}")
     except Exception:
         pass
     if analytics:
@@ -4339,37 +4419,18 @@ def send_results(cid, uid, mid=None):
         _ac = (lst.get("agent_count") or 1) if isinstance(lst, dict) else 1
         _contacts_label = (_t(uid, "btn_contacts_n").format(n=_ac)
                             if _ac > 1 else _t(uid, "btn_contacts"))
-        # v55 compact card: 3 main rows + optional PDF.
-        # Row 1: Analysis | Contacts (the 2 most-clicked CTAs)
-        # Row 2: 6 emoji-only action buttons (safe for mobile width)
-        # Row 3: 4 language flags for translation
+        # v56 minimalist listing card: max 4 buttons in 2 rows.
+        # Row 1: Investment Analysis | Agent Contacts (primary CTAs)
+        # Row 2: More actions ▾ | ← Back  (everything else under submenu)
+        # Language flags moved out of card — use main menu Settings/lang
+        # toggle. Photos/fav/compare/map/similar/forecast/translate live
+        # under "⚡ More actions" submenu via callback `acts|<lid>`.
         kb_rows = [
-            [_btn(_t(uid, "btn_analysis"), f"detail|{lid}"),
-             _btn(_contacts_label,         f"agents|{lid}")],
+            [_btn(_t(uid, "btn_analysis"),     f"detail|{lid}"),
+             _btn(_contacts_label,             f"agents|{lid}")],
+            [_btn(_t(uid, "btn_actions_more"), f"acts|{lid}"),
+             _btn(_t(uid, "btn_back"),         "results|back")],
         ]
-        # Emoji-only row: heart / scales / map / photos / building / similar
-        emoji_row = [
-            _btn("❤️" if not fav_now else "💔", f"fav|{lid}"),
-            _btn("⚖️", f"cmp|{lid}"),
-            _btn("🗺", f"map|{lid}"),
-            _btn("📸", f"photos|{lid}"),
-        ]
-        if has_building:
-            emoji_row.append(_btn("🏢", f"allbld|{lid}"))
-        emoji_row.append(_btn("🔄", f"similar|{lid}"))
-        # PHASE BM Layer 13: Market World Model forecast button
-        emoji_row.append(_btn("🔮", f"mwmfc|{lid}"))
-        kb_rows.append(emoji_row)
-        # Language flags for translation
-        kb_rows.append([
-            _btn("🇷🇺", f"tr|ru|{lid}"),
-            _btn("🇬🇧", f"tr|en|{lid}"),
-            _btn("🇸🇦", f"tr|ar|{lid}"),
-            _btn("🇨🇳", f"tr|zh|{lid}"),
-        ])
-        if PDF_OK:
-            kb_rows.append([_btn(_t(uid, "pdf_label"), f"pdf|{lid}"),
-                            _btn(_t(uid, "btn_send"),   f"send|{lid}")])
         kb = _kb(*kb_rows)
         # Send with photos (file_id stored directly from Bot API upload)
         images = get_listing_images(lid) if lid else []
@@ -5201,42 +5262,17 @@ def show_detail(cid, uid, mid, lid):
     _ac_d = (listing.get("agent_count") or 1)
     _contacts_label_d = (_t(uid, "btn_contacts_n").format(n=_ac_d)
                           if _ac_d > 1 else _t(uid, "btn_contacts"))
-    # v55 compact detail: 4 rows max. Pin Investment Analysis (lead URL)
-    # + Agent Contacts at the top — these are the primary conversion paths.
-    # Secondary actions (fav, compare, watch, map, photos, similar) collapse
-    # into a single emoji row. Premium-locked rows (seller/DLD) stay visible
-    # as one row. Cross-bot CTAs collapse to one compact row.
-    emoji_row_d = [
-        _btn(fav_label,                            f"fav|{lid}"),
-        _btn("⚖️",                                  f"cmp|{lid}"),
-        _btn(watch_label.split(" ", 1)[0] or "⭐",  f"watch|{lid}"),
-        _btn("🗺",                                  f"map|{lid}"),
-        _btn("📸",                                  f"photos|{lid}"),
-        _btn("🔄",                                  f"similar|{lid}"),
-        _btn("🧠",                                  f"why|{lid}"),
-    ]
-    if has_building:
-        emoji_row_d.append(_btn("🏢", f"allbld|{lid}"))
-    # PHASE BM Layer 13: Market World Model forecast button
-    emoji_row_d.append(_btn("🔮", f"mwmfc|{lid}"))
-    # PHASE BM Layer 20: Virtual tour button (3D-tour generator)
-    emoji_row_d.append(_btn("🎥", f"tour|{lid}"))
+    # v56 minimalist detail card: max 4 buttons in 2 rows + nav row.
+    # Row 1: Book consultation | Agent contacts (primary CTAs).
+    # Row 2: More actions ▾  |  ← Back  (everything else under submenu).
+    # Submenu `acts|<lid>` exposes fav/cmp/watch/map/photos/similar/why/
+    # allbld/forecast/tour/seller/deals/translate so users still reach
+    # all functionality — just not 18 buttons at once.
     kb_rows = [
-        # Row 1: pinned primary CTAs
-        [_url_btn(_t(uid, "btn_book"), lead_url),
-         _btn(_contacts_label_d,       f"agents|{lid}")],
-        # Row 2: compact emoji action row
-        emoji_row_d,
-        # Row 3: premium-gated buttons + translate
-        [_btn(_t(uid, "det_seller_contacts_locked"), f"seller|{lid}"),
-         _btn(_t(uid, "det_dld_deals_locked"),       f"deals|{lid}")],
-        # Row 4: cross-ecosystem nav (UTM-tagged) + back/menu
-        [_url_btn(_t(uid, "cta_roi_calc"),
-                  "https://t.me/dubai_roi_fpr_bot?start=from_resale_utm_resale_card_detail"),
-         _url_btn(_t(uid, "cta_area_analytics"),
-                  "https://t.me/Analitik_price_bot?start=from_resale_utm_resale_card_detail")],
-        [_btn(_t(uid, "btn_back"), "results|back"),
-         _btn(_t(uid, "btn_menu"), "menu|main")],
+        [_url_btn(_t(uid, "btn_book"),     lead_url),
+         _btn(_contacts_label_d,            f"agents|{lid}")],
+        [_btn(_t(uid, "btn_actions_more"), f"acts|{lid}"),
+         _btn(_t(uid, "btn_back"),          "results|back")],
     ]
     kb = _kb(*kb_rows)
 
@@ -8172,6 +8208,61 @@ def handle_cb(cb):
 
     elif action == "detail":
         show_detail(cid, uid, mid, int(parts[1]))
+
+    elif action == "acts":
+        # v56 listing "⚡ More actions ▾" submenu — keeps card UI minimal
+        # while preserving every action from old 18-button layout.
+        try:
+            lid = int(parts[1]) if len(parts) > 1 else 0
+        except Exception:
+            return
+        listing = get_listing_by_id(lid) or {}
+        from db_schema import is_favorited as _is_fav_a
+        try:
+            _fav_now = _is_fav_a(uid, lid)
+        except Exception:
+            _fav_now = False
+        _has_bld = bool(listing.get("building"))
+        _save_lbl = _t(uid, "btn_save_rem") if _fav_now else _t(uid, "btn_save")
+        rows = [
+            [_btn(_save_lbl,                f"fav|{lid}"),
+             _btn(_t(uid, "btn_compare"),   f"cmp|{lid}")],
+            [_btn(_t(uid, "btn_map"),       f"map|{lid}"),
+             _btn(_t(uid, "btn_photos"),    f"photos|{lid}")],
+            [_btn(_t(uid, "btn_similar_act"), f"similar|{lid}"),
+             _btn(_t(uid, "btn_forecast"),    f"mwmfc|{lid}")],
+            [_btn(_t(uid, "btn_ai_why"),    f"why|{lid}"),
+             _btn(_t(uid, "btn_translate_menu"), f"trmenu|{lid}")],
+        ]
+        if _has_bld:
+            rows.append([_btn(_t(uid, "btn_building_all"), f"allbld|{lid}"),
+                         _btn(_t(uid, "btn_tour"),         f"tour|{lid}")])
+        else:
+            rows.append([_btn(_t(uid, "btn_tour"),         f"tour|{lid}")])
+        rows.append([_btn(_t(uid, "btn_back_listing"), f"detail|{lid}")])
+        try:
+            _edit(cid, mid, _t(uid, "btn_actions_more"), _kb(*rows))
+        except Exception:
+            _send(cid, _t(uid, "btn_actions_more"), _kb(*rows))
+
+    elif action == "trmenu":
+        # v56 translation submenu — language flags moved off the listing
+        # card into here to remove visual spam from the main view.
+        try:
+            lid = int(parts[1]) if len(parts) > 1 else 0
+        except Exception:
+            return
+        rows = [
+            [_btn("🇬🇧 EN", f"tr|en|{lid}"),
+             _btn("🇷🇺 RU", f"tr|ru|{lid}")],
+            [_btn("🇸🇦 AR", f"tr|ar|{lid}"),
+             _btn("🇨🇳 ZH", f"tr|zh|{lid}")],
+            [_btn(_t(uid, "btn_back_listing"), f"detail|{lid}")],
+        ]
+        try:
+            _edit(cid, mid, _t(uid, "btn_translate_menu"), _kb(*rows))
+        except Exception:
+            _send(cid, _t(uid, "btn_translate_menu"), _kb(*rows))
 
     elif action == "book":
         lid   = int(parts[1]) if len(parts) > 1 else 0
