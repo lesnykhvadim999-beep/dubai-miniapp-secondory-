@@ -422,6 +422,7 @@ T = {
     "rbtn_picks_grp":    "⭐ Picks ▾",
     "rbtn_profile_grp":  "📊 My Profile ▾",
     "rbtn_settings_grp": "⚙️ Settings ▾",
+    "rbtn_pro_grp":      "⚡ Pro / 🌟 Super",
     "rbtn_compare_short":"⚖️ Compare",
     "rbtn_map_short":    "🗺 Areas Map",
     "rbtn_back_menu":    "← Back",
@@ -842,6 +843,7 @@ T = {
     "rbtn_picks_grp":    "⭐ Подборки ▾",
     "rbtn_profile_grp":  "📊 Мой профиль ▾",
     "rbtn_settings_grp": "⚙️ Настройки ▾",
+    "rbtn_pro_grp":      "⚡ Pro / 🌟 Супер-фишки",
     "rbtn_compare_short":"⚖️ Сравнить",
     "rbtn_map_short":    "🗺 Карта районов",
     "rbtn_back_menu":    "← Назад",
@@ -1280,6 +1282,7 @@ T = {
     "rbtn_picks_grp":    "⭐ مختارات ▾",
     "rbtn_profile_grp":  "📊 ملفي ▾",
     "rbtn_settings_grp": "⚙️ الإعدادات ▾",
+    "rbtn_pro_grp":      "⚡ Pro / 🌟 ميزات خارقة",
     "rbtn_compare_short":"⚖️ قارن",
     "rbtn_map_short":    "🗺 خريطة المناطق",
     "rbtn_back_menu":    "← رجوع",
@@ -2104,16 +2107,29 @@ def _reply_remove():
     return {"remove_keyboard": True}
 
 
+def legacy_main_menu_keyboard(uid):
+    """PHASE BN N1 legacy: v55 grouped submenu main (без Pro подменю).
+    Сохранено для backward compat — все labels handlers по-прежнему ловят."""
+    return _reply_kb([
+        [_t(uid, "rbtn_search_grp"),   _t(uid, "rbtn_picks_grp")],
+        [_t(uid, "rbtn_ai"),           _t(uid, "rbtn_compare_short")],
+        [_t(uid, "rbtn_profile_grp"),  _t(uid, "rbtn_map_short")],
+        [_t(uid, "rbtn_settings_grp")],
+    ])
+
+
 def kb_main_reply(uid):
-    """v55 COMPACT UX: top-level menu reduced to 4 rows via grouped submenus.
+    """PHASE BN N1: simplified main + Pro submenu.
+    Core = Search / Picks / Profile / AI (4 кнопки = частые сценарии).
+    Advanced (Compare buildings, Map, Heatmap, Voice, AI consult) → Pro submenu.
     Submenu state lives in user_states[uid]["submenu"]:
-      • None / "main"  → 4-row main menu (Search / Picks / Profile / Settings)
+      • None / "main"  → 4 core кнопок + ⚡ Pro
       • "search"       → Apt/Villa/Commercial/Plot + Back
       • "picks"        → Hot/New/Verified/Top + Back
       • "profile"      → Favs/Alerts/Saved searches/My leads + Back
       • "settings"     → Lang/Profile/Default filters/Support + Back
-    All old rbtn_* keys remain reachable via their submenu — handlers untouched.
-    Hot-keys (AI / Compare / Map) stay on top level for one-tap access.
+      • "pro"          → Compare/Map/Heatmap/Voice + Settings + Back  (NEW)
+    All rbtn_* keys still reachable — handlers untouched.
     """
     submenu = (user_states.get(uid, {}) or {}).get("submenu") or "main"
 
@@ -2125,7 +2141,6 @@ def kb_main_reply(uid):
         ])
 
     if submenu == "picks":
-        # Verified / Top buttons reflect current toggle state.
         conf_on = bool(user_states.get(uid, {}).get("confidence_filter"))
         conf_btn = _t(uid, "rbtn_conf_on" if conf_on else "rbtn_conf_off")
         top_on  = bool(user_states.get(uid, {}).get("top_filter"))
@@ -2150,12 +2165,22 @@ def kb_main_reply(uid):
             [_t(uid, "rbtn_back_menu")],
         ])
 
-    # main (default): 4 rows
+    if submenu == "pro":
+        # PHASE BN N1: Pro submenu — все advanced инструменты под одним кликом.
+        # Reuses existing labels: compare_short, map_short, heatmap, voice,
+        # ai_consult, settings_grp — handlers те же, callback patterns целы.
+        return _reply_kb([
+            [_t(uid, "rbtn_compare_short"),  _t(uid, "rbtn_map_short")],
+            [_t(uid, "rbtn_heatmap"),        _t(uid, "rbtn_voice")],
+            [_t(uid, "rbtn_ai_consult"),     _t(uid, "rbtn_settings_grp")],
+            [_t(uid, "rbtn_back_menu")],
+        ])
+
+    # main (default): 3 rows = только core (Search / Picks / Profile / AI) + ⚡ Pro
     return _reply_kb([
         [_t(uid, "rbtn_search_grp"),   _t(uid, "rbtn_picks_grp")],
-        [_t(uid, "rbtn_ai"),           _t(uid, "rbtn_compare_short")],
-        [_t(uid, "rbtn_profile_grp"),  _t(uid, "rbtn_map_short")],
-        [_t(uid, "rbtn_settings_grp")],
+        [_t(uid, "rbtn_profile_grp"),  _t(uid, "rbtn_ai")],
+        [_t(uid, "rbtn_pro_grp")],
     ])
 
 
@@ -2700,6 +2725,8 @@ def is_main_menu_text(text: str):
         "rbtn_compare_short", "rbtn_map_short", "rbtn_back_menu",
         "rbtn_saved_searches", "rbtn_my_leads",
         "rbtn_default_filters", "rbtn_support", "rbtn_profile_view",
+        # PHASE BN N1: Pro/Super features submenu entry
+        "rbtn_pro_grp",
     }
     for lang_code, strings in T.items():
         for k, v in strings.items():
@@ -5137,6 +5164,8 @@ def show_detail(cid, uid, mid, lid):
         emoji_row_d.append(_btn("🏢", f"allbld|{lid}"))
     # PHASE BM Layer 13: Market World Model forecast button
     emoji_row_d.append(_btn("🔮", f"mwmfc|{lid}"))
+    # PHASE BM Layer 20: Virtual tour button (3D-tour generator)
+    emoji_row_d.append(_btn("🎥", f"tour|{lid}"))
     kb_rows = [
         # Row 1: pinned primary CTAs
         [_url_btn(_t(uid, "btn_book"), lead_url),
@@ -6654,6 +6683,17 @@ def dispatch_main_button(cid, uid, rkey):
     elif rkey == "rbtn_back_menu":
         gs(uid)["submenu"] = "main"
         _send(cid, _t(uid, "main_menu"), kb_main_reply(uid))
+    elif rkey == "rbtn_pro_grp":
+        # PHASE BN N1: open Pro submenu (advanced features in one click).
+        gs(uid)["submenu"] = "pro"
+        _send(
+            cid,
+            "⚡ <b>Pro features — продвинутая аналитика и AI</b>\n\n"
+            "Сравнение зданий, карта, тепловая карта, голосовой поиск,\n"
+            "AI-консультант и настройки.\n\n"
+            "<i>Vadim Realty (RERA BRN 65011)</i>",
+            kb_main_reply(uid),
+        )
     elif rkey == "rbtn_compare_short":
         start_compare_buildings(cid, uid)
     elif rkey == "rbtn_map_short":
@@ -8352,6 +8392,49 @@ def handle_cb(cb):
         _send(cid, _t(uid, "all_in_bld_caption").format(bld=bld), kb_main_reply(uid))
         do_search(uid)
         send_results(cid, uid)
+
+    # ── PHASE BM Layer 20: Virtual 3D-tour generator for a listing ─────────
+    elif action == "tour":
+        lid = int(parts[1]) if len(parts) > 1 else 0
+        listing = get_listing_by_id(lid) or {}
+        try:
+            _api("answerCallbackQuery", callback_query_id=cb["id"], text="🎥 Готовлю тур…")
+        except Exception:
+            pass
+        try:
+            import sys as _sys
+            _shared_p = r"C:\Projects"
+            if _shared_p not in _sys.path:
+                _sys.path.insert(0, _shared_p)
+            from shared.virtual_tours.tour_generator import generate_tour  # type: ignore
+            listing_for_tour = dict(listing) if listing else {"listing_id": lid}
+            listing_for_tour.setdefault("listing_id", lid)
+            tour = generate_tour(listing_for_tour, bot="resale-bot")
+            if not tour or "error" in tour:
+                _send(cid, "🎥 Виртуальный тур временно недоступен, попробуйте позже.\n\n— Vadim Realty · RERA BRN 65011")
+                return
+            script = tour.get("script_md") or "🎥 Виртуальный тур"
+            script_safe = (script[:3500] + "\n\n— Vadim Realty · RERA BRN 65011")
+            _send(cid, script_safe)
+            video = tour.get("video_path")
+            if video:
+                try:
+                    _api("sendVideo", chat_id=cid, video=video)
+                except Exception:
+                    pass
+            else:
+                for r in (tour.get("rooms") or []):
+                    img = r.get("image_path")
+                    if img:
+                        try:
+                            _api("sendPhoto", chat_id=cid, photo=img,
+                                 caption=(r.get("name") or "")[:200])
+                        except Exception:
+                            pass
+        except Exception as _tour_e:
+            print(f"[virtual_tours] tour failed: {_tour_e}")
+            _send(cid, "🎥 Виртуальный тур временно недоступен.\n\n— Vadim Realty · RERA BRN 65011")
+        return
 
     # ── PHASE BM Layer 13: Market World Model forecast for a listing ──────
     elif action == "mwmfc":
