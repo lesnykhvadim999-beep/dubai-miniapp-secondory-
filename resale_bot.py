@@ -2101,6 +2101,43 @@ def _edit(cid, mid, text, kb=None):
     return _api("editMessageText", **p)
 
 
+def _edit_kb(cid, mid, kb):
+    """Edit only the inline keyboard of a message (works for photo OR text).
+    Used for edit-in-place submenus where the listing card text/caption
+    should remain visible and only the action buttons change."""
+    p = {"chat_id": cid, "message_id": mid, "reply_markup": kb}
+    r = _api("editMessageReplyMarkup", **p)
+    # Silent-catch "message is not modified" (repeated click on same button)
+    return r
+
+
+def _edit_smart(cid, mid, text, kb=None):
+    """Edit a message regardless of whether it has a caption (photo) or text.
+    Tries editMessageText first; on failure (photo message) falls back to
+    editMessageCaption. As last resort, only edits the reply_markup so the
+    card visually stays on the same screen instead of a duplicate send."""
+    p_text = {"chat_id": cid, "message_id": mid, "text": text,
+              "parse_mode": "Markdown"}
+    if kb: p_text["reply_markup"] = kb
+    r = _api("editMessageText", **p_text)
+    # _api returns {} on exception/circuit-breaker — distinguish from real reply
+    if isinstance(r, dict) and r.get("ok"):
+        return r
+    desc = (r or {}).get("description", "") if isinstance(r, dict) else ""
+    # Photo/caption messages → editMessageCaption
+    if (not r) or "there is no text" in desc.lower() or "caption" in desc.lower():
+        p_cap = {"chat_id": cid, "message_id": mid,
+                 "caption": (text or "")[:1024], "parse_mode": "Markdown"}
+        if kb: p_cap["reply_markup"] = kb
+        r2 = _api("editMessageCaption", **p_cap)
+        if isinstance(r2, dict) and r2.get("ok"):
+            return r2
+        # last resort — at least swap the keyboard so screen stays put
+        if kb:
+            return _edit_kb(cid, mid, kb)
+    return r
+
+
 # ── Subscription gate helpers ─────────────────────────────────────────────────
 
 def _gate(uid: int, feature: str) -> bool:
@@ -8239,11 +8276,32 @@ def handle_cb(cb):
                          _btn(_t(uid, "btn_tour"),         f"tour|{lid}")])
         else:
             rows.append([_btn(_t(uid, "btn_tour"),         f"tour|{lid}")])
-        rows.append([_btn(_t(uid, "btn_back_listing"), f"detail|{lid}")])
+        # v57 edit-in-place: NEVER send new message — keep listing card visible.
+        # Add ← Back row that returns to base 2-row layout via `actsback|<lid>`.
+        rows.append([_btn(_t(uid, "btn_back"), f"actsback|{lid}")])
+        # Photo cards have caption (no text) — swap ONLY reply_markup so the
+        # listing text/photo stays on screen. For text-only cards same call works.
+        _edit_kb(cid, mid, _kb(*rows))
+
+    elif action == "actsback":
+        # v57 edit-in-place: return from "⚡ Actions ▾" submenu back to the
+        # base 2-row card keyboard (Book / Contacts / Actions▾ / Back).
         try:
-            _edit(cid, mid, _t(uid, "btn_actions_more"), _kb(*rows))
+            lid = int(parts[1]) if len(parts) > 1 else 0
         except Exception:
-            _send(cid, _t(uid, "btn_actions_more"), _kb(*rows))
+            return
+        listing = get_listing_by_id(lid) or {}
+        lead_url = f"{LEAD_BOT_URL}?start=resale_{lid}"
+        _ac_d = (listing.get("agent_count") or 1)
+        _contacts_label_d = (_t(uid, "btn_contacts_n").format(n=_ac_d)
+                              if _ac_d > 1 else _t(uid, "btn_contacts"))
+        kb_rows = [
+            [_url_btn(_t(uid, "btn_book"),     lead_url),
+             _btn(_contacts_label_d,            f"agents|{lid}")],
+            [_btn(_t(uid, "btn_actions_more"), f"acts|{lid}"),
+             _btn(_t(uid, "btn_back"),          "results|back")],
+        ]
+        _edit_kb(cid, mid, _kb(*kb_rows))
 
     elif action == "trmenu":
         # v56 translation submenu — language flags moved off the listing
@@ -8257,12 +8315,11 @@ def handle_cb(cb):
              _btn("🇷🇺 RU", f"tr|ru|{lid}")],
             [_btn("🇸🇦 AR", f"tr|ar|{lid}"),
              _btn("🇨🇳 ZH", f"tr|zh|{lid}")],
-            [_btn(_t(uid, "btn_back_listing"), f"detail|{lid}")],
+            # v57 edit-in-place: back to actions submenu (NOT new detail card)
+            [_btn(_t(uid, "btn_back"), f"acts|{lid}")],
         ]
-        try:
-            _edit(cid, mid, _t(uid, "btn_translate_menu"), _kb(*rows))
-        except Exception:
-            _send(cid, _t(uid, "btn_translate_menu"), _kb(*rows))
+        # Swap ONLY the keyboard — listing card stays on screen.
+        _edit_kb(cid, mid, _kb(*rows))
 
     elif action == "book":
         lid   = int(parts[1]) if len(parts) > 1 else 0
@@ -8303,16 +8360,19 @@ def handle_cb(cb):
                     _row = _cur.fetchone()
         except Exception as _e:
             print(f"[tr] db err lid={lid}: {_e}", flush=True)
+        # v57 edit-in-place: render translation INTO current card + Back btn
+        _back_kb = _kb([_btn(_t(uid, "btn_back"), f"acts|{lid}")])
         if not _row or not _row[0]:
-            # zh не входит в bot UI langs — fallback на EN.
             if tlang == "zh":
                 _no_msg = "翻译尚未准备就绪。请稍后再试。"
             else:
                 _no_msg = _t(uid, "tr_not_ready")
-            _send(cid, _no_msg)
+            _edit_smart(cid, mid, _no_msg, _back_kb)
         else:
             _flag = {"ru": "RU", "en": "EN", "ar": "AR", "zh": "CN"}.get(tlang, "")
-            _send(cid, f"{_flag} *{_t(uid,'det_description')}*\n\n{_row[0]}")
+            _edit_smart(cid, mid,
+                         f"{_flag} *{_t(uid,'det_description')}*\n\n{_row[0]}",
+                         _back_kb)
 
     elif action == "pdf":
         if not _gate(uid, "pdf"):
@@ -8441,7 +8501,9 @@ def handle_cb(cb):
             f"👔 {_t(uid,'seller_agent')}: {agent}\n"
             f"🔗 {_t(uid,'seller_listing')}: {msg_link}"
         )
-        _send(cid, seller_text)
+        # v57 edit-in-place: seller details replace card text; Back returns
+        _back_kb = _kb([_btn(_t(uid, "btn_back"), f"acts|{lid}")])
+        _edit_smart(cid, mid, seller_text, _back_kb)
 
     # ── DLD deal history for area (gated) ─────────────────────────────────────
     elif action == "deals":
@@ -8454,13 +8516,15 @@ def handle_cb(cb):
                  text="Listing not found", show_alert=True)
             return
         area = listing.get("area") or listing.get("emirate") or "Dubai"
-        _send(cid, _t(uid, "deals_loading"))
+        # v57 edit-in-place: result goes INTO current message + Back btn
+        _back_kb = _kb([_btn(_t(uid, "btn_back"), f"acts|{lid}")])
         summary = get_market_summary(area)
         if summary:
             header = _t(uid, "deals_title").format(area=area)
-            _send(cid, f"{header}\n{summary}")
+            _edit_smart(cid, mid, f"{header}\n{summary}", _back_kb)
         else:
-            _send(cid, _t(uid, "deals_no_data").format(area=area))
+            _edit_smart(cid, mid,
+                         _t(uid, "deals_no_data").format(area=area), _back_kb)
 
     elif action == "similar":
         lid = int(parts[1]) if len(parts) > 1 else 0
@@ -8483,6 +8547,8 @@ def handle_cb(cb):
             _api("answerCallbackQuery", callback_query_id=cb["id"], text="🧠…")
         except Exception:
             pass
+        # v57 edit-in-place: render explanation INTO current card + Back btn
+        _back_kb = _kb([_btn(_t(uid, "btn_back"), f"acts|{lid}")])
         try:
             import sys as _sys
             _shared_p = r"C:\Projects"
@@ -8498,11 +8564,13 @@ def handle_cb(cb):
             q = (f"Почему цена ${price:,} в {area}?" if lang == "ru"
                  else f"Why price ${price:,} in {area}?")
             chain = explain(q, features, user_id=uid, bot_source="resale")
-            _send(cid, format_chain(chain, lang=lang))
+            _edit_smart(cid, mid, format_chain(chain, lang=lang), _back_kb)
         except Exception as _why_e:
             print(f"[causal] why failed: {_why_e}")
-            _send(cid, "🧠 Анализ временно недоступен." if user_lang.get(uid, "en") == "ru"
-                       else "🧠 Analysis temporarily unavailable.")
+            _edit_smart(cid, mid,
+                         "🧠 Анализ временно недоступен." if user_lang.get(uid, "en") == "ru"
+                                                          else "🧠 Analysis temporarily unavailable.",
+                         _back_kb)
 
     elif action == "filter":
         if parts[1] == "deal_type_reset":
@@ -8703,6 +8771,31 @@ def handle_cb(cb):
             save_lead(uid, "", lid, "save")
             _api("answerCallbackQuery", callback_query_id=cb["id"],
                  text=_t(uid, "btn_fav_add"))
+        # v57 edit-in-place: refresh submenu so Save/Remove label updates
+        try:
+            listing = get_listing_by_id(lid) or {}
+            _fav_now = is_favorited(uid, lid)
+            _save_lbl = _t(uid, "btn_save_rem") if _fav_now else _t(uid, "btn_save")
+            _has_bld = bool(listing.get("building"))
+            rows = [
+                [_btn(_save_lbl,                f"fav|{lid}"),
+                 _btn(_t(uid, "btn_compare"),   f"cmp|{lid}")],
+                [_btn(_t(uid, "btn_map"),       f"map|{lid}"),
+                 _btn(_t(uid, "btn_photos"),    f"photos|{lid}")],
+                [_btn(_t(uid, "btn_similar_act"), f"similar|{lid}"),
+                 _btn(_t(uid, "btn_forecast"),    f"mwmfc|{lid}")],
+                [_btn(_t(uid, "btn_ai_why"),    f"why|{lid}"),
+                 _btn(_t(uid, "btn_translate_menu"), f"trmenu|{lid}")],
+            ]
+            if _has_bld:
+                rows.append([_btn(_t(uid, "btn_building_all"), f"allbld|{lid}"),
+                             _btn(_t(uid, "btn_tour"),         f"tour|{lid}")])
+            else:
+                rows.append([_btn(_t(uid, "btn_tour"),         f"tour|{lid}")])
+            rows.append([_btn(_t(uid, "btn_back"), f"actsback|{lid}")])
+            _edit_kb(cid, mid, _kb(*rows))
+        except Exception:
+            pass
 
     # ── Compare cart ──────────────────────────────────────────────────────────
     elif action == "cmp":
@@ -8738,7 +8831,11 @@ def handle_cb(cb):
             emirate  = listing.get("emirate") or "Dubai"
             q = ", ".join(x for x in [building, area, emirate, "UAE"] if x)
             url = f"https://www.google.com/maps/search/?api=1&query={requests.utils.quote(q)}"
-            _send(cid, f"🗺 {q}\n\n{url}")
+            # v57 edit-in-place: map link replaces card text; URL button +
+            # Back returns to actions submenu without leaving a duplicate.
+            _back_kb = _kb([_url_btn(_t(uid, "btn_map"), url),
+                            _btn(_t(uid, "btn_back"), f"acts|{lid}")])
+            _edit_smart(cid, mid, f"🗺 {q}\n\n{url}", _back_kb)
 
     # ── Auto-translate listing description via Claude ─────────────────────────
     elif action == "translate":
