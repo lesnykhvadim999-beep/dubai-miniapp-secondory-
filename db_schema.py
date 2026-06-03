@@ -1036,6 +1036,7 @@ def save_user(telegram_id: int, username: str, first_name: str, language: str = 
                 ON CONFLICT(telegram_id) DO UPDATE SET
                     username=EXCLUDED.username,
                     first_name=EXCLUDED.first_name,
+                    language=EXCLUDED.language,
                     last_seen=NOW()
             """, (telegram_id, username, first_name, language))
         conn.commit()
@@ -1043,6 +1044,25 @@ def save_user(telegram_id: int, username: str, first_name: str, language: str = 
         conn.rollback()
     finally:
         conn.close()
+
+
+def get_user_lang(telegram_id: int):
+    """Read persisted user language from users.language. Returns None if no row."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT language FROM users WHERE telegram_id=%s", (telegram_id,))
+            row = cur.fetchone()
+            if not row:
+                return None
+            # support both dict (RealDictCursor) and tuple cursors
+            val = row.get("language") if isinstance(row, dict) else row[0]
+            return val
+    except Exception:
+        return None
+    finally:
+        try: conn.close()
+        except Exception: pass
 
 
 def save_lead(telegram_id: int, username: str, listing_id: int, action: str, notes: str = None):

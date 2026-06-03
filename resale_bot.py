@@ -1958,12 +1958,34 @@ def _send_pdf(cid, uid, listing):
         print(f"[bot] _send_pdf: {e}")
 
 
+def _hydrate_lang(uid):
+    """LANG_FIX: pull user's persisted language from DB into in-memory cache.
+    user_lang is a process-local dict that resets on restart; without hydration
+    every restart silently falls back to 'en' until /start is re-run, causing
+    mixed-language menus (e.g. RU 'Поиск ▾' + EN 'Search ▾' co-existing) and
+    EN labels like 'Transaction Type' for users who picked Russian earlier."""
+    try:
+        from db_schema import get_user_lang
+        lang = get_user_lang(uid)
+        if lang and lang in T:
+            user_lang[uid] = lang
+            return lang
+    except Exception:
+        pass
+    return None
+
+
 def _get_lang(uid):
-    return user_lang.get(uid, "en")
+    if uid in user_lang:
+        return user_lang[uid]
+    hydrated = _hydrate_lang(uid)
+    return hydrated or "en"
 
 
 def _t(uid, key, **kw):
-    lang = user_lang.get(uid, "en")
+    lang = user_lang.get(uid)
+    if lang is None:
+        lang = _hydrate_lang(uid) or "en"
     txt  = T.get(lang, T["en"]).get(key, T["en"].get(key, key))
     return txt.format(**kw) if kw else txt
 
