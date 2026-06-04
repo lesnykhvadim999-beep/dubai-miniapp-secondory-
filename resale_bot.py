@@ -3731,7 +3731,11 @@ def format_card(listing, uid, rank=None):
     if roi and deal_type == "sale" and roi < 30:    # ROI > 30%/yr тоже мусор
         _roi_suffix = "" if _has_market else "  ·  ~"
         analytics.append(f"📈 {_t(uid, 'card_roi')} {roi}%{_t(uid, 'card_per_year_short')}{_roi_suffix}")
-    if score and _has_market:
+    # B092: score из БД (listings.investment_score, посчитан парсером с DLD building
+    # benchmark fallback на MARKET) показываем ВСЕГДА. Раньше скрывался если
+    # _has_market=False — для новых районов (Majan etc) пользователь видел N/A,
+    # хотя в БД score=8.5 уже посчитан и валиден.
+    if score:
         # Investment Score 2.0 is 0..100; legacy was 0..10. Detect by magnitude.
         if score > 10:
             _rating_lbl = None
@@ -3759,10 +3763,10 @@ def format_card(listing, uid, rank=None):
                 analytics.append(f"   • Risk {int(_bd['risk'])}/25"
                                  + ("  ✅" if _bd['risk']   >= 20 else ""))
         else:
-            analytics.append(f"⭐ {score}/10  ·  {_t(uid, 'card_score')}")
-    elif score and not _has_market:
-        # No market data → don't claim "10/10"; show honest placeholder.
-        analytics.append(f"📊 {_t(uid, 'card_score')}: N/A  ·  _{_t(uid, 'score_no_data')}_")
+            # B092: добавляем " · ~" если score без real DLD/MARKET — честно
+            # помечаем как оценку. Score из БД был посчитан парсером (валиден).
+            _est_suffix = "" if _has_market else "  ·  ~"
+            analytics.append(f"⭐ {score}/10  ·  {_t(uid, 'card_score')}{_est_suffix}")
     # v107: comparison with area premium segment — ONLY when real market data present.
     try:
         if _has_market:
