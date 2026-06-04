@@ -6830,14 +6830,15 @@ def dispatch_main_button(cid, uid, rkey):
         gs(uid)["submenu"] = "main"
         _send(cid, _t(uid, "main_menu"), kb_main_reply(uid))
     elif rkey == "rbtn_pro_grp":
-        # B076: ужатый Pro submenu (AI + Настройки).
+        # B076: ужатый Pro submenu (AI + Настройки). B078: Markdown вместо HTML
+        # (_send() использует parse_mode=Markdown, HTML теги не парсятся).
         gs(uid)["submenu"] = "pro"
         _send(
             cid,
-            "⚡ <b>Pro</b>\n\n"
+            "⚡ *Pro*\n\n"
             "🤖 AI Консультант — задай любой вопрос по рынку Дубая\n"
             "⚙️ Настройки — язык, профиль, фильтры по умолчанию\n\n"
-            "<i>Vadim Realty (RERA BRN 65011)</i>",
+            "_Vadim Realty (RERA BRN 65011)_",
             kb_main_reply(uid),
         )
     elif rkey == "rbtn_compare_short":
