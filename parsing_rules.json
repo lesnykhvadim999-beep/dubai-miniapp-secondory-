@@ -1,0 +1,705 @@
+{
+  "version": "1.0",
+  "description": "Dubai Real Estate Parser Rules - Knowledge Base",
+  "block_separators": [
+    "----",
+    "————",
+    "____",
+    "====",
+    "****",
+    "····",
+    "• • •",
+    "- - -"
+  ],
+  "block_start_keywords": [
+    "for sale",
+    "for rent",
+    "!!for sale",
+    "🔴 for sale",
+    "urgent sale",
+    "price reduced",
+    "hot deal",
+    "below market"
+  ],
+  "area_prefixes": [
+    "📍",
+    "location:",
+    "area:",
+    "district:",
+    "community:",
+    "located in",
+    "situated in",
+    "in the heart of"
+  ],
+  "building_prefixes": [
+    "project:",
+    "project name:",
+    "building:",
+    "tower:",
+    "residence:",
+    "complex:",
+    "property:",
+    "🏢",
+    "🏗",
+    "🏬"
+  ],
+  "price_prefixes": [
+    "price:",
+    "selling price:",
+    "sale price:",
+    "asking price:",
+    "sp:",
+    "op:",
+    "pp:",
+    "market price:",
+    "listed at:",
+    "aed",
+    "💰",
+    "🤑",
+    "💵"
+  ],
+  "bedroom_prefixes": [
+    "bedrooms:",
+    "bedroom:",
+    "beds:",
+    "type:",
+    "unit type:",
+    "🛏",
+    "🛏️"
+  ],
+  "size_prefixes": [
+    "area size:",
+    "size:",
+    "bua:",
+    "built up area:",
+    "total area:",
+    "plot area:",
+    "📐",
+    "📏"
+  ],
+  "view_prefixes": [
+    "view:",
+    "views:",
+    "🪟",
+    "👁",
+    "👀"
+  ],
+  "status_prefixes": [
+    "status:",
+    "condition:",
+    "🔑",
+    "🗝"
+  ],
+  "floor_prefixes": [
+    "floor:",
+    "level:",
+    "📊"
+  ],
+  "furnishing_prefixes": [
+    "furnished:",
+    "furnishing:",
+    "furniture:"
+  ],
+  "handover_prefixes": [
+    "handover:",
+    "completion:",
+    "ready:",
+    "🏗",
+    "📅"
+  ],
+  "abbreviations": {
+    "JVC": "Jumeirah Village Circle",
+    "JVT": "Jumeirah Village Triangle",
+    "JLT": "Jumeirah Lake Towers",
+    "JBR": "Jumeirah Beach Residence",
+    "MBR": "MBR City",
+    "DBH": "Dubai Hills Estate",
+    "DHE": "Dubai Hills Estate",
+    "DH": "Dubai Hills Estate",
+    "DCH": "Dubai Creek Harbour",
+    "DIFC": "DIFC",
+    "DSO": "Dubai Silicon Oasis",
+    "DIP": "Dubai Investment Park",
+    "DFC": "Dubai Festival City",
+    "BB": "Business Bay",
+    "DM": "Dubai Marina",
+    "DT": "Downtown Dubai",
+    "DT Dubai": "Downtown Dubai",
+    "DWC": "Dubai South",
+    "PJ": "Palm Jumeirah",
+    "RAK": "Ras Al Khaimah",
+    "AD": "Abu Dhabi",
+    "SHJ": "Sharjah",
+    "MJL": "Madinat Jumeirah",
+    "SC": "Sports City",
+    "MC": "Motor City",
+    "IC": "International City",
+    "BR": "bedroom",
+    "BHK": "bedroom",
+    "BA": "bathroom",
+    "SP": "selling price",
+    "OP": "original price",
+    "PP": "purchase price",
+    "AED": "AED",
+    "SQM": "sqm",
+    "SQFT": "sqft",
+    "SF": "sqft",
+    "BUA": "built up area",
+    "GFA": "gross floor area",
+    "FF": "fully furnished",
+    "UF": "unfurnished",
+    "SF_FURN": "semi furnished",
+    "VM": "vacant",
+    "TN": "tenanted",
+    "RP": "rented",
+    "Q1": "Q1",
+    "Q2": "Q2",
+    "Q3": "Q3",
+    "Q4": "Q4"
+  },
+  "price_formats": [
+    {
+      "pattern": "(\\d+\\.?\\d*)\\s*M\\b",
+      "multiplier": 1000000
+    },
+    {
+      "pattern": "(\\d+\\.?\\d*)\\s*ML\\b",
+      "multiplier": 1000000
+    },
+    {
+      "pattern": "(\\d+\\.?\\d*)\\s*K\\b",
+      "multiplier": 1000
+    },
+    {
+      "pattern": "AED\\s*([\\d,\\.]+)",
+      "multiplier": 1
+    },
+    {
+      "pattern": "([\\d,\\.]+)\\s*AED",
+      "multiplier": 1
+    },
+    {
+      "pattern": "([\\d\\.]+)\\s*mn",
+      "multiplier": 1000000
+    },
+    {
+      "pattern": "([\\d\\.]+)\\s*million",
+      "multiplier": 1000000
+    }
+  ],
+  "not_building_words": [
+    "furnished",
+    "fully furnished",
+    "unfurnished",
+    "semi furnished",
+    "vacant",
+    "ready",
+    "rented",
+    "tenanted",
+    "occupied",
+    "off plan",
+    "offplan",
+    "off-plan",
+    "under construction",
+    "for sale",
+    "for rent",
+    "resale",
+    "sea view",
+    "full sea view",
+    "partial sea view",
+    "burj khalifa view",
+    "fountain view",
+    "marina view",
+    "golf view",
+    "canal view",
+    "city view",
+    "park view",
+    "beach view",
+    "ocean view",
+    "creek view",
+    "harbour view",
+    "palm view",
+    "pool view",
+    "community view",
+    "freehold",
+    "leasehold",
+    "motivated seller",
+    "genuine resale",
+    "corner unit",
+    "high floor",
+    "low floor",
+    "mid floor",
+    "brand new",
+    "urgent",
+    "price reduced",
+    "hot deal",
+    "below market",
+    "exclusive",
+    "premium",
+    "luxury",
+    "call",
+    "whatsapp",
+    "contact",
+    "agent",
+    "broker",
+    "agency",
+    "properties",
+    "realty",
+    "real estate"
+  ],
+  "spam_patterns": [
+    {
+      "type": "multi_listing",
+      "min_for_sale_count": 3
+    },
+    {
+      "type": "price_list",
+      "min_price_count": 5
+    },
+    {
+      "type": "broker_list",
+      "min_price_lines": 6
+    },
+    {
+      "type": "short_message",
+      "max_length": 25
+    },
+    {
+      "type": "keywords",
+      "words": [
+        "seminar",
+        "webinar",
+        "training",
+        "course",
+        "vacancy",
+        "hiring",
+        "job offer",
+        "agent required",
+        "good morning",
+        "good evening",
+        "happy new",
+        "moving service",
+        "cleaning service",
+        "movers",
+        "insurance",
+        "visa service",
+        "car for sale"
+      ]
+    },
+    {
+      "type": "commercial",
+      "words": [
+        "for lease",
+        "industrial unit",
+        "commercial space",
+        "retail space",
+        "office space",
+        "warehouse",
+        "shop for sale",
+        "labour camp",
+        "factory",
+        "showroom"
+      ]
+    }
+  ],
+  "building_name_patterns": [
+    "^([A-Z][\\w\\s]+)\\s*[|,]\\s*(?:JVC|JLT|JVT|JBR|BB|DM|DT|DHE)",
+    "(?:Project|Building|Tower|Residence)\\s*(?:name)?\\s*:?\\s*([\\w\\s]+)",
+    "(?:🏢|🏗|🏬)\\s*([\\w\\s]+)",
+    "^([A-Z][\\w\\s]{2,40})\\s*[-–]\\s*(?:Downtown|Marina|JVC|JLT|Business Bay)",
+    "For Sale[,\\s]+([A-Z][\\w\\s]+Tower|[A-Z][\\w\\s]+Residence|[A-Z][\\w\\s]+Heights)"
+  ],
+  "area_name_patterns": [
+    "(?:📍|Location|Area|District|Community)\\s*:?\\s*([\\w\\s]+)",
+    "([A-Z][\\w\\s]+)\\s*[|,]\\s*(?:Dubai|Abu Dhabi|Sharjah|RAK)",
+    "(?:in|at|near)\\s+([A-Z][\\w\\s]{3,30})(?=\\s|,|\\.|$)"
+  ],
+  "deal_type_sale_keywords": [
+    "for sale",
+    "selling",
+    "resale",
+    "re-sale",
+    "sale price",
+    "sp:",
+    "op:",
+    "asking price",
+    "mortgage",
+    "cash price",
+    "payment plan",
+    "handover",
+    "off plan",
+    "offplan",
+    "off-plan",
+    "transfer fee",
+    "dld fee",
+    "للبيع",
+    "продажа",
+    "продаётся",
+    "продам"
+  ],
+  "deal_type_rent_keywords": [
+    "for rent",
+    "to rent",
+    "rental",
+    "rent:",
+    "per year",
+    "per annum",
+    "/year",
+    "/yr",
+    "/month",
+    "annual rent",
+    "monthly rent",
+    "one cheque",
+    "two cheques",
+    "4 cheques",
+    "6 cheques",
+    "12 cheques",
+    "chiller free",
+    "tenanted",
+    "tenant",
+    "rented",
+    "leased",
+    "للإيجار",
+    "аренда",
+    "сдаётся",
+    "сдам"
+  ],
+  "view_keywords": [
+    "full sea view",
+    "partial sea view",
+    "sea view",
+    "burj khalifa view",
+    "burj view",
+    "fountain view",
+    "full fountain view",
+    "marina view",
+    "full marina view",
+    "golf view",
+    "golf course view",
+    "canal view",
+    "water canal view",
+    "palm view",
+    "palm jumeirah view",
+    "city view",
+    "skyline view",
+    "community view",
+    "pool view",
+    "lagoon view",
+    "park view",
+    "beach view",
+    "ocean view",
+    "creek view",
+    "harbour view",
+    "boulevard view",
+    "partial water view"
+  ],
+  "status_keywords": {
+    "vacant": [
+      "vacant",
+      "ready to move",
+      "empty",
+      "unoccupied",
+      "vm"
+    ],
+    "rented": [
+      "rented",
+      "tenanted",
+      "occupied",
+      "rented out",
+      "with tenant",
+      "tn"
+    ],
+    "offplan": [
+      "off plan",
+      "offplan",
+      "off-plan",
+      "under construction",
+      "handover q"
+    ],
+    "ready": [
+      "ready",
+      "completed",
+      "handover done",
+      "keys available"
+    ]
+  },
+  "furnishing_keywords": {
+    "furnished": [
+      "furnished",
+      "fully furnished",
+      "ff",
+      "f/f",
+      "fully fitted"
+    ],
+    "unfurnished": [
+      "unfurnished",
+      "un-furnished",
+      "uf",
+      "u/f",
+      "bare",
+      "shell"
+    ],
+    "semi-furnished": [
+      "semi furnished",
+      "semi-furnished",
+      "sf",
+      "s/f",
+      "partly furnished"
+    ]
+  },
+  "price_sanity": {
+    "max_price": 200000000,
+    "min_price": 50000,
+    "sale_min": 400000,
+    "rent_max_year": 1000000
+  },
+  "channel_specific_rules": {
+    "flipluxproperty": {
+      "separator": "————————",
+      "building_on_first_line": true,
+      "area_after_building": true
+    },
+    "dubairealestatedirectorydubilook": {
+      "structured_format": true,
+      "emoji_labels": true,
+      "separator": "________"
+    },
+    "secondary_dubai": {
+      "separator": "————————",
+      "mixed_format": true
+    }
+  },
+  "audit_patterns": {
+    "price_audit_patterns": [
+      {
+        "old": 1030000,
+        "new": 1030000000,
+        "ratio": 1000.0,
+        "notes": "Price is listed as '1030 mln AED' which equals 1,030,000,000 AED, but parsed as 1,030,000 AED. Area should be 'Zada Tower' or a valid district like 'Business Bay' if confirmed, but not omitted. The term 'mln' means million, so 1030 mln = 1.03 billion AED."
+      },
+      {
+        "old": 850000,
+        "new": 730000,
+        "ratio": 0.859,
+        "notes": "Price should be 730k AED as it is the asking price; '850k' is original price without DLD, not the sale price. Area should be 'Binghatti' not 'Al Jaddaf' as property is in Binghatti Starlight project."
+      },
+      {
+        "old": 11800000,
+        "new": 1800000,
+        "ratio": 0.153,
+        "notes": "Parsed data incorrectly references the first property (Jouri Hills villa) but extracts values from multiple listings. The parsed 'price' (11.8M) belongs to the villa, but other fields (area: JVT, size: 5238 sq.ft, bedrooms: 5) do not align with the same unit. The correct listing appears to be the 1BR apartment in JVT, with price 1.8M, size 874 sqft, and 1 bedroom. Parsed data mixes details across different properties."
+      },
+      {
+        "old": 2460000,
+        "new": 2200000,
+        "ratio": 0.894,
+        "notes": "Price incorrect: Parsed price is 2460000 AED but the SP (selling price) is 2.2M (2200000 AED). Area incorrect: Should include full location 'Meydan One City, Azizi Riviera Beachfront Tower A' instead of just 'Meydan'."
+      },
+      {
+        "old": 1940000,
+        "new": 1490000,
+        "ratio": 0.768,
+        "notes": "Price mismatch (parsed: 1940000 AED vs original: 1490000 AED), property_type should be inferred as apartment (correct), deal_type missing (defaulted to sale but should be explicitly set)."
+      },
+      {
+        "old": 5350000,
+        "new": 4675500,
+        "ratio": 0.874,
+        "notes": "Price mismatch: parsed value 5350000 AED does not match asking price (SP) of 4,675,500 AED. Area mismatch: parsed as 'Bluewaters Island' but text specifies 'Bluewaters Bay'."
+      },
+      {
+        "old": 4000000,
+        "new": 790000,
+        "ratio": 0.198,
+        "notes": "Price parsed incorrectly (5m likely refers to another listing, correct asking price is 790K). Area is Jumeirah Village Circle (JVC), not Downtown Dubai. Bedrooms should be 1 based on '1 BHK'. Size should be 761 sqft, not 1236. 'Dunya tower, Downtown' and '5m' are from a different listing and were incorrectly used."
+      },
+      {
+        "old": 1000000,
+        "new": 1100000,
+        "ratio": 1.1,
+        "notes": "Price parsed incorrectly (1.1M AED should be 1100000 AED, not 1000000 AED). Property type should be inferred as apartment from '1 bhk'. Size should be in sqft (69 sqm = 742.7 sqft, which is correct, but the parsed data shows the raw sqft value without conversion verification)."
+      },
+      {
+        "old": 2988000,
+        "new": 2500000,
+        "ratio": 0.837,
+        "notes": "Price should be 2,500,000 AED (2.5M) as per the text, not 2,988,000 AED. Size should be 2,285 sqm converted to sqft (2,285 * 10.764 = 24573.84 sqft), but the text mentions BUA 2285 sqf which is likely a typo (should be 2285 sqm). Assuming the correct BUA is 2285 sqm, the parsed size_sqft should be 24573.84."
+      },
+      {
+        "old": 7990000,
+        "new": 4600000,
+        "ratio": 0.576,
+        "notes": "Parsed price (7,990,000 AED) comes from a different property (La Mer, 2500 sqft), but the second listing (Creek, 1569 sqft) has a sales price of AED 4,600,000. Area is incorrectly parsed as La Mer instead of Creek. Property type not specified in parsed data but should be 'apartment'."
+      },
+      {
+        "old": 7900000,
+        "new": 7100000,
+        "ratio": 0.899,
+        "notes": "Price should be the ASKING price (7,900,000 AED), not the SELLING price (7,100,000 AED). Area should be 'Dubai Water Canal' instead of just 'Dubai'."
+      }
+    ],
+    "area_misparse_patterns": [
+      {
+        "wrong": "Sobha Hartland",
+        "correct": "Sobha Hartland",
+        "count": 9
+      },
+      {
+        "wrong": "Downtown Dubai",
+        "correct": "Downtown Dubai",
+        "count": 8
+      },
+      {
+        "wrong": "Jumeirah Beach Residence",
+        "correct": "Jumeirah Beach Residence",
+        "count": 6
+      },
+      {
+        "wrong": "Dubai Creek Harbour",
+        "correct": "Dubai Creek Harbour",
+        "count": 4
+      },
+      {
+        "wrong": "Dubailand",
+        "correct": "Dubailand",
+        "count": 4
+      },
+      {
+        "wrong": "DAMAC Hills",
+        "correct": "DAMAC Hills",
+        "count": 4
+      },
+      {
+        "wrong": "Business Bay",
+        "correct": "Business Bay",
+        "count": 3
+      },
+      {
+        "wrong": "City Walk",
+        "correct": "Central Park",
+        "count": 3
+      },
+      {
+        "wrong": "City Walk",
+        "correct": "City Walk",
+        "count": 3
+      },
+      {
+        "wrong": "Bluewaters Island",
+        "correct": "Bluewaters Island",
+        "count": 3
+      },
+      {
+        "wrong": "Dubai Marina",
+        "correct": "Dubai Marina",
+        "count": 3
+      },
+      {
+        "wrong": "Jumeirah",
+        "correct": "Jumeirah",
+        "count": 3
+      },
+      {
+        "wrong": "Jumeirah Village Circle",
+        "correct": "Jumeirah Village Circle",
+        "count": 2
+      },
+      {
+        "wrong": "Jumeirah Lake Towers",
+        "correct": "Jumeirah Lakes Towers",
+        "count": 2
+      },
+      {
+        "wrong": "Dubai Harbour",
+        "correct": "Dubai Harbour",
+        "count": 2
+      },
+      {
+        "wrong": "Palm Jumeirah",
+        "correct": "Palm Jumeirah",
+        "count": 2
+      },
+      {
+        "wrong": "Emaar Beachfront",
+        "correct": "Emaar Beachfront",
+        "count": 2
+      },
+      {
+        "wrong": "Jumeirah Village Triangle",
+        "correct": "Jumeirah Village Triangle",
+        "count": 2
+      },
+      {
+        "wrong": "Dubai Islands",
+        "correct": "Dubai Islands",
+        "count": 2
+      },
+      {
+        "wrong": "Meydan",
+        "correct": "Azizi Riviera",
+        "count": 2
+      }
+    ],
+    "property_type_misparse": [
+      {
+        "wrong": "apartment",
+        "correct": "apartment",
+        "count": 67
+      },
+      {
+        "wrong": "apartment",
+        "correct": "villa",
+        "count": 8
+      },
+      {
+        "wrong": "villa",
+        "correct": "apartment",
+        "count": 8
+      },
+      {
+        "wrong": "villa",
+        "correct": "villa",
+        "count": 7
+      },
+      {
+        "wrong": "studio",
+        "correct": "apartment",
+        "count": 5
+      },
+      {
+        "wrong": "townhouse",
+        "correct": "townhouse",
+        "count": 4
+      },
+      {
+        "wrong": "villa",
+        "correct": "townhouse",
+        "count": 3
+      },
+      {
+        "wrong": "apartment",
+        "correct": "retail",
+        "count": 2
+      },
+      {
+        "wrong": "penthouse",
+        "correct": "penthouse",
+        "count": 2
+      },
+      {
+        "wrong": "apartment",
+        "correct": "villa (should be apartment)",
+        "count": 2
+      }
+    ],
+    "last_updated": "2026-05-27T18:33:31.483687+00:00",
+    "error_counts": {
+      "area": 801,
+      "property_type": 402,
+      "bedrooms": 182,
+      "size_sqft": 400,
+      "price": 286,
+      "deal_type": 194
+    }
+  }
+}
