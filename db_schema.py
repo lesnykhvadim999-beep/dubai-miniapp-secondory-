@@ -803,9 +803,21 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
             _bld = (data.get("building") or "").lower().strip()
             _pr = data.get("price")
 
-            # ── L1: Blocklist lookup (брокеры + spam-паттерны из DB) ──────
+            # ── L0: Whitelist check — всегда пропускаем верифицированных ─
+            # (даже если они попали в blocklist по ошибке)
+            _is_whitelisted = False
             try:
                 if broker_id:
+                    cur.execute("SELECT 1 FROM parser_whitelist WHERE kind='broker' AND pattern=%s LIMIT 1",
+                                (broker_id.lower(),))
+                    if cur.fetchone():
+                        _is_whitelisted = True
+            except Exception:
+                pass
+
+            # ── L1: Blocklist lookup (брокеры + spam-паттерны из DB) ──────
+            try:
+                if broker_id and not _is_whitelisted:
                     cur.execute("SELECT 1 FROM parser_blocklist WHERE kind='broker' AND pattern=%s LIMIT 1",
                                 (broker_id.lower(),))
                     if cur.fetchone():
@@ -839,39 +851,52 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                     conn.commit()
                     return dup["id"], False
 
-            # ── L3: Rate-limit: брокер с >50 active = autobot, auto-blocklist ──
+            # ── L3: Rate-limit BUT smart — autobot detection ───────────────
+            # B090: было total>50 — ловило legit агентства (DDA 91% unique).
+            # Теперь: total>150 AND diversity_pct<30 = реальный bot.
             try:
-                if broker_id and len(broker_id) > 3:
-                    cur.execute("""SELECT COUNT(*) AS c FROM listings
+                if broker_id and len(broker_id) > 3 and not _is_whitelisted:
+                    cur.execute("""SELECT COUNT(*) AS total,
+                                          COUNT(DISTINCT (building || price::text)) AS unique_obj
+                                   FROM listings
                                    WHERE COALESCE(phone, agent_name, seller_username,'') = %s
                                    AND is_active = TRUE""", (broker_id,))
                     row = cur.fetchone()
-                    if row and row["c"] >= 50:
-                        cur.execute("""INSERT INTO parser_blocklist(kind, pattern, reason, added_by)
-                                       VALUES('broker', %s, %s, 'auto-rate-limit')
-                                       ON CONFLICT DO NOTHING""",
-                                    (broker_id.lower(), f"autobot {row['c']} active"))
-                        print(f"[parser] auto-blocklisted broker: {broker_id} ({row['c']} active)")
-                        return -1, False
+                    if row and row["total"] >= 150:
+                        diversity_pct = (row["unique_obj"] / row["total"] * 100) if row["total"] else 100
+                        if diversity_pct < 30:
+                            # Реальный bot — много total, мало unique
+                            cur.execute("""INSERT INTO parser_blocklist(kind, pattern, reason, added_by)
+                                           VALUES('broker', %s, %s, 'auto-rate-limit-smart')
+                                           ON CONFLICT DO NOTHING""",
+                                        (broker_id.lower(), f"autobot {row['total']} active, only {row['unique_obj']} unique ({diversity_pct:.0f}%)"))
+                            print(f"[parser] auto-blocklisted broker: {broker_id} ({row['total']} total, {diversity_pct:.0f}% unique)")
+                            return -1, False
             except Exception:
                 pass
 
-            # ── L4: Auto-detect spam pattern (same bld+price 5+ times) ────
+            # ── L4: Auto-detect spam pattern — smart criteria ─────────────
+            # B090: было 10+ копий → false-positive для cross-channel
+            # legitimate репостов. Теперь: 10+ копий AND <=2 brokers
+            # AND span <= 7 дней — это реально bot pattern.
             try:
                 if _bld and _pr:
-                    cur.execute("""SELECT COUNT(*) AS c FROM listings
+                    cur.execute("""SELECT COUNT(*) AS c,
+                                          COUNT(DISTINCT COALESCE(phone, agent_name, seller_username)) AS uniq_brokers,
+                                          EXTRACT(EPOCH FROM (MAX(created_at)-MIN(created_at)))/86400 AS span_d
+                                   FROM listings
                                    WHERE LOWER(building) = %s AND price = %s
                                    AND is_active = TRUE""",
                                 (_bld, int(_pr)))
                     row = cur.fetchone()
-                    if row and row["c"] >= 10:
-                        # 10+ active объявлений одного билдинга на одну цену
-                        # = почти 100% спам/автобот. Добавляем pattern в blocklist.
+                    if (row and row["c"] >= 10 and (row["uniq_brokers"] or 0) <= 2
+                            and (row["span_d"] or 0) <= 7):
                         cur.execute("""INSERT INTO parser_blocklist(kind, pattern, reason, added_by)
-                                       VALUES('spam_pattern', %s, %s, 'auto-cluster')
+                                       VALUES('spam_pattern', %s, %s, 'auto-cluster-smart')
                                        ON CONFLICT DO NOTHING""",
-                                    (f"{_bld}|{int(_pr)}", f"{row['c']} same-price copies"))
-                        print(f"[parser] auto-spam-pattern: {_bld}@{_pr} ({row['c']} copies)")
+                                    (f"{_bld}|{int(_pr)}",
+                                     f"{row['c']} copies, {row['uniq_brokers']} brokers, {row['span_d']:.0f}d"))
+                        print(f"[parser] auto-spam-pattern: {_bld}@{_pr} ({row['c']} copies from {row['uniq_brokers']} brokers in {row['span_d']:.0f}d)")
                         return -1, False
             except Exception:
                 pass

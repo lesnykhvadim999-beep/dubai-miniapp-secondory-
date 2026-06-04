@@ -84,34 +84,44 @@ def main():
     """)
     stats["phone_reposts"] = cur.rowcount
 
-    # D) Auto-detect new spam patterns (10+ копий one bld+price)
+    # D) Auto-detect spam patterns — smart: 10+ копий AND <=2 brokers AND <=7d
     cur.execute("""
     INSERT INTO parser_blocklist(kind, pattern, reason, added_by)
     SELECT 'spam_pattern',
            LOWER(building) || '|' || price::bigint::text,
-           COUNT(*)::text || ' same-price copies',
-           'daily-sweep'
+           COUNT(*)::text || ' copies, ' ||
+           COUNT(DISTINCT COALESCE(phone, agent_name, seller_username))::text || ' brokers, '
+           || ROUND(EXTRACT(EPOCH FROM (MAX(created_at)-MIN(created_at)))/86400)::text || 'd',
+           'daily-sweep-smart'
     FROM listings
     WHERE is_active=TRUE AND building IS NOT NULL AND price IS NOT NULL
     GROUP BY LOWER(building), price
     HAVING COUNT(*) >= 10
+       AND COUNT(DISTINCT COALESCE(phone, agent_name, seller_username)) <= 2
+       AND EXTRACT(EPOCH FROM (MAX(created_at)-MIN(created_at)))/86400 <= 7
     ON CONFLICT(kind, pattern) DO NOTHING
     """)
     stats["new_spam_patterns"] = cur.rowcount
 
-    # E) Auto-blocklist брокеров с >50 active
+    # E) Auto-blocklist brokers — smart: total>150 AND diversity<30%
     cur.execute("""
     INSERT INTO parser_blocklist(kind, pattern, reason, added_by)
     SELECT 'broker',
            LOWER(COALESCE(phone, agent_name, seller_username)),
-           'autobot ' || COUNT(*)::text || ' active',
-           'daily-sweep'
+           'autobot ' || COUNT(*)::text || ' total, ' ||
+           COUNT(DISTINCT (building||price::text))::text || ' unique (' ||
+           ROUND(100.0*COUNT(DISTINCT (building||price::text))/COUNT(*))::text || '%)',
+           'daily-sweep-smart'
     FROM listings
     WHERE is_active=TRUE
       AND COALESCE(phone, agent_name, seller_username) IS NOT NULL
       AND LENGTH(COALESCE(phone, agent_name, seller_username)) > 3
+      -- skip whitelisted
+      AND LOWER(COALESCE(phone, agent_name, seller_username)) NOT IN
+          (SELECT pattern FROM parser_whitelist WHERE kind='broker')
     GROUP BY LOWER(COALESCE(phone, agent_name, seller_username))
-    HAVING COUNT(*) > 50
+    HAVING COUNT(*) > 150
+       AND 100.0 * COUNT(DISTINCT (building||price::text)) / COUNT(*) < 30
     ON CONFLICT(kind, pattern) DO NOTHING
     """)
     stats["auto_blocked_brokers"] = cur.rowcount
