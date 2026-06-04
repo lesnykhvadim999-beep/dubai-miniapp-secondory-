@@ -795,6 +795,43 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                         # Already have this content from another channel/post — skip
                         return dup["id"], False
 
+            # B088: same broker + same property = repost (4 Stars Hotel +
+            # zykov/alena/tamara_dda бот пихал тот же объект 40+ раз).
+            # Если все идентификаторы объекта совпадают и брокер тот же —
+            # обновляем existing вместо создания нового.
+            broker_id = (data.get("phone") or data.get("agent_name")
+                         or data.get("seller_username") or "").strip()
+            if (broker_id and data.get("building") and data.get("price")
+                    and data.get("area")):
+                cur.execute("""SELECT id FROM listings
+                    WHERE COALESCE(phone, agent_name, seller_username,'') = %s
+                      AND building = %s AND area = %s AND price = %s
+                      AND COALESCE(bedrooms, -1) = COALESCE(%s, -1)
+                      AND COALESCE(size_sqft, 0) = COALESCE(%s, 0)
+                      AND is_active = TRUE
+                    LIMIT 1""",
+                    (broker_id, data["building"], data["area"], data["price"],
+                     data.get("bedrooms"), data.get("size_sqft")))
+                dup = cur.fetchone()
+                if dup:
+                    # Refresh updated_at, keep existing record
+                    cur.execute("UPDATE listings SET updated_at=NOW() WHERE id=%s",
+                                (dup["id"],))
+                    conn.commit()
+                    return dup["id"], False
+
+            # B088: hard-reject известных spam-объектов (билдер-флуд).
+            # 4 Stars Hotel 290M AED — 2447 копий, явный bot-spam.
+            SPAM_PATTERNS = [
+                ("4 stars hotel al barsha", 290000000),
+            ]
+            _bld = (data.get("building") or "").lower().strip()
+            _pr = data.get("price")
+            for spam_bld, spam_pr in SPAM_PATTERNS:
+                if spam_bld in _bld and _pr and abs(_pr - spam_pr) < 1000:
+                    print(f"[parser] spam-reject: {data.get('building')} @ {_pr}")
+                    return -1, False
+
             # Check by listing_key (property dedup)
             key = data.get("listing_key")
             if key:
