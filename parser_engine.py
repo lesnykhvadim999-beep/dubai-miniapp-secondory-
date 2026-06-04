@@ -4225,7 +4225,16 @@ def compute_deal_quality(price: int, original_price: Optional[int],
             result["deal_reason"] = f"Slight discount of {discount_pct}% from original price"
 
     # District-level market context (always populated for ROI/growth)
-    mkt = MARKET.get(area, DEFAULT_MKT) if area else DEFAULT_MKT
+    # B080: case-insensitive lookup — раньше "DownTown Dubai" не находил "Downtown Dubai"
+    # и валился в DEFAULT_MKT, ломая discount/growth.
+    def _mkt_lookup(a):
+        if not a: return DEFAULT_MKT
+        a_norm = a.strip().lower()
+        for key, val in MARKET.items():
+            if key.lower() == a_norm:
+                return val
+        return DEFAULT_MKT
+    mkt = _mkt_lookup(area)
     mkt_sqft = mkt["sqft"]
     result["market_avg_sqft"] = mkt_sqft
     result["market_rent_1br"] = mkt["rent_1br"]
@@ -4291,8 +4300,10 @@ def compute_deal_quality(price: int, original_price: Optional[int],
     if price > 0:
         roi = round(annual_rent / price * 100, 1)
         result["roi_estimate"] = roi
-        result["airbnb_estimate_low"] = int(annual_rent * 1.4)
-        result["airbnb_estimate_high"] = int(annual_rent * 1.7)
+        # B080: было 1.4/1.7 (gross без OPEX) — давало нереальные 2-3× longterm.
+        # Net Airbnb после 25-40% управления/простоя/комиссии = 1.15-1.35× longterm.
+        result["airbnb_estimate_low"] = int(annual_rent * 1.15)
+        result["airbnb_estimate_high"] = int(annual_rent * 1.35)
         score = 5.0
         if roi >= 8: score += 2
         elif roi >= 6: score += 1
