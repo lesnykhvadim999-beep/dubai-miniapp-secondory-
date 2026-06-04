@@ -54,7 +54,12 @@ SELF_BOT_TOKEN = (
     or os.environ.get("BOT_TOKEN")
     or ""
 )
-ADMIN_BOT_TOKEN = os.environ.get("HUB_BOT_TOKEN") or SELF_BOT_TOKEN
+# B083: было fallback на SELF_BOT_TOKEN → алерт шёл юзеру через бот же,
+# юзер видел "⚠️ hub в maintenance" в своём чате. Теперь только настоящий
+# admin-bot токен; если его нет — алерт в stdout, не юзеру.
+ADMIN_BOT_TOKEN = (os.environ.get("ADMIN_BOT_TOKEN")
+                   or os.environ.get("VADIM_ADMIN_BOT_TOKEN")
+                   or os.environ.get("HUB_BOT_TOKEN"))
 
 _RECOVERY_NO_ERROR_WINDOW_MIN = 5
 _AUTO_RESTART_AFTER_MIN = 60
