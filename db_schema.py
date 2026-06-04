@@ -795,12 +795,32 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                         # Already have this content from another channel/post — skip
                         return dup["id"], False
 
-            # B088: same broker + same property = repost (4 Stars Hotel +
-            # zykov/alena/tamara_dda бот пихал тот же объект 40+ раз).
-            # Если все идентификаторы объекта совпадают и брокер тот же —
-            # обновляем existing вместо создания нового.
+            # ═══════════════════════════════════════════════════════════════
+            # B088/B089: 4-уровневая защита от spam-flood
+            # ═══════════════════════════════════════════════════════════════
             broker_id = (data.get("phone") or data.get("agent_name")
                          or data.get("seller_username") or "").strip()
+            _bld = (data.get("building") or "").lower().strip()
+            _pr = data.get("price")
+
+            # ── L1: Blocklist lookup (брокеры + spam-паттерны из DB) ──────
+            try:
+                if broker_id:
+                    cur.execute("SELECT 1 FROM parser_blocklist WHERE kind='broker' AND pattern=%s LIMIT 1",
+                                (broker_id.lower(),))
+                    if cur.fetchone():
+                        print(f"[parser] blocklist-reject broker: {broker_id}")
+                        return -1, False
+                if _bld and _pr:
+                    cur.execute("SELECT 1 FROM parser_blocklist WHERE kind='spam_pattern' AND pattern=%s LIMIT 1",
+                                (f"{_bld}|{int(_pr)}",))
+                    if cur.fetchone():
+                        print(f"[parser] blocklist-reject spam: {_bld}@{_pr}")
+                        return -1, False
+            except Exception:
+                pass  # blocklist может не существовать на старых средах
+
+            # ── L2: same broker + all fields совпадают — это repost ──────
             if (broker_id and data.get("building") and data.get("price")
                     and data.get("area")):
                 cur.execute("""SELECT id FROM listings
@@ -814,23 +834,47 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                      data.get("bedrooms"), data.get("size_sqft")))
                 dup = cur.fetchone()
                 if dup:
-                    # Refresh updated_at, keep existing record
                     cur.execute("UPDATE listings SET updated_at=NOW() WHERE id=%s",
                                 (dup["id"],))
                     conn.commit()
                     return dup["id"], False
 
-            # B088: hard-reject известных spam-объектов (билдер-флуд).
-            # 4 Stars Hotel 290M AED — 2447 копий, явный bot-spam.
-            SPAM_PATTERNS = [
-                ("4 stars hotel al barsha", 290000000),
-            ]
-            _bld = (data.get("building") or "").lower().strip()
-            _pr = data.get("price")
-            for spam_bld, spam_pr in SPAM_PATTERNS:
-                if spam_bld in _bld and _pr and abs(_pr - spam_pr) < 1000:
-                    print(f"[parser] spam-reject: {data.get('building')} @ {_pr}")
-                    return -1, False
+            # ── L3: Rate-limit: брокер с >50 active = autobot, auto-blocklist ──
+            try:
+                if broker_id and len(broker_id) > 3:
+                    cur.execute("""SELECT COUNT(*) AS c FROM listings
+                                   WHERE COALESCE(phone, agent_name, seller_username,'') = %s
+                                   AND is_active = TRUE""", (broker_id,))
+                    row = cur.fetchone()
+                    if row and row["c"] >= 50:
+                        cur.execute("""INSERT INTO parser_blocklist(kind, pattern, reason, added_by)
+                                       VALUES('broker', %s, %s, 'auto-rate-limit')
+                                       ON CONFLICT DO NOTHING""",
+                                    (broker_id.lower(), f"autobot {row['c']} active"))
+                        print(f"[parser] auto-blocklisted broker: {broker_id} ({row['c']} active)")
+                        return -1, False
+            except Exception:
+                pass
+
+            # ── L4: Auto-detect spam pattern (same bld+price 5+ times) ────
+            try:
+                if _bld and _pr:
+                    cur.execute("""SELECT COUNT(*) AS c FROM listings
+                                   WHERE LOWER(building) = %s AND price = %s
+                                   AND is_active = TRUE""",
+                                (_bld, int(_pr)))
+                    row = cur.fetchone()
+                    if row and row["c"] >= 10:
+                        # 10+ active объявлений одного билдинга на одну цену
+                        # = почти 100% спам/автобот. Добавляем pattern в blocklist.
+                        cur.execute("""INSERT INTO parser_blocklist(kind, pattern, reason, added_by)
+                                       VALUES('spam_pattern', %s, %s, 'auto-cluster')
+                                       ON CONFLICT DO NOTHING""",
+                                    (f"{_bld}|{int(_pr)}", f"{row['c']} same-price copies"))
+                        print(f"[parser] auto-spam-pattern: {_bld}@{_pr} ({row['c']} copies)")
+                        return -1, False
+            except Exception:
+                pass
 
             # Check by listing_key (property dedup)
             key = data.get("listing_key")
