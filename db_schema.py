@@ -761,7 +761,34 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
         без каких-либо UPDATE (даже price). Это сохраняет ручную
         очистку базы (audit flags, building/area corrections и т.д.).
       - Новые записи (INSERT) — is_frozen=FALSE по умолчанию.
+
+    SDK INTEGRATION (B095):
+      - Validate через dre_sdk.validate_listing — reject + auto_fixes
+      - Canonical area/building через dre_sdk
+      - Этот шим работает параллельно со старыми G1/G2/G3 (двойная защита)
     """
+    # SDK validation: reject before any DB work
+    try:
+        from dre_sdk import validate_listing as _sdk_validate, \
+                            canonical_area_name as _sdk_carea, \
+                            canonical_building_name as _sdk_cbld
+        _vres = _sdk_validate(data)
+        if not _vres.is_valid:
+            print(f"[sdk] reject {_vres.reject_reason}: "
+                  f"bld={data.get('building')} price={data.get('price')}")
+            return -1, False
+        # Apply auto_fixes (FOR RENT detected etc)
+        if _vres.auto_fixes:
+            data.update(_vres.auto_fixes)
+        # Canonicalize names
+        if data.get("area"):
+            data["area"] = _sdk_carea(data["area"]) or data["area"]
+        if data.get("building"):
+            data["building"] = _sdk_cbld(data["building"], data.get("area")) or data["building"]
+    except Exception as _se:
+        # SDK ошибки не должны ломать парсер — fallback на legacy logic
+        print(f"[sdk] validation skipped: {_se}")
+
     # Normalize DATE-typed fields early so INSERT cannot crash on
     # 'YYYY-MM' or other LLM-formatted strings.
     if "handover_date" in data:
