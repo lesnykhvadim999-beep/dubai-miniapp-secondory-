@@ -947,7 +947,11 @@ RENT_MAX_PRICE: dict = {
 
 
 _HARD_RENT_KW_PE = [
-    r'\brent\b', r'\brental\b', r'\brented\b', r'\bfor rent\b', r'\bto rent\b',
+    # B093: header-style "FOR RENT" / "FOR LEASE" — частое начало multi-listing
+    # сообщений. Раньше парсер дробил на куски и терял header → детектил каждый
+    # subset как sale (например villa AED 300,000 = rental price, not sale).
+    r'\bfor\s+rent\b', r'\bfor\s+lease\b', r'\bto\s+let\b',
+    r'\brent\b', r'\brental\b', r'\brented\b', r'\bto rent\b',
     r'\bper year\b', r'\bper month\b', r'\bper annum\b', r'\b/yr\b', r'\b/year\b',
     r'\b/month\b', r'\b/мес\b', r'\b/год\b',
     r'\bаренда\b', r'\bснять\b', r'\bсниму\b', r'\bсдам\b',

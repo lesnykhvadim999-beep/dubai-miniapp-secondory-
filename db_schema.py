@@ -796,6 +796,36 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                         return dup["id"], False
 
             # ═══════════════════════════════════════════════════════════════
+            # B093: Quality gates — отклоняем явно битые данные ДО анти-спама
+            # ═══════════════════════════════════════════════════════════════
+            _otext = (data.get("original_text") or "").strip()
+            _otext_lower = _otext.lower()
+
+            # G1: пустой/короткий original_text — нет верификации цены/полей
+            if len(_otext) < 20:
+                print(f"[parser] reject: no/short original_text (len={len(_otext)})")
+                return -1, False
+
+            # G2: "Key money" / "goodwill" — это коммерческий бизнес,
+            # не сделка с недвижимостью. Пример: ресторан "Key money 350k"
+            # = взнос за аренду точки, а не покупка объекта.
+            if any(kw in _otext_lower for kw in ("key money", "goodwill", "key-money")):
+                print(f"[parser] reject: key_money commercial business")
+                return -1, False
+
+            # G3: "FOR RENT" / "FOR LEASE" заголовок но deal_type='sale' —
+            # multi-listing message где парсер потерял header при разбивке.
+            # Это аренда с большой долей вероятности.
+            if data.get("deal_type") == "sale":
+                # Проверяем первые 100 символов на header-style rent
+                head = _otext_lower[:100]
+                import re as _re2
+                if _re2.search(r'\bfor\s+(rent|lease)\b|\bto\s+let\b', head):
+                    # Переписываем на rent вместо reject
+                    print(f"[parser] auto-fix: FOR RENT header → deal_type=rent")
+                    data["deal_type"] = "rent"
+
+            # ═══════════════════════════════════════════════════════════════
             # B088/B089: 4-уровневая защита от spam-flood
             # ═══════════════════════════════════════════════════════════════
             broker_id = (data.get("phone") or data.get("agent_name")
