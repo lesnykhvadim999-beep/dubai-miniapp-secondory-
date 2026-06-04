@@ -2323,12 +2323,11 @@ def kb_main_reply(uid):
         ])
 
     if submenu == "pro":
-        # PHASE BN N1: Pro submenu — все advanced инструменты под одним кликом.
-        # Reuses existing labels: compare_short, map_short, heatmap, voice,
-        # ai_consult, settings_grp — handlers те же, callback patterns целы.
+        # B076: ужали Pro submenu до 2 реально работающих фич.
+        # Убраны: Сравнить (бесполезно), Карта районов (heatmap дубль),
+        # Heatmap районов (та же карта), Голос поиск (плохо распознаёт RU).
+        # Оставлены: AI Консультант + Настройки.
         return _reply_kb([
-            [_t(uid, "rbtn_compare_short"),  _t(uid, "rbtn_map_short")],
-            [_t(uid, "rbtn_heatmap"),        _t(uid, "rbtn_voice")],
             [_t(uid, "rbtn_ai_consult"),     _t(uid, "rbtn_settings_grp")],
             [_t(uid, "rbtn_back_menu")],
         ])
@@ -6831,13 +6830,13 @@ def dispatch_main_button(cid, uid, rkey):
         gs(uid)["submenu"] = "main"
         _send(cid, _t(uid, "main_menu"), kb_main_reply(uid))
     elif rkey == "rbtn_pro_grp":
-        # PHASE BN N1: open Pro submenu (advanced features in one click).
+        # B076: ужатый Pro submenu (AI + Настройки).
         gs(uid)["submenu"] = "pro"
         _send(
             cid,
-            "⚡ <b>Pro features — продвинутая аналитика и AI</b>\n\n"
-            "Сравнение зданий, карта, тепловая карта, голосовой поиск,\n"
-            "AI-консультант и настройки.\n\n"
+            "⚡ <b>Pro</b>\n\n"
+            "🤖 AI Консультант — задай любой вопрос по рынку Дубая\n"
+            "⚙️ Настройки — язык, профиль, фильтры по умолчанию\n\n"
             "<i>Vadim Realty (RERA BRN 65011)</i>",
             kb_main_reply(uid),
         )
