@@ -1184,14 +1184,14 @@ T = {
     "det_handover": "Сдача",
     "det_description": "Описание",
     "det_for_rent": "Аренда",
-    "det_investment_analysis": "ИНВЕСТ-АНАЛИЗ",
-    "det_score": "Балл",
-    "det_roi": "ROI",
-    "det_roi_yearly": "% годовых",
-    "det_longterm": "Долгосрочная",
+    "det_investment_analysis": "СКОЛЬКО ЗАРАБОТАЕШЬ",
+    "det_score": "Оценка",
+    "det_roi": "Доход",
+    "det_roi_yearly": "% в год",
+    "det_longterm": "Сдача в аренду",
     "det_per_year": "/ год",
-    "det_airbnb": "Airbnb",
-    "det_area_growth": "Рост района",
+    "det_airbnb": "Посуточно",
+    "det_area_growth": "Цены растут",
     "det_annually": "% в год",
     "det_very_good_deal": "ОТЛИЧНАЯ СДЕЛКА",
     "det_good_deal": "ХОРОШАЯ СДЕЛКА",
@@ -3298,12 +3298,88 @@ def get_area_aggregate(area: str) -> dict | None:
     return out
 
 
-def get_market_summary(area: str, strategy: str = None) -> str:
-    """Market summary текст. v107: сначала пробуем dxb_stats read-model, потом fallback на market_data."""
+def get_market_summary(area: str, strategy: str = None, uid: int = None) -> str:
+    """B079: про район простым языком, локализовано (RU/EN/AR)."""
+    lang = (user_languages.get(uid, "ru") if uid else "ru")
+    # Labels per language — простые слова вместо ROI/Liquidity/Demand
+    L = {
+        "ru": {
+            "title":     "ПРО РАЙОН",
+            "yield":     "Доход от аренды",
+            "yield_max": "Максимум",
+            "growth":    "Цены растут",
+            "growth_fall": "Цены падают",
+            "growth_max": "У лучших",
+            "avg_price": "Средняя цена",
+            "premium":   "Премиум",
+            "avg_rent":  "Средняя аренда",
+            "deals":     "Сделок за год",
+            "demand":    "Спрос",
+            "demand_hi": "очень высокий",
+            "demand_md": "высокий",
+            "demand_lo": "средний",
+            "liq":       "Продаётся",
+            "liq_fast":  "быстро",
+            "liq_ok":    "нормально",
+            "liq_slow":  "медленно",
+            "per_year":  "/ год",
+            "src":       "_источник: DLD_",
+            "up_to":     "до",
+        },
+        "en": {
+            "title":     "ABOUT THE AREA",
+            "yield":     "Rental yield",
+            "yield_max": "Top",
+            "growth":    "Prices growing",
+            "growth_fall": "Prices falling",
+            "growth_max": "Top",
+            "avg_price": "Avg price",
+            "premium":   "Premium",
+            "avg_rent":  "Avg rent",
+            "deals":     "Deals per year",
+            "demand":    "Demand",
+            "demand_hi": "very high",
+            "demand_md": "high",
+            "demand_lo": "moderate",
+            "liq":       "Sells",
+            "liq_fast":  "fast",
+            "liq_ok":    "normal",
+            "liq_slow":  "slowly",
+            "per_year":  "/ year",
+            "src":       "_source: DLD_",
+            "up_to":     "up to",
+        },
+        "ar": {
+            "title":     "عن المنطقة",
+            "yield":     "العائد الإيجاري",
+            "yield_max": "الأعلى",
+            "growth":    "الأسعار ترتفع",
+            "growth_fall": "الأسعار تنخفض",
+            "growth_max": "الأعلى",
+            "avg_price": "متوسط السعر",
+            "premium":   "بريميوم",
+            "avg_rent":  "متوسط الإيجار",
+            "deals":     "صفقات/سنة",
+            "demand":    "الطلب",
+            "demand_hi": "مرتفع جداً",
+            "demand_md": "مرتفع",
+            "demand_lo": "متوسط",
+            "liq":       "تباع",
+            "liq_fast":  "بسرعة",
+            "liq_ok":    "عادي",
+            "liq_slow":  "ببطء",
+            "per_year":  "/ سنة",
+            "src":       "_المصدر: DLD_",
+            "up_to":     "حتى",
+        },
+    }.get(lang, None) or {}
+    if not L:
+        L = {**{}, "title":"ABOUT THE AREA"}  # noop guard
+
     # ── v107 fast path: read-model ─────────────────────────────────────────
     agg = get_area_aggregate(area) if area else None
     if agg and (agg.get("deals") or 0) >= 5:
-        lines = [f"\n{_sep()}\n  MARKET INSIGHT  ·  {area.upper()}\n{_sep()}"]
+        lines = [f"\n{_sep()}\n  {L['title']}  ·  {area.upper()}\n{_sep()}"]
         roi_top = agg.get("top_rental_yield_pct")
         roi_avg = agg.get("avg_rental_yield_pct")
         gr_avg  = agg.get("yoy_growth_pct")
@@ -3312,23 +3388,24 @@ def get_market_summary(area: str, strategy: str = None) -> str:
         top_p   = agg.get("top_quartile_price")
         rent_yr = agg.get("rent_avg_price")
         if roi_avg:
-            lines.append(f"  ROI              {round(float(roi_avg),1)}% yearly")
+            lines.append(f"  {L['yield']}: {round(float(roi_avg),1)}% {L['per_year'].strip('/ ')}")
         if roi_top and (not roi_avg or roi_top > roi_avg):
-            lines.append(f"  Premium ROI      up to {round(float(roi_top),1)}%")
+            lines.append(f"  {L['yield_max']}: {L['up_to']} {round(float(roi_top),1)}%")
         if gr_avg is not None:
-            trend = "↑" if gr_avg > 0 else "↓"
-            lines.append(f"  Annual growth    {trend} {abs(round(float(gr_avg),1))}%")
+            label = L['growth'] if gr_avg >= 0 else L['growth_fall']
+            arrow = "↑" if gr_avg > 0 else "↓"
+            lines.append(f"  {label}: {arrow} {abs(round(float(gr_avg),1))}%")
         if gr_top is not None and (gr_avg is None or gr_top > gr_avg):
-            lines.append(f"  Premium growth   up to {round(float(gr_top),1)}%")
+            lines.append(f"  {L['growth_max']}: {L['up_to']} {round(float(gr_top),1)}%")
         if avg_p:
-            lines.append(f"  Avg deal         {_fmt(float(avg_p))}")
+            lines.append(f"  {L['avg_price']}: {_fmt(float(avg_p))}")
         if top_p:
-            lines.append(f"  Premium segment  {_fmt(float(top_p))}")
+            lines.append(f"  {L['premium']}: {_fmt(float(top_p))}")
         if rent_yr:
-            lines.append(f"  Avg annual rent  {_fmt(float(rent_yr))}/year")
+            lines.append(f"  {L['avg_rent']}: {_fmt(float(rent_yr))} {L['per_year']}")
         if agg.get("deals"):
-            lines.append(f"  Yearly deals     {int(agg['deals'])}")
-        lines.append("  _source: DLD aggregates_")
+            lines.append(f"  {L['deals']}: {int(agg['deals'])}")
+        lines.append(f"  {L['src']}")
         lines.append(_sep())
         return "\n".join(lines)
 
@@ -3354,23 +3431,26 @@ def get_market_summary(area: str, strategy: str = None) -> str:
         rent_1br = m.get("avg_rent_1br")
         txns     = m.get("transactions_count")
 
-        lines = [f"\n{_sep()}\n  MARKET INSIGHT  ·  {area.upper()}\n{_sep()}"]
+        lines = [f"\n{_sep()}\n  {L['title']}  ·  {area.upper()}\n{_sep()}"]
 
         if roi:
-            lines.append(f"  ROI              {roi}% yearly")
+            lines.append(f"  {L['yield']}: {roi}% {L['per_year'].strip('/ ')}")
         if growth:
-            trend = "↑" if growth > 0 else "↓"
-            lines.append(f"  Annual growth    {trend} {abs(growth)}%")
+            label = L['growth'] if growth >= 0 else L['growth_fall']
+            arrow = "↑" if growth > 0 else "↓"
+            lines.append(f"  {label}: {arrow} {abs(growth)}%")
         if demand:
-            d_label = "Very High" if demand >= 9 else "High" if demand >= 7 else "Moderate"
-            lines.append(f"  Demand           {d_label}  ({demand}/10)")
+            d_label = L['demand_hi'] if demand >= 9 else L['demand_md'] if demand >= 7 else L['demand_lo']
+            lines.append(f"  {L['demand']}: {d_label} ({demand}/10)")
         if liq:
-            l_label = "Fast" if liq >= 8 else "Good" if liq >= 6 else "Moderate"
-            lines.append(f"  Liquidity        {l_label}  ({liq}/10)")
+            l_label = L['liq_fast'] if liq >= 8 else L['liq_ok'] if liq >= 6 else L['liq_slow']
+            lines.append(f"  {L['liq']}: {l_label} ({liq}/10)")
         if rent_1br:
-            lines.append(f"  Avg rent 1BR     {_fmt(rent_1br)}/year")
+            lines.append(f"  {L['avg_rent']} (1BR): {_fmt(rent_1br)} {L['per_year']}")
         if txns:
-            lines.append(f"  Monthly deals    {txns}")
+            # txns здесь = monthly. покажем как "сделок в месяц"
+            label_m = "Сделок в месяц" if lang == "ru" else "Deals per month" if lang == "en" else "صفقات/شهر"
+            lines.append(f"  {label_m}: {txns}")
 
         lines.append(_sep())
         return "\n".join(lines)
@@ -3756,7 +3836,40 @@ def format_detail(listing, uid):
     floor = listing.get("floor")
     stat  = listing.get("status")
     furn  = listing.get("furnishing")
-    ptype = listing.get("property_type", "").title()
+    ptype_raw = (listing.get("property_type") or "").lower().strip()
+
+    # B079: локализация значений из БД (хранятся EN: apartment/villa/vacant/furnished)
+    _lang = user_languages.get(uid, "ru")
+    _PTYPE_MAP = {
+        "ru": {"apartment":"Апартаменты","villa":"Вилла","townhouse":"Таунхаус",
+               "penthouse":"Пентхаус","duplex":"Дуплекс","studio":"Студия",
+               "commercial":"Коммерция","office":"Офис","retail":"Ретейл",
+               "warehouse":"Склад","plot":"Участок","hotel":"Отель",
+               "hotel_apartment":"Гостиничные апартаменты","loft":"Лофт"},
+        "ar": {"apartment":"شقة","villa":"فيلا","townhouse":"تاون هاوس",
+               "penthouse":"بنتهاوس","duplex":"دوبلكس","studio":"استوديو",
+               "commercial":"تجاري","office":"مكتب","retail":"محل",
+               "plot":"أرض","hotel":"فندق"},
+    }
+    _STATUS_MAP = {
+        "ru": {"vacant":"Свободно","tenanted":"Сдано в аренду","rented":"Сдано в аренду",
+               "occupied":"Занято","ready":"Готово","off_plan":"На стройке","new":"Новый"},
+        "ar": {"vacant":"شاغر","tenanted":"مؤجر","rented":"مؤجر",
+               "ready":"جاهز","off_plan":"قيد الإنشاء"},
+    }
+    _FURN_MAP = {
+        "ru": {"furnished":"С мебелью","unfurnished":"Без мебели",
+               "semi-furnished":"Частично с мебелью","semi_furnished":"Частично с мебелью",
+               "partial":"Частично с мебелью"},
+        "ar": {"furnished":"مفروشة","unfurnished":"غير مفروشة","semi-furnished":"نصف مفروشة"},
+    }
+    def _loc(value, mapping_for_lang):
+        if not value: return ""
+        v = str(value).lower().strip()
+        if _lang in mapping_for_lang and v in mapping_for_lang[_lang]:
+            return mapping_for_lang[_lang][v]
+        return str(value).title()
+    ptype = _loc(ptype_raw, _PTYPE_MAP) if ptype_raw else ""
 
     # ── Price — always visible ──────────────────────────────────────────────
     price          = listing.get("price")
@@ -3781,8 +3894,8 @@ def format_detail(listing, uid):
     if size:   lines.append(f"  {_t(uid,'det_size'):<11} {_fmt_size(size)}")
     if floor:  lines.append(f"  {_t(uid,'det_floor'):<11} {floor}")
     if view:   lines.append(f"  {_t(uid,'det_view'):<11} {view}")
-    if stat:   lines.append(f"  {_t(uid,'det_status'):<11} {stat.title()}")
-    if furn:   lines.append(f"  {_t(uid,'det_furn'):<11} {furn.title()}")
+    if stat:   lines.append(f"  {_t(uid,'det_status'):<11} {_loc(stat, _STATUS_MAP) or stat.title()}")
+    if furn:   lines.append(f"  {_t(uid,'det_furn'):<11} {_loc(furn, _FURN_MAP) or furn.title()}")
     if listing.get("is_off_plan"):
         hd = listing.get("handover_date")
         hd_s = f" · {_t(uid,'det_handover')} {hd}" if hd else ""
@@ -3838,9 +3951,9 @@ def format_detail(listing, uid):
         if disc and 3 <= disc < 80:
             lines.append(f"  {disc}% {_t(uid,'det_below_original')}")
 
-    # Market insight from DB
+    # Market insight from DB (B079: локализован)
     if area:
-        mkt = get_market_summary(area)
+        mkt = get_market_summary(area, uid=uid)
         if mkt: lines.append(mkt)
 
     lines.append(_sep())
