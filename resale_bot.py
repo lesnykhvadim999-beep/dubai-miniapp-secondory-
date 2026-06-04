@@ -4296,9 +4296,11 @@ def do_search(uid, extra=None):
     # UI toggle "🎯 Verified only" — фильтр уверенности ≥ 0.85.
     if s.get("confidence_filter") and "confidence_min" not in filters:
         filters["confidence_min"] = 0.85
-    # UI toggle "🏆 Only A+/A" — Investment Score 2.0 >= 80.
+    # UI toggle "🏆 Only A+/A" — Investment Score 2.0.
+    # B074-fix: parser хранит score в шкале 0-10 (avg 6.23, max 9.0 в hot deals),
+    # порог 80 возвращал 0 всегда (fake UX). Снижаем до 8.0 (топ ~5% базы).
     if s.get("top_filter") and "score_min" not in filters:
-        filters["score_min"] = 80
+        filters["score_min"] = 8.0
     results, total = search_listings(filters, limit=PER_PAGE * 5)
     s["results"] = results
     s["total"]   = total
@@ -8275,21 +8277,14 @@ def handle_cb(cb):
             _fav_now = False
         _has_bld = bool(listing.get("building"))
         _save_lbl = _t(uid, "btn_save_rem") if _fav_now else _t(uid, "btn_save")
+        # B075 cleanup: removed Сравнить/Все фото/Прогноз/ИИ-анализ/Перевод/Тур
         rows = [
             [_btn(_save_lbl,                f"fav|{lid}"),
-             _btn(_t(uid, "btn_compare"),   f"cmp|{lid}")],
-            [_btn(_t(uid, "btn_map"),       f"map|{lid}"),
-             _btn(_t(uid, "btn_photos"),    f"photos|{lid}")],
-            [_btn(_t(uid, "btn_similar_act"), f"similar|{lid}"),
-             _btn(_t(uid, "btn_forecast"),    f"mwmfc|{lid}")],
-            [_btn(_t(uid, "btn_ai_why"),    f"why|{lid}"),
-             _btn(_t(uid, "btn_translate_menu"), f"trmenu|{lid}")],
+             _btn(_t(uid, "btn_map"),       f"map|{lid}")],
+            [_btn(_t(uid, "btn_similar_act"), f"similar|{lid}")],
         ]
         if _has_bld:
-            rows.append([_btn(_t(uid, "btn_building_all"), f"allbld|{lid}"),
-                         _btn(_t(uid, "btn_tour"),         f"tour|{lid}")])
-        else:
-            rows.append([_btn(_t(uid, "btn_tour"),         f"tour|{lid}")])
+            rows.append([_btn(_t(uid, "btn_building_all"), f"allbld|{lid}")])
         # v57 edit-in-place: NEVER send new message — keep listing card visible.
         # Add ← Back row that returns to base 2-row layout via `actsback|<lid>`.
         rows.append([_btn(_t(uid, "btn_back"), f"actsback|{lid}")])
@@ -8791,21 +8786,14 @@ def handle_cb(cb):
             _fav_now = is_favorited(uid, lid)
             _save_lbl = _t(uid, "btn_save_rem") if _fav_now else _t(uid, "btn_save")
             _has_bld = bool(listing.get("building"))
+            # B075 cleanup: removed Сравнить/Все фото/Прогноз/ИИ-анализ/Перевод/Тур
             rows = [
                 [_btn(_save_lbl,                f"fav|{lid}"),
-                 _btn(_t(uid, "btn_compare"),   f"cmp|{lid}")],
-                [_btn(_t(uid, "btn_map"),       f"map|{lid}"),
-                 _btn(_t(uid, "btn_photos"),    f"photos|{lid}")],
-                [_btn(_t(uid, "btn_similar_act"), f"similar|{lid}"),
-                 _btn(_t(uid, "btn_forecast"),    f"mwmfc|{lid}")],
-                [_btn(_t(uid, "btn_ai_why"),    f"why|{lid}"),
-                 _btn(_t(uid, "btn_translate_menu"), f"trmenu|{lid}")],
+                 _btn(_t(uid, "btn_map"),       f"map|{lid}")],
+                [_btn(_t(uid, "btn_similar_act"), f"similar|{lid}")],
             ]
             if _has_bld:
-                rows.append([_btn(_t(uid, "btn_building_all"), f"allbld|{lid}"),
-                             _btn(_t(uid, "btn_tour"),         f"tour|{lid}")])
-            else:
-                rows.append([_btn(_t(uid, "btn_tour"),         f"tour|{lid}")])
+                rows.append([_btn(_t(uid, "btn_building_all"), f"allbld|{lid}")])
             rows.append([_btn(_t(uid, "btn_back"), f"actsback|{lid}")])
             _edit_kb(cid, mid, _kb(*rows))
         except Exception:
