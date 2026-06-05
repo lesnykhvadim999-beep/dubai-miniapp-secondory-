@@ -410,16 +410,8 @@ def send_welcome_with_logo(cid: int, uid: int):
 T = {
 "en": {
     "welcome": (
-        "𝗗𝘂𝗯𝗮𝗶 𝗥𝗲𝗮𝗹 𝗘𝘀𝘁𝗮𝘁𝗲 𝗜𝗻𝘁𝗲𝗹𝗹𝗶𝗴𝗲𝗻𝗰𝗲\n"
-        "Your private UAE property advisor.\n"
-        "10,000+ verified Dubai listings · Hot deals\n"
-        "DLD price benchmarks · Investment PDF · Direct broker\n\n"
-        "─────────────────────\n"
-        "𝗡𝗘𝗗𝗩𝗜𝗭𝗛𝗜𝗠𝗢𝗦𝗧 𝗢𝗔𝗘\n"
-        "Ваш личный советник по недвижимости ОАЭ.\n"
-        "10 000+ проверенных объектов · Горячие сделки\n"
-        "Бенчмарки цен DLD · Инвест-PDF · Прямой брокер\n\n"
-        "Select your language / Выберите язык ⬇️"
+        # B107: Длинный welcome теперь в BotFather description. Здесь только lang selector.
+        "👇 Select language / Выберите язык / اختر اللغة"
     ),
     "lang_set": "English selected",
     "main_menu": "────────────────────\n  UAE PROPERTY SEARCH\n────────────────────",
@@ -848,16 +840,8 @@ T = {
 },
 "ru": {
     "welcome": (
-        "𝗗𝘂𝗯𝗮𝗶 𝗥𝗲𝗮𝗹 𝗘𝘀𝘁𝗮𝘁𝗲 𝗜𝗻𝘁𝗲𝗹𝗹𝗶𝗴𝗲𝗻𝗰𝗲\n"
-        "Your private UAE property advisor.\n"
-        "10,000+ verified Dubai listings · Hot deals\n"
-        "DLD price benchmarks · Investment PDF · Direct broker\n\n"
-        "─────────────────────\n"
-        "𝗡𝗘𝗗𝗩𝗜𝗭𝗛𝗜𝗠𝗢𝗦𝗧 𝗢𝗔𝗘\n"
-        "Ваш личный советник по недвижимости ОАЭ.\n"
-        "10 000+ проверенных объектов · Горячие сделки\n"
-        "Бенчмарки цен DLD · Инвест-PDF · Прямой брокер\n\n"
-        "Select your language / Выберите язык ⬇️"
+        # B107
+        "👇 Select language / Выберите язык / اختر اللغة"
     ),
     "lang_set": "Язык: Русский",
     "main_menu": "────────────────────\n  ПОИСК НЕДВИЖИМОСТИ\n────────────────────",
@@ -1284,16 +1268,8 @@ T = {
 },
 "ar": {
     "welcome": (
-        "𝗘𝗤𝗔𝗥𝗔𝗧 𝗔𝗟-𝗜𝗠𝗔𝗥𝗔𝗧\n"
-        "────────────────────\n"
-        "مستشارك العقاري الخاص\n"
-        "لسوق الإمارات.\n\n"
-        "+4,500 عقار موثق\n"
-        "تحليل استثماري · عائد الإيجار\n"
-        "أفضل الصفقات\n\n"
-        "دبي · أبوظبي · رأس الخيمة · الشارقة\n"
-        "────────────────────\n"
-        "اختر لغتك"
+        # B107
+        "👇 Select language / Выберите язык / اختر اللغة"
     ),
     "lang_set": "اللغة: العربية",
     "main_menu": "────────────────────\n  بحث العقارات\n────────────────────",
