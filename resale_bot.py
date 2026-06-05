@@ -3788,6 +3788,25 @@ def format_card(listing, uid, rank=None):
         except Exception as _e:
             print(f"[bot] invest section: {_e}")
 
+    # B130: скрытая воронка — контекстные «следующие шаги» по объекту.
+    # Не реклама в лоб: «по этому объекту» подсказывает ROI района, брошюру
+    # здания, аналитику DLD и контакт агента. Markdown ссылки — кликабельны.
+    try:
+        _slug_b = (building or area or "listing").strip()[:40].replace(" ", "_")
+        _utm = f"from_resale_utm_card_{_slug_b}"
+        funnel_lines = [
+            "",
+            "━━━━━━━━━━━━━━━━━━━━",
+            f"_💡 По этому объекту:_",
+            f"📊 [DLD аналитика района](https://t.me/Analitik_price_bot?start={_utm})",
+            f"📈 [Рассчитать ROI](https://t.me/dubai_roi_fpr_bot?start={_utm})",
+            f"📄 [Брошюра проекта](https://t.me/Dubai_Brochures_Bot?start={_utm})",
+            f"💼 [Связаться с агентом](https://t.me/dubai_fpr_lead_bot?start={_utm})",
+        ]
+        lines.append("\n".join(funnel_lines))
+    except Exception as _e:
+        print(f"[bot] B130 funnel skip: {_e}")
+
     return "\n".join(lines)
 
 
