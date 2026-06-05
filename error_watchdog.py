@@ -515,6 +515,10 @@ def recovery_tick():
             last_sent = _maintenance_alerted.get(bot, 0)
             if now_ts - last_sent >= _ALERT_REPEAT_MIN * 60:
                 _maintenance_alerted[bot] = now_ts
+                # B115: kill-switch — set MAINTENANCE_ALERTS_DISABLED=1 to mute spam.
+                # Stale entries (бот recovered но flag не очищен) шлют ложные алерты.
+                if os.environ.get("MAINTENANCE_ALERTS_DISABLED", "").strip() in ("1", "true", "yes"):
+                    continue
                 try:
                     import requests
                     if ADMIN_BOT_TOKEN and ADMIN_CHAT_ID:
