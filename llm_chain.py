@@ -215,6 +215,26 @@ PROVIDERS = [
         "paid":   True,
         "rpm":    3,
     },
+    {
+        # B126: OpenAI gpt-4o-mini fallback. Paid — после всех free.
+        "name":   "openai",
+        "env_keys": ["OPENAI_API_KEY"],
+        "url":    "https://api.openai.com/v1/chat/completions",
+        "model":  "gpt-4o-mini",
+        "format": "openai",
+        "paid":   True,
+        "rpm":    60,
+    },
+    {
+        # B127: OpenRouter paid → Gemini 2.0 Flash. 2× дешевле gpt-4o-mini.
+        "name":   "openrouter_gemini",
+        "env_keys": ["OPENROUTER_PAID_API_KEY"],
+        "url":    "https://openrouter.ai/api/v1/chat/completions",
+        "model":  "google/gemini-2.0-flash-001",
+        "format": "openai",
+        "paid":   True,
+        "rpm":    100,
+    },
 ]
 
 
