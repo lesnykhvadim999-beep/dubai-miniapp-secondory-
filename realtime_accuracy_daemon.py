@@ -25,12 +25,11 @@ import time
 import traceback
 from datetime import datetime, timezone
 
-# UTF-8 stdout for Railway logs
-try:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                                  line_buffering=True)
-except Exception:
-    pass
+# Audit 2026-06-06: REMOVED sys.stdout re-wrap.
+# When this module is imported INSIDE a long-running process (cron_worker),
+# replacing sys.stdout invalidates cached references in other threads →
+# ValueError: I/O operation on closed file. Railway already sets
+# PYTHONIOENCODING=utf-8 in the container env so the original wrap is moot.
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

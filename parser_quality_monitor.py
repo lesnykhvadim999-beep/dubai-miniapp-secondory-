@@ -27,10 +27,9 @@ ENV:
 import os, sys, io, json, re, time, traceback, random
 from datetime import datetime, timezone
 
-try:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", line_buffering=True)
-except Exception:
-    pass
+# Audit 2026-06-06: REMOVED sys.stdout re-wrap (same bug as realtime_accuracy_daemon).
+# When imported by cron_worker inside long-running process, replacing stdout
+# closes the original handle that other threads cached.
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
