@@ -4,11 +4,30 @@ Tables: emirates, areas, buildings, listings, listing_images,
         price_history, sync_log, users, leads
 """
 import os
+import re as _re_module
+import hashlib as _hashlib
 import threading
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+
+# S2-1 (2026-06-05): content-hash для cross-channel и mass-post дедупа.
+# UNIQUE INDEX uq_listings_content_hash гарантирует idempotency.
+_CH_NORMALIZE_RE = _re_module.compile(r'[^\w\s\d]', _re_module.UNICODE)
+_CH_WS_RE = _re_module.compile(r'\s+')
+
+def compute_content_hash(text: str) -> str | None:
+    """Stable hash нормализованного original_text (lowercased, emoji/punct stripped,
+    whitespace collapsed, first 500 chars). Возвращает None если текст слишком короткий."""
+    if not text:
+        return None
+    s = _CH_NORMALIZE_RE.sub(' ', text.lower())
+    s = _CH_WS_RE.sub(' ', s).strip()[:500]
+    if len(s) < 30:
+        return None
+    return _hashlib.sha256(s.encode('utf-8')).hexdigest()
 
 # Stability hooks (optional, soft-fail)
 try:
@@ -28,6 +47,9 @@ except Exception:
 _pool = None
 _pool_lock = threading.Lock()
 _POOL_MIN = int(os.environ.get("PG_POOL_MIN", "2"))
+# Audit 2026-06-06: tried 5 — too low, 20 cron threads + main + telethon
+# starved the pool → PoolError + print-on-closed-stdout crashloop.
+# Back to 10: gives breathing room without dominating the 100-slot DB cap.
 _POOL_MAX = int(os.environ.get("PG_POOL_MAX", "10"))
 
 
@@ -793,9 +815,26 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
     # 'YYYY-MM' or other LLM-formatted strings.
     if "handover_date" in data:
         data["handover_date"] = _normalize_date_field(data.get("handover_date"))
+
+    # S2-1: compute content_hash for cross-channel / mass-post dedup.
+    # Stored on row + protected by UNIQUE INDEX uq_listings_content_hash.
+    if data.get("original_text") and not data.get("content_hash"):
+        data["content_hash"] = compute_content_hash(data["original_text"])
+
     conn = get_conn()
     try:
         with conn.cursor() as cur:
+            # S2-1: content_hash exact match (strongest signal — same text already in DB).
+            # Defends against broker-flood with different msg_ids/chats.
+            if data.get("content_hash"):
+                cur.execute(
+                    "SELECT id FROM listings WHERE content_hash=%s LIMIT 1",
+                    (data["content_hash"],)
+                )
+                row = cur.fetchone()
+                if row:
+                    return row["id"], False
+
             # Check by telegram_message_id first (exact dedup)
             if data.get("telegram_message_id"):
                 cur.execute(
@@ -1045,7 +1084,7 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                 "agent_name","phone","whatsapp",
                 "has_images","cover_image_url","confidence_score",
                 "extra_info","is_off_plan","handover_date","photo_phash",
-                "broker_dedup_key","description",
+                "broker_dedup_key","description","content_hash",
             ]
             vals = []
             for c in cols:
@@ -1057,11 +1096,27 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                 vals.append(v)
             placeholders = ",".join(["%s"] * len(cols))
             col_str = ",".join(cols)
-            cur.execute(
-                f"INSERT INTO listings ({col_str}) VALUES ({placeholders}) RETURNING id",
-                vals
-            )
-            new_id = cur.fetchone()["id"]
+            # S2-1: ON CONFLICT (content_hash) — последняя линия обороны от race-condition,
+            # когда два worker'а одновременно вставляют один и тот же контент.
+            try:
+                cur.execute(
+                    f"INSERT INTO listings ({col_str}) VALUES ({placeholders}) RETURNING id",
+                    vals
+                )
+                new_id = cur.fetchone()["id"]
+            except psycopg2.errors.UniqueViolation as _uv:
+                # Race lost: другая транзакция уже вставила этот контент. Берём существующий id.
+                conn.rollback()
+                if data.get("content_hash"):
+                    with conn.cursor() as _rcur:
+                        _rcur.execute(
+                            "SELECT id FROM listings WHERE content_hash=%s LIMIT 1",
+                            (data["content_hash"],)
+                        )
+                        _r = _rcur.fetchone()
+                        if _r:
+                            return _r["id"], False
+                raise
 
             # Initial price history
             if data.get("price"):
