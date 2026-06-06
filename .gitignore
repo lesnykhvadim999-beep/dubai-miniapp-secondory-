@@ -44,7 +44,7 @@ db_cleanup_cron.py
 db_state.py
 error_logger.py
 parser_quality_v2.py
-parsing_rules.json
+# parsing_rules.json — DO NOT ignore (force-add B099.1, парсер падает без него)
 pdf_report.py
 report_api.py
 run_tests.py
@@ -59,7 +59,7 @@ vf_missing.txt
 logo.jpg
 logo_file_id.txt
 logo_placeholder.txt
-price_benchmarks.json
+# price_benchmarks.json — DO NOT ignore (force-add B099.1, парсер падает без него)
 price_benchmarks.backup.*.json
 
 # Sessions / secrets

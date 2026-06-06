@@ -2,13 +2,14 @@
 
 Production Telegram bot that scrapes Dubai real-estate channels via
 Telethon, parses listings with `parser_v2`, deduplicates against
-`listings_v2`, and serves a search wizard to end users.
+`listings`, and serves a search wizard to end users.
 
 Deployed to Railway (`exemplary-compassion` / `resale-bot`).
+Telegram: [@dubai_resale_fpr_bot](https://t.me/dubai_resale_fpr_bot)
 
 ## Self-improving parser (active 2026-06-03)
 
-`parse_message_v2()` now calls `parser_self_improve.failed_collector.maybe_log_failure()`
+`parse_message_v2()` calls `parser_self_improve.failed_collector.maybe_log_failure()`
 on every parse. Listings with confidence < 0.7 or NULL critical fields
 land in `parser_failed_log`, where:
 
@@ -34,11 +35,6 @@ observation period:
 
 To enable, set the env var to `1` in Railway → Variables → redeploy.
 
-## Known dead code (TODO — do not remove without review)
-
-- `dld_analytics.py` in `channel-bot-new` — helper module flagged by
-  dead-code scanner; verify no Railway cron references before delete.
-
 ## Local dev
 
 ```powershell
@@ -54,3 +50,19 @@ python -m pytest tests/
 ```
 
 (Requires DLD_DB_URL stub — see `tests/conftest.py`.)
+
+## Audit 2026-06-05 (cleanup pass)
+
+Полный аудит выявил и устранил:
+- NameError `user_languages` → `user_lang` в format_detail/get_market_summary
+- Markdown-injection в admin/lead уведомлениях (добавлен `_md_esc()` helper)
+- Отсутствие 4096-char guard в `_send`/`_edit` (теперь `_trim_tg()`)
+- IndexError/ValueError protection в detail-callback
+- TRUNCATE `listings_staging` (1.1 GB → освобождено)
+- DELETE 2496 дубликатов в `listings` + UNIQUE INDEX `uq_listings_telegram_msg_chat`
+- Pin `dre-sdk` на commit hash (supply-chain)
+- `digest_loop` / `hourly_report_loop` — не дублируют отправку при рестарте
+- `hourly_report_loop` — exponential backoff (защита от спама админу при PG-down)
+- Чистка CLAUDE.md (Railway-токен убран в env)
+
+Полный список багов — см. CHANGELOG.md и memory bug_knowledge_base.
