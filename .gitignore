@@ -16,6 +16,10 @@ _*.bat
 !shared/**/_*.py
 !shared/_*.py
 !shared/**/__init__.py
+# Audit 2026-06-06: critical runtime daemons accidentally gitignored
+# (cron_worker imports them — without these, parsing/heatmap break)
+!_realtime_accuracy_daemon.py
+!_investment_heatmap.py
 check*.py
 check*.txt
 debug_*.py
