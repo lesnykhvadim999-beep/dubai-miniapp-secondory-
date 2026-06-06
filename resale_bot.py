@@ -250,7 +250,7 @@ if not LEAD_BOT_TOKEN:
           flush=True)
 ANTHROPIC_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
 API            = f"https://api.telegram.org/bot{BOT_TOKEN}"
-PER_PAGE       = 10
+PER_PAGE       = 5
 
 # ── Stability hooks (cache / logs / retry / validation / metrics) ────────────
 try:
@@ -1994,7 +1994,7 @@ def _send_pdf(cid, uid, listing):
                 timeout=60,
             )
         try: os.remove(pdf_path)
-        except Exception: pass
+        except Exception as e: print(f"[bot] _send_pdf cleanup: {e}")
     except Exception as e:
         print(f"[bot] _send_pdf: {e}")
 
@@ -2080,13 +2080,23 @@ def _api(method, **kw):
         print(f"[bot] {method}: {e}")
         return {}
 
+_TG_MAX_TEXT = 4096
+_TG_TRIM_NOTE = "\n…[trimmed]"
+
+def _trim_tg(text):
+    if not text:
+        return text
+    if len(text) <= _TG_MAX_TEXT:
+        return text
+    return text[: _TG_MAX_TEXT - len(_TG_TRIM_NOTE)] + _TG_TRIM_NOTE
+
 def _send(cid, text, kb=None):
-    p = {"chat_id": cid, "text": text, "parse_mode": "Markdown"}
+    p = {"chat_id": cid, "text": _trim_tg(text), "parse_mode": "Markdown"}
     if kb: p["reply_markup"] = kb
     return _api("sendMessage", **p)
 
 def _edit(cid, mid, text, kb=None):
-    p = {"chat_id": cid, "message_id": mid, "text": text, "parse_mode": "Markdown"}
+    p = {"chat_id": cid, "message_id": mid, "text": _trim_tg(text), "parse_mode": "Markdown"}
     if kb: p["reply_markup"] = kb
     return _api("editMessageText", **p)
 
@@ -2161,6 +2171,30 @@ def _photo(cid, photo, caption, kb=None):
     p = {"chat_id": cid, "photo": photo, "caption": caption[:1024], "parse_mode": "Markdown"}
     if kb: p["reply_markup"] = kb
     return _api("sendPhoto", **p)
+
+
+def _send_photo_bytes(cid, png_bytes: bytes, caption: str = "", kb=None):
+    """S3 (2026-06-06): send a raw PNG/JPG byte-buffer as a photo (multipart upload).
+    Used by the new grid-collage view. Returns the Telegram response dict."""
+    if not png_bytes:
+        return None
+    data = {"chat_id": str(cid), "parse_mode": "Markdown"}
+    if caption:
+        data["caption"] = caption[:1024]
+    if kb:
+        import json as _json
+        data["reply_markup"] = _json.dumps(kb, ensure_ascii=False)
+    try:
+        r = requests.post(
+            f"{API}/sendPhoto",
+            data=data,
+            files={"photo": ("grid.png", png_bytes, "image/png")},
+            timeout=30,
+        )
+        return r.json() if r.ok else None
+    except Exception as e:
+        print(f"[bot] _send_photo_bytes: {e}")
+        return None
 
 def _media_group(cid, file_ids: list, caption: str):
     """Send multiple photos as album."""
@@ -2376,14 +2410,20 @@ def kb_reply_area_input(uid):
     ])
 
 
-def kb_reply_results(uid, has_more=False):
-    """Bottom reply keyboard shown AFTER a results batch."""
+def kb_reply_results(uid, has_more=False, view_mode: str = "list"):
+    """Bottom reply keyboard shown AFTER a results batch.
+    Audit 2026-06-06: include a 🎴 Grid / 📋 List toggle so users aren't
+    trapped in whichever mode they currently see."""
     rows = []
     if has_more:
         rows.append([_t(uid, "rbtn_more")])
     rows.append([_t(uid, "rbtn_map_all"), _t(uid, "rbtn_create_alert")])
-    rows.append([_t(uid, "rbtn_change_deal"), _t(uid, "rbtn_back")])
-    rows.append([_t(uid, "rbtn_home")])
+    # View-mode toggle as a reply button (text label, mode-aware)
+    if view_mode == "list":
+        rows.append(["🎴 Сетка", _t(uid, "rbtn_change_deal")])
+    else:
+        rows.append(["📋 Список", _t(uid, "rbtn_change_deal")])
+    rows.append([_t(uid, "rbtn_back"), _t(uid, "rbtn_home")])
     return _reply_kb(rows)
 
 
@@ -3013,6 +3053,12 @@ def _fmt_br(br):
 def _sep():
     return "────────────────────"
 
+_MD_ESCAPE_RE = re.compile(r'([_*\[\]()~`>#+\-=|{}.!\\])')
+def _md_esc(s):
+    if s is None:
+        return ""
+    return _MD_ESCAPE_RE.sub(r'\\\1', str(s))
+
 # ── Market data helpers ───────────────────────────────────────────────────────
 
 # v107 read-model: pre-aggregated DLD stats (≤50ms vs raw scan)
@@ -3276,7 +3322,7 @@ def get_area_aggregate(area: str) -> dict | None:
 
 def get_market_summary(area: str, strategy: str = None, uid: int = None) -> str:
     """B079: про район простым языком, локализовано (RU/EN/AR)."""
-    lang = (user_languages.get(uid, "ru") if uid else "ru")
+    lang = (user_lang.get(uid, "ru") if uid else "ru")
     # Labels per language — простые слова вместо ROI/Liquidity/Demand
     L = {
         "ru": {
@@ -3838,7 +3884,7 @@ def format_detail(listing, uid):
     ptype_raw = (listing.get("property_type") or "").lower().strip()
 
     # B079: локализация значений из БД (хранятся EN: apartment/villa/vacant/furnished)
-    _lang = user_languages.get(uid, "ru")
+    _lang = user_lang.get(uid, "ru")
     _PTYPE_MAP = {
         "ru": {"apartment":"Апартаменты","villa":"Вилла","townhouse":"Таунхаус",
                "penthouse":"Пентхаус","duplex":"Дуплекс","studio":"Студия",
@@ -3907,14 +3953,14 @@ def format_detail(listing, uid):
             label = k.replace("_", " ").title()
             val   = "✓" if v is True else str(v)
             lines.append(f"  {label:11} {val}")
-    # User-submitted description
+    # User-submitted description — escape Markdown (audit 2026-06-06)
     desc = listing.get("description")
     if desc:
         lines.append("")
         lines.append(f"  {_t(uid,'det_description')}")
-        # Wrap at ~50 chars
+        # Wrap at ~50 chars; escape each chunk to prevent Markdown injection
         for chunk in [desc[i:i+50] for i in range(0, len(desc), 50)][:6]:
-            lines.append(f"  {chunk}")
+            lines.append(f"  {_md_esc(chunk)}")
 
     roi   = listing.get("roi_estimate")
     rent  = listing.get("market_rent_1br")
@@ -3959,6 +4005,187 @@ def format_detail(listing, uid):
     return "\n".join(lines)
 
 
+# ── S3-3 (2026-06-06): расширенная детальная карточка ──────────────────────────
+# По ТЗ: все поля из investment_engine + стоимость через 1/3/5 лет + AI-комментарий.
+
+_REC_LABELS_RU = {
+    "STRONG_BUY": "🟢 СИЛЬНАЯ ПОКУПКА",
+    "BUY":        "🟢 ПОКУПАТЬ",
+    "HOLD":       "🟡 ДЕРЖАТЬ / ОЦЕНИВАТЬ",
+    "AVOID":      "🔴 ИЗБЕГАТЬ",
+}
+_REC_LABELS_EN = {
+    "STRONG_BUY": "🟢 STRONG BUY",
+    "BUY":        "🟢 BUY",
+    "HOLD":       "🟡 HOLD",
+    "AVOID":      "🔴 AVOID",
+}
+_RISK_FACTOR_LABELS_RU = {
+    "no_area_specified":               "район не указан",
+    "no_building_specified":           "здание не указано",
+    "no_market_benchmark":              "нет бенчмарка по району",
+    "no_price":                         "цена отсутствует",
+    "no_size":                          "площадь отсутствует",
+    "defaults_used":                    "часть метрик — приближение",
+    "roi_capped":                       "ROI обрезан до диапазона 0–25%",
+    "price_well_below_market_verify":   "цена сильно ниже рынка — проверить",
+    "price_above_market":               "цена выше рынка",
+}
+
+
+def _format_full_invest_section(listing: dict, uid: int) -> str:
+    """Render the extended investment block (ТЗ S3): ROI, score, verdict,
+    yearly rent, capital growth, payback, value in 1/3/5y, risk, factors."""
+    try:
+        from investment_engine import compute_investment_score
+        from parser_engine import _lookup_benchmark, MARKET as _MARKET
+        bench = _lookup_benchmark(listing.get("building"))
+        area_key = (listing.get("area") or "").lower().strip()
+        market = (_MARKET or {}).get(area_key)
+        rep = compute_investment_score(listing, dld_benchmark=bench, market=market)
+    except Exception as _e:
+        print(f"[detail_full] invest engine: {_e}")
+        rep = None
+
+    try:
+        from investment_score_v2 import compute_score as _v2_score
+        try:
+            from dxb_stats_client import _conn as _intel_conn
+            _intel = _intel_conn()
+        except Exception:
+            _intel = None
+        score_v2 = _v2_score(listing, intel_conn=_intel)
+    except Exception:
+        score_v2 = None
+
+    L = user_lang.get(uid, "ru")
+    rec_labels = _REC_LABELS_RU if L == "ru" else _REC_LABELS_EN
+    out = []
+    out.append("")
+    out.append(_sep())
+    out.append("  💎 ИНВЕСТ-АНАЛИЗ" if L == "ru" else "  💎 INVESTMENT ANALYSIS")
+    out.append(_sep())
+
+    if score_v2:
+        out.append(f"  📊 Оценка: *{score_v2.get('score','-')} / 100* ({score_v2.get('rating','-')})"
+                   if L == "ru" else
+                   f"  📊 Score: *{score_v2.get('score','-')} / 100* ({score_v2.get('rating','-')})")
+    if rep:
+        rec = rep.get("recommendation")
+        if rec:
+            out.append(f"  🎯 Вердикт: {rec_labels.get(rec, rec)}" if L == "ru"
+                       else f"  🎯 Verdict: {rec_labels.get(rec, rec)}")
+        roi = rep.get("roi")
+        if roi is not None:
+            out.append(f"  📈 ROI: *{roi}% / год*" if L == "ru" else f"  📈 ROI: *{roi}% / yr*")
+        rent_y = rep.get("yearly_rent_aed")
+        if rent_y:
+            out.append(f"  🏠 Доход от аренды: {_fmt(rent_y)} / год" if L == "ru"
+                       else f"  🏠 Rental income: {_fmt(rent_y)} / yr")
+        growth = rep.get("growth_pct")
+        if growth:
+            out.append(f"  📊 Прирост капитала: *{growth}% / год*" if L == "ru"
+                       else f"  📊 Capital growth: *{growth}% / yr*")
+        pb = rep.get("payback_years")
+        if pb and pb < 99:
+            out.append(f"  ⏳ Окупаемость: *~{pb} лет*" if L == "ru"
+                       else f"  ⏳ Payback: *~{pb} yrs*")
+
+        # Стоимость через 1/3/5 лет (растёт по growth_pct)
+        price = listing.get("price")
+        g = rep.get("growth_pct") or 0
+        if price and g:
+            v1 = int(price * (1 + g / 100))
+            v3 = int(price * ((1 + g / 100) ** 3))
+            v5 = rep.get("value_in_5y_aed") or int(price * ((1 + g / 100) ** 5))
+            out.append("")
+            out.append("  💰 Стоимость:" if L == "ru" else "  💰 Projected value:")
+            out.append(f"     +1 год: {_fmt(v1)}" if L == "ru" else f"     +1 yr: {_fmt(v1)}")
+            out.append(f"     +3 года: {_fmt(v3)}" if L == "ru" else f"     +3 yr: {_fmt(v3)}")
+            out.append(f"     +5 лет: {_fmt(v5)}" if L == "ru" else f"     +5 yr: {_fmt(v5)}")
+
+        risk = rep.get("risk_score")
+        if risk:
+            risk_bar = "🔴" * (risk // 2) + "⚪" * (5 - risk // 2)
+            out.append("")
+            out.append(f"  ⚠️ Риск: *{risk} / 10*  {risk_bar}" if L == "ru"
+                       else f"  ⚠️ Risk: *{risk} / 10*  {risk_bar}")
+        factors = rep.get("risk_factors") or []
+        if factors:
+            label = "  Факторы:" if L == "ru" else "  Factors:"
+            out.append(label)
+            for f in factors[:6]:
+                pretty = _RISK_FACTOR_LABELS_RU.get(f, f.replace("_", " ")) if L == "ru" else f.replace("_", " ")
+                out.append(f"    • {pretty}")
+
+    out.append(_sep())
+    return "\n".join(out)
+
+
+def _ai_invest_comment(listing: dict, uid: int) -> str:
+    """LLM-комментарий аналитика (1-2 абзаца). Soft-fail — пустая строка если LLM лёг."""
+    try:
+        from llm_chain import llm_call as _llm_call
+    except Exception:
+        return ""
+    L = user_lang.get(uid, "ru")
+    lang_word = "RU" if L == "ru" else ("AR" if L == "ar" else "EN")
+    bld = listing.get("building") or "—"
+    area = listing.get("area") or "—"
+    price = listing.get("price") or 0
+    br = listing.get("bedrooms")
+    sz = listing.get("size_sqft")
+    deal = listing.get("deal_type", "sale")
+    ptype = listing.get("property_type", "apartment")
+    prompt = (
+        f"Ты — опытный инвест-аналитик по недвижимости Dubai. Отвечай на {lang_word}.\n"
+        f"Дай короткий честный комментарий (2-3 предложения, без пафоса) по объекту:\n"
+        f"Здание: {bld}\nРайон: {area}\nТип: {ptype}\nDeal: {deal}\n"
+        f"Спален: {br}\nПлощадь: {sz} sqft\nЦена: {price} AED\n"
+        f"Скажи: стоит ли смотреть, на что обратить внимание, для кого подходит. "
+        f"НЕ упоминай 'Vadim Realty' или RERA. НЕ дай гарантий доходности."
+    )
+    try:
+        resp = _llm_call(prompt, max_tokens=200, timeout=8)
+        if resp:
+            return resp.strip()
+    except Exception as _e:
+        print(f"[ai_invest_comment] {_e}")
+    return ""
+
+
+def format_detail_full(listing: dict, uid: int, with_ai: bool = False) -> str:
+    """S3-3: full detail card per ТЗ.
+    Combines existing format_detail (header/specs/desc) + extended invest section.
+    AI-комментарий опциональный (флаг with_ai) — экономит LLM-call."""
+    base = format_detail(listing, uid)
+    # Strip B130 funnel from base (мы поставим свои inline-кнопки вместо ссылок)
+    cut = base.find("\n━━━━━━━━━━━━━━━━━━━━\n_💡")
+    if cut > 0:
+        base = base[:cut]
+    # Drop the empty "INVESTMENT ANALYSIS" stub block from format_detail when
+    # listing has no investment_score/roi/rent (мы рендерим расширенный блок ниже).
+    _empty_stub = (f"\n\n{_sep()}\n  {_t(uid,'det_investment_analysis')}\n{_sep()}\n{_sep()}\n")
+    if _empty_stub in base:
+        base = base.replace(_empty_stub, "\n")
+    # Also strip the trailing separator that format_detail adds, чтобы не было дубля.
+    if base.rstrip().endswith(_sep()):
+        base = base.rstrip()[:-len(_sep())].rstrip()
+    extended = _format_full_invest_section(listing, uid)
+    parts = [base, extended]
+    if with_ai:
+        ai_text = _ai_invest_comment(listing, uid)
+        if ai_text:
+            L = user_lang.get(uid, "ru")
+            parts.append("")
+            parts.append(_sep())
+            parts.append("  🧠 КОММЕНТАРИЙ AI-АНАЛИТИКА" if L == "ru" else "  🧠 AI ANALYST COMMENT")
+            parts.append(_sep())
+            parts.append(_md_esc(ai_text))
+            parts.append(_sep())
+    return "\n".join(parts)
+
+
 def format_admin(listing):
     price    = listing.get("price")
     orig     = listing.get("original_price")
@@ -3968,18 +4195,18 @@ def format_admin(listing):
     agent    = listing.get("agent_name") or "—"
     source   = listing.get("telegram_chat_id") or "—"
     msg_id   = listing.get("telegram_message_id") or "—"
-    msg_link = f"https://t.me/{source.lstrip('@')}/{msg_id}" if source and msg_id else "—"
+    msg_link = f"https://t.me/{str(source).lstrip('@')}/{msg_id}" if source and msg_id else "—"
 
     return (
         f"🔐 *ADMIN — #{listing.get('id')}*\n\n"
-        f"💰 Price: *{_fmt(price)}*\n"
-        f"🏷 Original: {_fmt(orig)}\n"
-        f"👤 Seller: @{seller}\n"
-        f"📞 Seller Phone: {phone}\n"
-        f"📱 WhatsApp: {whatsapp}\n"
-        f"👔 Agent: {agent}\n"
-        f"📢 Source: {source}\n"
-        f"🔗 Message: {msg_link}"
+        f"💰 Price: *{_md_esc(_fmt(price))}*\n"
+        f"🏷 Original: {_md_esc(_fmt(orig))}\n"
+        f"👤 Seller: @{_md_esc(seller)}\n"
+        f"📞 Seller Phone: {_md_esc(phone)}\n"
+        f"📱 WhatsApp: {_md_esc(whatsapp)}\n"
+        f"👔 Agent: {_md_esc(agent)}\n"
+        f"📢 Source: {_md_esc(source)}\n"
+        f"🔗 Message: {_md_esc(msg_link)}"
     )
 
 # ── Lead sending ──────────────────────────────────────────────────────────────
@@ -4010,31 +4237,31 @@ def send_lead_to_bot(uid, uname, fname, lang, listing_id):
 
     text = (
         f"🏠 *NEW LEAD — Resale Property*\n\n"
-        f"👤 Client: {udisp}\n"
+        f"👤 Client: {_md_esc(udisp)}\n"
         f"🆔 ID: `{uid}`\n"
-        f"🌐 Language: {lang_labels.get(lang, lang)}\n"
-        f"🕐 {now}\n\n"
+        f"🌐 Language: {_md_esc(lang_labels.get(lang, lang))}\n"
+        f"🕐 {_md_esc(now)}\n\n"
         f"{_sep()}\n  PROPERTY\n{_sep()}\n"
-        f"📍 {area}\n"
-        f"🏢 {building}\n"
-        f"🛏 {br}  ·  {size}\n"
-        f"🌅 {view}\n"
+        f"📍 {_md_esc(area)}\n"
+        f"🏢 {_md_esc(building)}\n"
+        f"🛏 {_md_esc(br)}  ·  {_md_esc(size)}\n"
+        f"🌅 {_md_esc(view)}\n"
     )
-    if score: text += f"⭐️ Score: {score}/10\n"
-    if roi:   text += f"📈 ROI: {roi}%\n"
+    if score: text += f"⭐️ Score: {_md_esc(score)}/10\n"
+    if roi:   text += f"📈 ROI: {_md_esc(roi)}%\n"
 
     text += (
         f"\n{_sep()}\n  INTERNAL DATA\n{_sep()}\n"
-        f"💰 Price: *{_fmt(price)}*\n"
+        f"💰 Price: *{_md_esc(_fmt(price))}*\n"
     )
-    if orig: text += f"🏷 Original: {_fmt(orig)}\n"
+    if orig: text += f"🏷 Original: {_md_esc(_fmt(orig))}\n"
     text += (
-        f"👤 Seller: @{seller}\n"
-        f"📞 Phone: {phone}\n"
-        f"📱 WhatsApp: {whatsapp}\n"
-        f"👔 Agent: {agent}\n"
-        f"📢 Source: {source}\n"
-        f"🔗 Message: {msg_link}\n"
+        f"👤 Seller: @{_md_esc(seller)}\n"
+        f"📞 Phone: {_md_esc(phone)}\n"
+        f"📱 WhatsApp: {_md_esc(whatsapp)}\n"
+        f"👔 Agent: {_md_esc(agent)}\n"
+        f"📢 Source: {_md_esc(source)}\n"
+        f"🔗 Message: {_md_esc(msg_link)}\n"
         f"{_sep()}"
     )
 
@@ -4518,10 +4745,393 @@ def send_results_map(cid, uid):
         _send(cid, _t(uid, "map_no_coords"))
 
 
+# ── Grid view (S3, 2026-06-06) ────────────────────────────────────────────────
+# Compact 2x5 photo collage + 10 "N Детали" inline buttons.
+# Default view for search results. Toggle to list via 📋 Список callback `view|list`.
+
+import os as _os_grid
+GRID_DEFAULT = _os_grid.environ.get("GRID_DEFAULT", "1") not in ("0", "false", "no")
+
+_KEYCAP_EMOJI = ["1️⃣", "2️⃣", "3️⃣", "4️⃣",
+                 "5️⃣", "6️⃣", "7️⃣", "8️⃣",
+                 "9️⃣", "🔟"]
+
+
+_VERDICT_FROM_REC = {
+    "STRONG_BUY": "HOT",
+    "BUY":        "GOOD",
+    "HOLD":       "NEUTRAL",
+    "AVOID":      "RISKY",
+}
+
+
+def _listing_to_grid_prop(lst: dict) -> dict:
+    """Map a listings-row → property_grid_renderer schema.
+    Verdict priority:
+      1. is_hot_deal=True → HOT
+      2. deal_quality (very_good→HOT, good→GOOD, interesting→NEUTRAL, risky→RISKY)
+      3. compute on the fly from investment_engine.recommendation
+    ROI / Score: prefer DB columns; fall back to compute_investment_score and
+                 compute_score (investment_score_v2) when DB values are empty.
+    """
+    # Verdict — start with DB hint
+    verdict = None
+    dq = (lst.get("deal_quality") or "").lower()
+    if lst.get("is_hot_deal") or dq == "very_good":
+        verdict = "HOT"
+    elif dq == "good":
+        verdict = "GOOD"
+    elif dq == "interesting":
+        verdict = "NEUTRAL"
+    elif dq == "risky":
+        verdict = "RISKY"
+
+    # ROI / score — DB first
+    roi = lst.get("roi_estimate")
+    score = lst.get("investment_score")
+
+    # Compute on the fly when DB is empty (recover from old/stale rows)
+    if roi is None or score is None or verdict is None:
+        try:
+            from investment_engine import compute_investment_score
+            from parser_engine import _lookup_benchmark, MARKET as _MARKET
+            bench = _lookup_benchmark(lst.get("building"))
+            area_key = (lst.get("area") or "").lower().strip()
+            market = (_MARKET or {}).get(area_key)
+            rep = compute_investment_score(lst, dld_benchmark=bench, market=market)
+        except Exception as _e:
+            rep = None
+        if rep:
+            if roi is None:
+                roi = rep.get("roi")
+            if verdict is None:
+                verdict = _VERDICT_FROM_REC.get(rep.get("recommendation"), "NEUTRAL")
+        if score is None:
+            try:
+                from investment_score_v2 import compute_score as _v2
+                try:
+                    from dxb_stats_client import _conn as _intel_conn
+                    _ic = _intel_conn()
+                except Exception:
+                    _ic = None
+                sv2 = _v2(lst, intel_conn=_ic)
+                if sv2:
+                    score = sv2.get("score")
+            except Exception as _e2:
+                pass
+
+    if verdict is None:
+        verdict = "NEUTRAL"
+
+    # Property-type label (Studio / 1 BR / Villa)
+    ptype_raw = (lst.get("property_type") or "").lower().strip()
+    br = lst.get("bedrooms")
+    if ptype_raw == "studio" or br == 0:
+        ptype_label = "Studio"
+    elif ptype_raw in ("apartment", "flat") and br is not None:
+        ptype_label = f"{br} BR"
+    elif ptype_raw:
+        ptype_label = ptype_raw.title().replace("_", " ")
+    elif br is not None:
+        ptype_label = f"{br} BR"
+    else:
+        ptype_label = ""
+
+    # price_per_sqft fallback
+    psf = lst.get("price_per_sqft")
+    price = lst.get("price")
+    size = lst.get("size_sqft")
+    if not psf and price and size and size > 0:
+        try:
+            psf = round(float(price) / float(size))
+        except (TypeError, ValueError):
+            psf = None
+    return {
+        "id": lst.get("id"),
+        "building": lst.get("building") or lst.get("area") or "Property",
+        "area": lst.get("area") or "",
+        "property_type": ptype_label,
+        "size_sqft": size,
+        "price": price,
+        "price_per_sqft": psf,
+        "roi": roi,
+        "score": score,
+        "verdict": verdict,
+    }
+
+
+def send_results_auto(cid, uid, mid=None):
+    """Switchboard: grid (default) vs list. Respect per-user override
+    in gs(uid)['view_mode']."""
+    s = gs(uid)
+    mode = s.get("view_mode") or ("grid" if GRID_DEFAULT else "list")
+    if mode == "list":
+        return send_results(cid, uid, mid=mid)
+    return send_results_grid(cid, uid, mid=mid)
+
+
+def _grid_summary_line(idx: int, lst: dict) -> str:
+    """One-line summary (legacy short form, used in error paths)."""
+    n = _KEYCAP_EMOJI[idx - 1] if 1 <= idx <= 10 else f"#{idx}"
+    title = (lst.get("building") or lst.get("area")
+             or lst.get("property_type") or "Property")
+    title = _md_esc(str(title)[:30])
+    price = _fmt_price_short(lst.get("price"))
+    br = lst.get("bedrooms")
+    br_part = f" · {'Studio' if br == 0 else f'{br} BR'}" if br is not None else ""
+    return f"{n} *{title}*{br_part} · _{_md_esc(price)}_"
+
+
+_VERDICT_EMOJI = {
+    "HOT":     "🟥 HOT",
+    "GOOD":    "🟩 GOOD",
+    "NEUTRAL": "🟨 NEUTRAL",
+    "RISKY":   "🟥 RISKY",
+}
+
+
+def _fmt_grid_card_text(idx: int, prop: dict, L: str = "ru") -> str:
+    """A3 (2026-06-06): rich Markdown card — replaces unreadable PNG.
+    Native Telegram text scales to the user's font setting + is always legible.
+    Layout (vertical, ~6 lines per card):
+        1️⃣  🟥 HOT
+        🏢 *Building name*
+        📍 Area · Type · Size
+        💰 *Price* · _PSF_
+        📈 ROI · ⭐ Score
+    """
+    n = _KEYCAP_EMOJI[idx - 1] if 1 <= idx <= 10 else f"#{idx}"
+    verdict = (prop.get("verdict") or "NEUTRAL").upper()
+    verdict_str = _VERDICT_EMOJI.get(verdict, "🟨 NEUTRAL")
+
+    building = _md_esc(str(prop.get("building") or "—")[:40])
+    area = prop.get("area") or ""
+    ptype = prop.get("property_type") or ""
+    sqft = prop.get("size_sqft")
+
+    sub_parts = []
+    if area:
+        sub_parts.append(_md_esc(str(area)[:30]))
+    if ptype:
+        sub_parts.append(_md_esc(str(ptype)))
+    if sqft:
+        try:
+            sub_parts.append(f"{int(sqft):,} sqft".replace(",", " "))
+        except (TypeError, ValueError):
+            pass
+    sub_line = " · ".join(sub_parts) if sub_parts else "—"
+
+    price = prop.get("price")
+    price_str = "—"
+    if price:
+        try:
+            price_str = f"{int(price):,} AED".replace(",", " ")
+        except (TypeError, ValueError):
+            price_str = str(price)
+    psf = prop.get("price_per_sqft")
+    if psf:
+        try:
+            price_str += f"  ·  _{int(psf):,}_/sqft".replace(",", " ")
+        except (TypeError, ValueError):
+            pass
+
+    roi = prop.get("roi")
+    roi_str = "—"
+    if roi is not None:
+        try:
+            roi_str = f"{float(roi):.1f}%"
+        except (TypeError, ValueError):
+            roi_str = str(roi)
+    score = prop.get("score")
+    score_str = "—"
+    if score is not None:
+        try:
+            sv = float(score)
+            score_str = f"{sv:.1f}/10" if sv <= 10 else f"{int(round(sv))}/100"
+        except (TypeError, ValueError):
+            score_str = str(score)
+
+    if L == "ru":
+        lines = [
+            f"{n}   {verdict_str}",
+            f"🏢 *{building}*",
+            f"📍 {sub_line}",
+            f"💰 *{price_str}*",
+            f"📈 ROI *{roi_str}*  ·  ⭐ Score *{score_str}*",
+        ]
+    elif L == "ar":
+        lines = [
+            f"{n}   {verdict_str}",
+            f"🏢 *{building}*",
+            f"📍 {sub_line}",
+            f"💰 *{price_str}*",
+            f"📈 العائد *{roi_str}*  ·  ⭐ التقييم *{score_str}*",
+        ]
+    else:
+        lines = [
+            f"{n}   {verdict_str}",
+            f"🏢 *{building}*",
+            f"📍 {sub_line}",
+            f"💰 *{price_str}*",
+            f"📈 ROI *{roi_str}*  ·  ⭐ Score *{score_str}*",
+        ]
+    return "\n".join(lines)
+
+
+def _fmt_grid_text(items: list, total: int, page: int, last_page: int,
+                   props: list, type_label: str, L: str) -> str:
+    """A3: full text grid message — header + 5 cards + footer hint."""
+    if L == "ru":
+        header = (f"🎴 *DUBAI RESALE PRO*  ·  {total} объектов · {type_label}\n"
+                  f"_Страница {page} / {max(1, last_page)}_")
+        hint = "_Нажми на номер ниже для подробной аналитики._"
+    elif L == "ar":
+        header = (f"🎴 *DUBAI RESALE PRO*  ·  {total} عقار · {type_label}\n"
+                  f"_صفحة {page} / {max(1, last_page)}_")
+        hint = "_اضغط على رقم أدناه للحصول على تحليلات كاملة._"
+    else:
+        header = (f"🎴 *DUBAI RESALE PRO*  ·  {total} properties · {type_label}\n"
+                  f"_Page {page} / {max(1, last_page)}_")
+        hint = "_Tap a number below for full analytics._"
+    divider = "━━━━━━━━━━━━━━━━━━━━━"
+    parts = [header, "", divider]
+    for i, prop in enumerate(props, start=1):
+        parts.append(_fmt_grid_card_text(i, prop, L))
+        parts.append(divider)
+    parts.append(hint)
+    return "\n".join(parts)
+
+
+def _kb_grid_buttons(items: list, page: int, has_more: bool) -> dict:
+    """A2 (2026-06-06): grid keyboard for 5-card layout.
+    Layout:
+      row 1: 1 2 3 4 5  — открывает property_detail:{lid}
+      row 2: ◀ Назад / ▶ Далее
+      row 3: 📋 Список / 🏠 Главное
+    Pagination fires `property_grid_page:{N}` (alias `grid_page:{N}`)."""
+    rows = []
+    keycaps = []
+    for i, lst in enumerate(items, start=1):
+        lid = lst.get("id")
+        if not lid:
+            continue
+        cap = _KEYCAP_EMOJI[i - 1] if i - 1 < len(_KEYCAP_EMOJI) else str(i)
+        keycaps.append(_btn(cap, f"property_detail:{lid}"))
+    if keycaps:
+        rows.append(keycaps)
+    nav = []
+    if page > 0:
+        nav.append(_btn("◀️ Назад", f"property_grid_page:{page-1}"))
+    if has_more:
+        nav.append(_btn("▶️ Далее", f"property_grid_page:{page+1}"))
+    if nav:
+        rows.append(nav)
+    rows.append([
+        _btn("📋 Список", "view|list"),
+        _btn("🏠 Главное", "menu|main"),
+    ])
+    return {"inline_keyboard": rows}
+
+
+def send_results_grid(cid, uid, mid=None):
+    """A3 (2026-06-06): native-text grid — replaces the PNG renderer.
+    Previous PNG approach (S3-S4) was visually heavy but Telegram aggressively
+    downscales images on mobile → text inside cards was unreadable. Switching
+    to Markdown text gives:
+      - native font size that respects user's Telegram settings
+      - guaranteed legibility on any device
+      - faster delivery (no PIL, no upload)
+      - same callbacks (`property_detail:{id}` keypad row, paging row)
+
+    To re-enable the PNG variant set env `GRID_USE_PNG=1`.
+    """
+    s = gs(uid)
+    results = s.get("results", [])
+    page = s.get("page", 0)
+    total = s.get("total", 0)
+
+    if not results:
+        return send_results_list(cid, uid, mid=mid)
+
+    start = page * PER_PAGE
+    end = min(start + PER_PAGE, len(results))
+    items = results[start:end]
+    has_more = end < len(results)
+    last_page = max(1, (len(results) + PER_PAGE - 1) // PER_PAGE)
+
+    # Build renderer dicts (verdict/roi/score logic already inside)
+    props = [_listing_to_grid_prop(lst) for lst in items]
+
+    deal_type = s.get("filters", {}).get("deal_type", "sale")
+    type_label = "FOR RENT" if deal_type == "rent" else "FOR SALE"
+    L = user_lang.get(uid, "ru")
+    kb = _kb_grid_buttons(items, page, has_more)
+
+    # Optional: legacy PNG path
+    use_png = os.environ.get("GRID_USE_PNG", "0") in ("1", "true", "yes")
+    if use_png:
+        try:
+            from property_grid_renderer import generate_property_grid as _gen_grid
+            png = _gen_grid(props, page=page + 1)
+        except Exception as e:
+            print(f"[grid] renderer failed: {e}")
+            png = None
+        if png:
+            caption_short = (f"🎴 *{total}* · {type_label} · _{page+1}/{last_page}_"
+                             if L != "ar"
+                             else f"🎴 *{total}* · {type_label} · _{page+1}/{last_page}_")
+            resp = _send_photo_bytes(cid, png, caption_short, kb)
+            if resp and resp.get("ok"):
+                s["wizard"] = "results_grid"
+                s["results_has_more"] = has_more
+                s["view_mode"] = "grid"
+                return
+
+    # Default: native text grid
+    text = _fmt_grid_text(items, total, page + 1, last_page,
+                          props, type_label, L)
+    _send(cid, text, kb)
+
+    s["wizard"] = "results_grid"
+    s["results_has_more"] = has_more
+    s["view_mode"] = "grid"
+
+
+def _grid_text_fallback(items: list, total: int, type_label: str, L: str) -> str:
+    """Text-mode summary if PNG can't be sent. Same 10 listings, same buttons."""
+    if L == "ru":
+        head = f"🎴 *{total} объектов* · {type_label}\n"
+    elif L == "ar":
+        head = f"🎴 *{total} عقار* · {type_label}\n"
+    else:
+        head = f"🎴 *{total} properties* · {type_label}\n"
+    body = [_grid_summary_line(i, items[i - 1]) for i in range(1, len(items) + 1)]
+    return _trim_tg(head + "\n".join(body))
+
+
 def send_results(cid, uid, mid=None):
+    """S3 switchboard (2026-06-06). Grid by default, list on opt-out.
+    Per-user preference saved in gs(uid)['view_mode']."""
+    s = gs(uid)
+    mode = s.get("view_mode") or ("grid" if GRID_DEFAULT else "list")
+    if mode == "grid":
+        return send_results_grid(cid, uid, mid=mid)
+    return send_results_list(cid, uid, mid=mid)
+
+
+def send_results_list(cid, uid, mid=None):
+    """Original list-mode renderer (10 separate listing cards with photos).
+    Use via `view|list` toggle.
+    Audit 2026-06-06: list-mode uses its own `list_page` cursor so toggling
+    between list and grid does not corrupt grid pagination."""
     s       = gs(uid)
     results = s.get("results", [])
-    page    = s.get("page", 0)
+    # list-mode keeps its own page cursor so it doesn't clobber grid's `page`.
+    # On first call, seed it from the current grid page so the toggle lands
+    # the user on the same chunk.
+    if "list_page" not in s:
+        s["list_page"] = s.get("page", 0)
+    page    = s["list_page"]
     total   = s.get("total", 0)
 
     if not results:
@@ -4629,14 +5239,15 @@ def send_results(cid, uid, mid=None):
 
     remaining = len(results) - end
     if remaining > 0:
-        s["page"] += 1
+        # Advance list-mode cursor only (don't touch grid's `page`)
+        s["list_page"] = page + 1
     # Mark wizard state so dispatch_wizard_button can route navigation presses
     s["wizard"] = "results"
     s["results_has_more"] = remaining > 0
     footer = _sep()
     if remaining > 0:
         footer += f"\n\n{_t(uid, 'btn_more', n=remaining)}"
-    _send(cid, footer, kb_reply_results(uid, has_more=remaining > 0))
+    _send(cid, footer, kb_reply_results(uid, has_more=remaining > 0, view_mode="list"))
 
     # Phase BL: log search result + (optionally) attach feedback inline buttons
     try:
@@ -5198,6 +5809,110 @@ def handle_ai(cid, uid, mid, parts):
         header = _t(uid, "ai_result") + summary_text
         _edit(cid, mid, header)
         send_results(cid, uid)
+
+
+# ── S3-4 (2026-06-06): action submenu (extracted from `acts|N` callback) ──────
+def show_actions_menu(cid, uid, mid, lid):
+    """⚡ Actions submenu — opens fav/map/similar/all-in-building/back.
+    Edit-in-place: only swaps the inline keyboard, listing card stays visible."""
+    listing = get_listing_by_id(lid) or {}
+    from db_schema import is_favorited as _is_fav_a
+    try:
+        _fav_now = _is_fav_a(uid, lid)
+    except Exception:
+        _fav_now = False
+    _has_bld = bool(listing.get("building"))
+    _save_lbl = _t(uid, "btn_save_rem") if _fav_now else _t(uid, "btn_save")
+    rows = [
+        [_btn(_save_lbl,                f"fav|{lid}"),
+         _btn(_t(uid, "btn_map"),       f"map|{lid}")],
+        [_btn(_t(uid, "btn_similar_act"), f"similar|{lid}")],
+    ]
+    if _has_bld:
+        rows.append([_btn(_t(uid, "btn_building_all"), f"allbld|{lid}")])
+    rows.append([_btn(_t(uid, "btn_back"), f"actsback|{lid}")])
+    if mid:
+        _edit_kb(cid, mid, _kb(*rows))
+    else:
+        # If we have no mid (called from property_actions:N without prior render) —
+        # send a fresh small message with the menu.
+        _send(cid, _t(uid, "btn_actions_more"), _kb(*rows))
+
+
+# ── S3-4: full detail card with 7 ТЗ-buttons ──────────────────────────────────
+def show_property_detail(cid, uid, mid, lid, with_ai: bool = False):
+    """S3 (2026-06-06): full detail view per ТЗ.
+    Renders format_detail_full + 7 inline buttons. Back goes to current grid page.
+    `with_ai=True` triggers LLM analyst comment (slow, but on-demand)."""
+    listing = get_listing_by_id(lid)
+    if not listing:
+        try:
+            if mid:
+                _edit(cid, mid, "Property not found.")
+            else:
+                _send(cid, "Property not found.")
+        except Exception:
+            pass
+        return
+    if listing.get("status") == "audit_flagged" and uid != ADMIN_ID:
+        _send(cid, "Listing currently under review. Try another one or use search.")
+        return
+
+    save_lead(uid, "", lid, "view")
+
+    if with_ai:
+        # Toast — render будет 3-5 сек
+        try:
+            _send(cid, "🧠 _Готовлю инвест-анализ…_")
+        except Exception:
+            pass
+
+    text = format_detail_full(listing, uid, with_ai=with_ai)
+    page = gs(uid).get("page", 0)
+
+    # 7 кнопок per ТЗ + back-to-grid
+    L = user_lang.get(uid, "ru")
+    is_ru = (L == "ru")
+    kb = _kb(
+        [_btn("📊 DLD аналитика района" if is_ru else "📊 DLD analytics",
+              f"property_area_analytics:{lid}"),
+         _btn("📈 Рассчитать ROI" if is_ru else "📈 Calculate ROI",
+              f"property_roi:{lid}")],
+        [_btn("📄 Брошюра проекта" if is_ru else "📄 Brochure",
+              f"property_brochure:{lid}"),
+         _btn("💼 Связаться с агентом" if is_ru else "💼 Contact agent",
+              f"property_contact_agent:{lid}")],
+        [_btn("🧠 Инвестиционный анализ" if is_ru else "🧠 AI analysis",
+              f"property_invest_analysis:{lid}"),
+         _btn("⚡ Действия" if is_ru else "⚡ Actions",
+              f"property_actions:{lid}")],
+        [_btn("← Назад к сетке" if is_ru else "← Back to grid",
+              f"property_back_to_grid:{page}")],
+    )
+
+    # Try with cover photo if available
+    images = get_listing_images(lid)
+    cover_id = None
+    if images:
+        for img in images[:1]:
+            if img and not img.startswith("tg://"):
+                cover_id = img
+                break
+    if not cover_id:
+        cover = listing.get("cover_image_url")
+        if cover and not cover.startswith("tg://"):
+            cover_id = cover
+
+    if cover_id:
+        try:
+            # photo caption is limited to 1024 chars; if our text doesn't fit, send text-only
+            if len(text) <= 1024:
+                _photo(cid, cover_id, text, kb)
+                return
+        except Exception:
+            pass
+    # Fallback: text-only (trimmed at 4096)
+    _send(cid, text, kb)
 
 
 # ── Agent contacts (PHASE W + W2 data) ───────────────────────────────────────
@@ -6179,7 +6894,10 @@ def show_favorites(cid, uid):
     s["results"] = [dict(r) for r in rows]
     s["total"]   = len(rows)
     s["page"]    = 0
-    send_results(cid, uid)
+    s["list_page"] = 0
+    # Favorites are a small curated list — list-mode reads better than grid
+    # (audit 2026-06-06).
+    send_results_list(cid, uid)
 
 
 def show_alerts(cid, uid):
@@ -6760,7 +7478,7 @@ def show_heatmap(cid: int, uid: int):
     except Exception:
         pass
     try:
-        from _investment_heatmap import get_heatmap
+        from investment_heatmap import get_heatmap
     except Exception as e:
         print(f"[heatmap] import err: {e}", flush=True)
         _send(cid, "⚠️ Heatmap module unavailable.", kb_main_reply(uid))
@@ -7092,6 +7810,16 @@ def dispatch_wizard_button(cid, uid, text):
         back_labels   = [T[l]["rbtn_back"]         for l in ("en","ru","ar")]
         alert_labels  = [T[l]["rbtn_create_alert"] for l in ("en","ru","ar")]
         map_labels    = [T[l]["rbtn_map_all"]      for l in ("en","ru","ar")]
+        # Audit 2026-06-06: view-mode toggle from reply keyboard
+        if text == "🎴 Сетка":
+            state["view_mode"] = "grid"
+            send_results_grid(cid, uid)
+            return True
+        if text == "📋 Список":
+            state["view_mode"] = "list"
+            state["list_page"] = state.get("page", 0)
+            send_results_list(cid, uid)
+            return True
         if text in more_labels:
             send_results(cid, uid)
             return True
@@ -8065,9 +8793,86 @@ def handle_cb(cb):
             _ux_button_click("resale", uid, _ux_label, variant=_ux_variant)
     except Exception:
         pass
+    # ── S3-4 (2026-06-06): property_* router (uses ':' delimiter, not '|') ────
+    # Delegates to existing handlers where possible — no duplicate logic.
+    if ":" in data and data.split(":", 1)[0].startswith("property_"):
+        try:
+            _pname, _arg = data.split(":", 1)
+            _pid_raw = _arg.split(":", 1)[0]  # тіrim further args if any
+            try:
+                _pid = int(_pid_raw)
+            except (ValueError, TypeError):
+                _pid = 0
+            if _pname == "property_detail":
+                show_property_detail(cid, uid, mid, _pid)
+                return
+            if _pname == "property_invest_analysis":
+                show_property_detail(cid, uid, mid, _pid, with_ai=True)
+                return
+            if _pname == "property_contact_agent":
+                show_agents(cid, uid, mid, _pid)
+                return
+            if _pname == "property_actions":
+                # Reuse acts|<lid> submenu (already implemented at action=='acts')
+                show_actions_menu(cid, uid, mid, _pid)
+                return
+            if _pname == "property_area_analytics":
+                _lst = get_listing_by_id(_pid) or {}
+                _slug = ((_lst.get("building") or _lst.get("area") or "listing")
+                         .strip()[:40].replace(" ", "_"))
+                _utm = f"from_resale_utm_card_{_slug}"
+                _send(cid, f"📊 [Открыть DLD-аналитику района](https://t.me/Analitik_price_bot?start={_utm})")
+                return
+            if _pname == "property_roi":
+                _lst = get_listing_by_id(_pid) or {}
+                _slug = ((_lst.get("building") or _lst.get("area") or "listing")
+                         .strip()[:40].replace(" ", "_"))
+                _utm = f"from_resale_utm_card_{_slug}"
+                _send(cid, f"📈 [Открыть ROI-калькулятор](https://t.me/dubai_roi_fpr_bot?start={_utm})")
+                return
+            if _pname == "property_brochure":
+                _lst = get_listing_by_id(_pid) or {}
+                _slug = ((_lst.get("building") or _lst.get("area") or "listing")
+                         .strip()[:40].replace(" ", "_"))
+                _utm = f"from_resale_utm_card_{_slug}"
+                _send(cid, f"📄 [Открыть брошюру проекта](https://t.me/Dubai_Brochures_Bot?start={_utm})")
+                return
+            if _pname == "property_back_to_grid":
+                gs(uid)["page"] = _pid  # _pid here = page number
+                send_results_grid(cid, uid)
+                return
+        except Exception as _e:
+            print(f"[property_router] {data}: {_e}")
+            return
+
+    # grid_page:N / property_grid_page:N — pagination for grid view
+    if data.startswith("grid_page:") or data.startswith("property_grid_page:"):
+        try:
+            _np = int(data.split(":", 1)[1])
+            gs(uid)["page"] = max(0, _np)
+            send_results_grid(cid, uid)
+        except Exception as _e:
+            print(f"[grid_page] {data}: {_e}")
+        return
+
     if "|" not in data: return
     parts  = data.split("|")
     action = parts[0]
+
+    # view|list / view|grid — toggle results view mode
+    if action == "view":
+        sub = parts[1] if len(parts) > 1 else "grid"
+        _gs = gs(uid)
+        _gs["view_mode"] = sub
+        # On every toggle reset the target mode's cursor so the user sees the
+        # first page (they may have walked deep into the other mode already).
+        if sub == "list":
+            _gs["list_page"] = _gs.get("page", 0)
+            send_results_list(cid, uid)
+        else:
+            # grid uses `page`; rewind it to first if list went further
+            send_results_grid(cid, uid)
+        return
 
     # ── AI Consultant callbacks (#52) ────────────────────────────────
     if action == "aic":
@@ -8372,37 +9177,19 @@ def handle_cb(cb):
             _edit(cid, mid, _t(uid, "br_q"), kb_bedrooms(uid))
 
     elif action == "detail":
-        show_detail(cid, uid, mid, int(parts[1]))
+        try:
+            _lid = int(parts[1]) if len(parts) > 1 else 0
+        except (ValueError, TypeError):
+            _lid = 0
+        if _lid > 0:
+            show_detail(cid, uid, mid, _lid)
 
     elif action == "acts":
-        # v56 listing "⚡ More actions ▾" submenu — keeps card UI minimal
-        # while preserving every action from old 18-button layout.
         try:
             lid = int(parts[1]) if len(parts) > 1 else 0
         except Exception:
             return
-        listing = get_listing_by_id(lid) or {}
-        from db_schema import is_favorited as _is_fav_a
-        try:
-            _fav_now = _is_fav_a(uid, lid)
-        except Exception:
-            _fav_now = False
-        _has_bld = bool(listing.get("building"))
-        _save_lbl = _t(uid, "btn_save_rem") if _fav_now else _t(uid, "btn_save")
-        # B075 cleanup: removed Сравнить/Все фото/Прогноз/ИИ-анализ/Перевод/Тур
-        rows = [
-            [_btn(_save_lbl,                f"fav|{lid}"),
-             _btn(_t(uid, "btn_map"),       f"map|{lid}")],
-            [_btn(_t(uid, "btn_similar_act"), f"similar|{lid}")],
-        ]
-        if _has_bld:
-            rows.append([_btn(_t(uid, "btn_building_all"), f"allbld|{lid}")])
-        # v57 edit-in-place: NEVER send new message — keep listing card visible.
-        # Add ← Back row that returns to base 2-row layout via `actsback|<lid>`.
-        rows.append([_btn(_t(uid, "btn_back"), f"actsback|{lid}")])
-        # Photo cards have caption (no text) — swap ONLY reply_markup so the
-        # listing text/photo stays on screen. For text-only cards same call works.
-        _edit_kb(cid, mid, _kb(*rows))
+        show_actions_menu(cid, uid, mid, lid)
 
     elif action == "actsback":
         # v57 edit-in-place: return from "⚡ Actions ▾" submenu back to the
@@ -9987,7 +10774,9 @@ def main():
     # PHASE BM Layer 18/20/22: multimodal + tours + background-think
     try:
         from phase_bm_bootstrap import wire_phase_bm
-        wire_phase_bm(dp)
+        # Audit 2026-06-06: was wire_phase_bm(dp) → NameError. resale-bot
+        # is webhook-style (no aiogram Dispatcher); the bootstrap is a no-op.
+        wire_phase_bm(None)
     except Exception as _e:
         try:
             logger.warning(f"PHASE BM wire failed: {_e}")

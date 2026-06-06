@@ -227,8 +227,10 @@ def buildings_backfill_loop():
 
 
 def digest_loop():
-    """Sends daily digest to admin at ~09:00 UTC."""
-    last_sent_day = None
+    """Sends daily digest to admin at ~09:00 UTC.
+    Audit 2026-06-05: при рестарте после 09:00 не пере-шлём сегодняшний дайджест."""
+    _now0 = datetime.utcnow()
+    last_sent_day = _now0.date() if _now0.hour >= 9 else None
     while True:
         try:
             now = datetime.utcnow()
@@ -239,6 +241,7 @@ def digest_loop():
                 last_sent_day = now.date()
         except Exception as e:
             print(f"[cron] digest error: {e}")
+            traceback.print_exc()
         time.sleep(15 * 60)
 
 
@@ -562,23 +565,31 @@ def watchlist_weekly_loop():
 
 # ── 8. Hourly ecosystem report ────────────────────────────────────────────────
 def hourly_report_loop():
-    """Каждый час (в :00) шлёт Вадиму полный отчёт об экосистеме."""
-    last_run_hour = None
+    """Каждый час (в :02) шлёт Вадиму полный отчёт об экосистеме.
+    Audit 2026-06-05: при рестарте не пере-шлём этот час + exponential backoff на ошибках."""
+    _now0 = datetime.utcnow()
+    # При старте предполагаем что этот час уже был обработан (избегаем дубля при рестарте)
+    last_run_hour = (_now0.date(), _now0.hour) if _now0.minute >= 2 else None
+    consecutive_errors = 0
     while True:
         try:
             now = datetime.utcnow()
             hour_key = (now.date(), now.hour)
-            if last_run_hour != hour_key:
-                # Запускаем на :00 каждого часа (ждём до :02 чтобы sync_log успел записаться)
-                if now.minute >= 2:
-                    from hourly_report import send_hourly_report
-                    send_hourly_report(period_hours=1)
-                    print(f"[cron] hourly ecosystem report sent", flush=True)
-                    last_run_hour = hour_key
+            if last_run_hour != hour_key and now.minute >= 2:
+                from hourly_report import send_hourly_report
+                send_hourly_report(period_hours=1)
+                print(f"[cron] hourly ecosystem report sent", flush=True)
+                last_run_hour = hour_key
+                consecutive_errors = 0
         except Exception as e:
-            print(f"[cron] hourly report error: {e}", flush=True)
+            consecutive_errors += 1
+            print(f"[cron] hourly report error #{consecutive_errors}: {e}", flush=True)
             traceback.print_exc()
-        time.sleep(5 * 60)   # проверяем каждые 5 мин
+        # Exponential backoff: 5,10,20,30,60 мин max — не DoS-им админа на PG-down
+        if consecutive_errors == 0:
+            time.sleep(5 * 60)
+        else:
+            time.sleep(min(60, 5 * (2 ** min(consecutive_errors - 1, 4))) * 60)
 
 
 # ── 7. Parser-quality monitor (task #127) ──────────────────────────────────────
@@ -602,13 +613,13 @@ def realtime_accuracy_loop():
     """Каждые 60с: новые listings → second LLM verify → flag если low confidence."""
     interval = int(os.environ.get("RT_ACCURACY_INTERVAL", "60"))
     try:
-        import _realtime_accuracy_daemon as rtd
+        import realtime_accuracy_daemon as rtd
         rtd.ensure_schema()
     except Exception as e:
         print(f"[cron] rt-accuracy init err: {e}", flush=True)
     while True:
         try:
-            import _realtime_accuracy_daemon as rtd
+            import realtime_accuracy_daemon as rtd
             stats = rtd.run_cycle()
             if stats.get("scanned"):
                 print(f"[cron] rt-accuracy: {stats}", flush=True)
@@ -743,6 +754,50 @@ def lead_followup_loop():
             print(f"[cron:lead_followup] error: {e}")
 
 
+# ── F4 (2026-06-06): stale-parser watchdog ─────────────────────────────────
+def stale_parser_loop():
+    """Каждые 6ч проверяем когда последний раз парсер вставил новый листинг.
+    Если >48ч без new_listings → шлём админу alert. Защищает от тихого падения
+    парсера (например content_hash отбивает всё или Telethon не получает posts)."""
+    last_alert_day = None
+    consecutive_alerts = 0
+    while True:
+        try:
+            from db_schema import get_conn
+            now = datetime.utcnow()
+            conn = get_conn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT MAX(created_at) AS last_new,
+                               EXTRACT(EPOCH FROM (NOW() - MAX(created_at)))/3600 AS hours_ago
+                        FROM listings WHERE is_active=TRUE
+                    """)
+                    r = cur.fetchone()
+            finally:
+                conn.close()
+            hours_ago = float(r["hours_ago"] or 0)
+            if hours_ago >= 48 and ADMIN_ID and last_alert_day != now.date():
+                msg = (f"⚠️ *Парсер тихо встал?*\n\n"
+                       f"Последний новый листинг: *{int(hours_ago)} ч назад*\n"
+                       f"({r['last_new']})\n\n"
+                       f"Возможные причины:\n"
+                       f"• content_hash отбивает всё (canon backfill\\?)\n"
+                       f"• Telethon не получает сообщения\n"
+                       f"• Все каналы тихие\n\n"
+                       f"Проверь sync\\_log и Telethon.")
+                _send(ADMIN_ID, msg)
+                consecutive_alerts += 1
+                last_alert_day = now.date()
+                print(f"[cron] stale-parser alert sent (hours_ago={int(hours_ago)})", flush=True)
+            elif hours_ago < 24:
+                consecutive_alerts = 0
+        except Exception as e:
+            print(f"[cron] stale_parser error: {e}", flush=True)
+            traceback.print_exc()
+        time.sleep(6 * 3600)  # 6 hours
+
+
 def _safe_thread_start(target, name=None):
     """Launch a daemon thread, never raise. Returns Thread or None."""
     try:
@@ -770,7 +825,9 @@ def start_all():
                saved_searches_loop, price_alerts_loop, cross_source_loop,
                daily_backup_loop, daily_backup_github_loop,
                channel_quality_loop, daily_digest_loop,
-               weekly_aliases_loop, lead_followup_loop):
+               weekly_aliases_loop, lead_followup_loop,
+               # F4 (2026-06-06): stale parser watchdog
+               stale_parser_loop):
         if _safe_thread_start(fn):
             started += 1
 
