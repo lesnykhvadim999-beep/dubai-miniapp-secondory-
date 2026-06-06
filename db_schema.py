@@ -796,9 +796,21 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
                             canonical_building_name as _sdk_cbld
         _vres = _sdk_validate(data)
         if not _vres.is_valid:
-            print(f"[sdk] reject {_vres.reject_reason}: "
-                  f"bld={data.get('building')} price={data.get('price')}")
-            return -1, False
+            # Audit 2026-06-06: SDK G1 reject's text<20 chars too aggressively.
+            # Most Telegram listings are "Building · Price · BR" caption (~15 chars)
+            # → SDK kills them. If we already have building + price + area
+            # extracted by parser, the data is trustworthy. Skip SDK reject.
+            _reason = _vres.reject_reason or ""
+            _has_core = (data.get("building") and data.get("price")
+                         and data.get("area"))
+            if _reason == "no_text" and _has_core:
+                print(f"[sdk] override no_text: bld={data.get('building')} "
+                      f"area={data.get('area')} price={data.get('price')} "
+                      f"(core fields present, parser trustworthy)")
+            else:
+                print(f"[sdk] reject {_reason}: "
+                      f"bld={data.get('building')} price={data.get('price')}")
+                return -1, False
         # Apply auto_fixes (FOR RENT detected etc)
         if _vres.auto_fixes:
             data.update(_vres.auto_fixes)
@@ -867,8 +879,11 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
             _otext = (data.get("original_text") or "").strip()
             _otext_lower = _otext.lower()
 
-            # G1: пустой/короткий original_text — нет верификации цены/полей
-            if len(_otext) < 20:
+            # G1: пустой/короткий original_text — нет верификации цены/полей.
+            # Audit 2026-06-06: relaxed 20 → 10. Many real Telegram listings
+            # are short captions: "Altai Tower 1.08M" (17 chars). 10 is enough
+            # to ensure we're not parsing pure noise.
+            if len(_otext) < 10:
                 print(f"[parser] reject: no/short original_text (len={len(_otext)})")
                 return -1, False
 
