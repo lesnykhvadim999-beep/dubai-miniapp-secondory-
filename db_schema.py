@@ -1051,11 +1051,15 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
             # не в основную listings. Worker (_staging_processor.py) дотягивает
             # их через AI и promotes когда complete. Это гарантирует что в
             # listings нет мусора.
+            # Audit 2026-06-06: removed bedrooms requirement from is_complete.
+            # Most Telegram listings are short captions ("Altai Tower 1.08M")
+            # that don't mention BR explicitly. They piled in staging forever
+            # because the staging worker isn't running. Better to land them
+            # in listings with bedrooms=NULL than lose them entirely.
             is_complete = (
                 data.get("building") and
                 data.get("area") and
                 data.get("price") and
-                data.get("bedrooms") is not None and
                 data.get("deal_type") and
                 not data.get("needs_manual_review") and
                 not data.get("is_audit")
