@@ -90,7 +90,7 @@ def register_lang_resolver(fn: Callable[[Any], Optional[str]]) -> None:
     Example::
 
         from i18n_contract import register_lang_resolver
-        register_lang_resolver(lambda uid: user_languages.get(uid))
+        register_lang_resolver(lambda uid: user_lang.get(uid))
     """
     global _lang_resolver
     _lang_resolver = fn

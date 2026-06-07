@@ -38,10 +38,7 @@ DB_URL = os.environ.get(
     os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set")),
 )
 
-ADMIN_BOT_TOKEN = os.environ.get(
-    "ADMIN_BOT_TOKEN",
-    "8742147923:AAFkeCmIKkZSNgOuKeaLXcY4oUQztFdnrKQ",
-).strip()
+ADMIN_BOT_TOKEN = os.environ.get("ADMIN_BOT_TOKEN", "").strip()
 FLIPLUX_BOT_TOKEN = os.environ.get("FLIPLUX_BOT_TOKEN", "").strip()
 FLIPLUX_CHANNEL = os.environ.get("FLIPLUX_CHANNEL", "@flipluxproperty").strip()
 

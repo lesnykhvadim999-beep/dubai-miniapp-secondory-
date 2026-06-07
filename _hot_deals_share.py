@@ -32,8 +32,8 @@ DB_URL = os.environ.get(
     os.environ.get("DATABASE_URL") or os.environ.get("RESALE_DATABASE_URL") or (_ for _ in ()).throw(RuntimeError("DATABASE_URL not set")),
 )
 
-# admin bot env (admin_notify сам читает ADMIN_BOT_TOKEN; если не задан — fallback на известный токен)
-os.environ.setdefault("ADMIN_BOT_TOKEN", "8742147923:AAFkeCmIKkZSNgOuKeaLXcY4oUQztFdnrKQ")
+# admin bot env: admin_notify читает ADMIN_BOT_TOKEN из окружения.
+# Токен НЕ хардкодим — задаётся через Railway/env переменную ADMIN_BOT_TOKEN.
 
 SELECT_SQL = """
     SELECT id, building, area, bedrooms, price, size_sqft, view,

@@ -8,11 +8,17 @@ conftest.py — базовые фикстуры и патчи для тесто�
 - Никакого реального Telegram / Railway / БД.
 """
 import sys
+import os
 import types
 import importlib
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+# ── Stub env vars, чтобы тесты шли «из коробки» (без реальной БД) ─────────────
+# parser_engine.py требует DLD_DB_URL на уровне импорта; для unit-тестов
+# wizard'а реальное подключение не нужно — db_schema всё равно мокается ниже.
+os.environ.setdefault("DLD_DB_URL", "postgresql://stub:stub@localhost:5432/stub")
 
 # ── Мок db_schema (должен быть до импорта resale_bot) ────────────────────────
 def _make_db_schema_mock():

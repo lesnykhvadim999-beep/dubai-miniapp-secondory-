@@ -436,7 +436,6 @@ T = {
     "rbtn_ai":          "✦ AI Assistant",
     "rbtn_ai_consult":  "🤖 AI Consultant",
     "rbtn_voice":       "🎙 Voice search",
-    "deal_q":           "Choose transaction type:",
     "deal_buy_btn":     "🏠 Buy",
     "deal_rent_btn":    "🔑 Rent",
     "rbtn_add":         "➕ List Property",
@@ -561,8 +560,6 @@ T = {
     "btn_save":          "❤️ Save",
     "btn_save_rem":      "💔 Unsave",
     "btn_compare":       "⚖️ Compare",
-    "btn_map":           "🗺 On map",
-    "btn_photos":        "📸 Photos",
     "btn_building_all":  "🏢 Building",
     "btn_similar_act":   "🔄 Similar",
     "btn_alert_act":     "🔔 Alert",
@@ -866,7 +863,6 @@ T = {
     "rbtn_ai":          "✦ AI Помощник",
     "rbtn_ai_consult":  "🤖 AI Консультант",
     "rbtn_voice":       "🎙 Голос поиск",
-    "deal_q":           "Что вас интересует?",
     "deal_buy_btn":     "🏠 Купить",
     "deal_rent_btn":    "🔑 Аренда",
     "rbtn_add":         "➕ Разместить",
@@ -991,7 +987,6 @@ T = {
     "btn_save_rem":      "💔 Убрать",
     "btn_compare":       "⚖️ Сравнить",
     "btn_map":           "🗺 На карте",
-    "btn_photos":        "📸 Фото",
     "btn_building_all":  "🏢 Здание",
     "btn_similar_act":   "🔄 Похожие",
     "btn_alert_act":     "🔔 Алерт",
@@ -1308,7 +1303,6 @@ T = {
     "rbtn_apt":         "🏢 شقق",
     "rbtn_villa":       "🏖 فيلا / تاون هاوس",
     "rbtn_commercial":  "🏢 تجاري",
-    "deal_q":           "اختر نوع المعاملة:",
     "deal_buy_btn":     "🏠 شراء",
     "deal_rent_btn":    "🔑 إيجار",
     "rbtn_plot":        "🌱 أرض",
@@ -1434,8 +1428,6 @@ T = {
     "btn_save":          "❤️ حفظ",
     "btn_save_rem":      "💔 إزالة",
     "btn_compare":       "⚖️ مقارنة",
-    "btn_map":           "🗺 على الخريطة",
-    "btn_photos":        "📸 الصور",
     "btn_building_all":  "🏢 المبنى",
     "btn_similar_act":   "🔄 مماثلة",
     "btn_alert_act":     "🔔 تنبيه",
@@ -1916,7 +1908,7 @@ def _send_pdf(cid, uid, listing):
             pass
     if _disabled:
         try:
-            send_message(cid, "📄 PDF-отчёт временно отключён.\n\nVadim Realty · RERA BRN 65011")
+            _send(cid, "📄 PDF-отчёт временно отключён.\n\nVadim Realty · RERA BRN 65011")
         except Exception:
             pass
         return
@@ -1925,7 +1917,7 @@ def _send_pdf(cid, uid, listing):
         from stability import ff as _ff, degrade_msg as _dmsg
         if not _ff("PDF_REPORT"):
             try:
-                send_message(cid, _dmsg("feature_unavailable", _get_lang(uid)))
+                _send(cid, _dmsg("feature_unavailable", _get_lang(uid)))
             except Exception:
                 pass
             return
@@ -3276,7 +3268,7 @@ def get_area_aggregate(area: str) -> dict | None:
 
 def get_market_summary(area: str, strategy: str = None, uid: int = None) -> str:
     """B079: про район простым языком, локализовано (RU/EN/AR)."""
-    lang = (user_languages.get(uid, "ru") if uid else "ru")
+    lang = (user_lang.get(uid, "ru") if uid else "ru")
     # Labels per language — простые слова вместо ROI/Liquidity/Demand
     L = {
         "ru": {
@@ -3838,7 +3830,7 @@ def format_detail(listing, uid):
     ptype_raw = (listing.get("property_type") or "").lower().strip()
 
     # B079: локализация значений из БД (хранятся EN: apartment/villa/vacant/furnished)
-    _lang = user_languages.get(uid, "ru")
+    _lang = user_lang.get(uid, "ru")
     _PTYPE_MAP = {
         "ru": {"apartment":"Апартаменты","villa":"Вилла","townhouse":"Таунхаус",
                "penthouse":"Пентхаус","duplex":"Дуплекс","studio":"Студия",
@@ -5744,7 +5736,7 @@ def ai_consultant_start(cid, uid):
         from stability import ff as _ff, degrade_msg as _dmsg
         if not _ff("AI_CONSULTANT"):
             try:
-                send_message(cid, _dmsg("llm_unavailable", lang))
+                _send(cid, _dmsg("llm_unavailable", lang))
             except Exception:
                 pass
             return
@@ -9983,16 +9975,6 @@ def main():
         print("[agent_bus] installed for resale", flush=True)
     except Exception as _abe:
         print(f"[agent_bus] install skipped: {_abe!r}", flush=True)
-
-    # PHASE BM Layer 18/20/22: multimodal + tours + background-think
-    try:
-        from phase_bm_bootstrap import wire_phase_bm
-        wire_phase_bm(dp)
-    except Exception as _e:
-        try:
-            logger.warning(f"PHASE BM wire failed: {_e}")
-        except Exception:
-            print(f"[phase_bm] wire failed: {_e!r}", flush=True)
 
     print("[bot] About to call run_bot()...")
     run_bot()
