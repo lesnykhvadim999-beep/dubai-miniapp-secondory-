@@ -65,6 +65,8 @@ logo_file_id.txt
 logo_placeholder.txt
 # price_benchmarks.json — DO NOT ignore (force-add B099.1, парсер падает без него)
 price_benchmarks.backup.*.json
+*.bak_*
+*.bak
 
 # Sessions / secrets
 .session_string.txt
@@ -92,6 +94,9 @@ CLAUDE.md
 _post/
 fonts/
 tests/__pycache__/
+
+# Legacy one-shot helper scripts (may contain hardcoded DSNs / credentials)
+tools/legacy/
 tools/__pycache__/
 tools/chaos_monkey.log
 tools/chaos_monkey_state.json
