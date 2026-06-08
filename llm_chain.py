@@ -440,6 +440,17 @@ def _maybe_proxy_url(provider: dict) -> str:
     return f"{worker}/?u={quote(base, safe='')}"
 
 
+def _cf_secret_header() -> dict:
+    """Return X-Proxy-Secret header if CF_WORKER_PROXY_SECRET env is set.
+    Worker checks this header and strips it before forwarding to upstream.
+    Returns empty dict when secret is not configured (backward-compatible).
+    """
+    secret = os.getenv("CF_WORKER_PROXY_SECRET")
+    if secret:
+        return {"X-Proxy-Secret": secret}
+    return {}
+
+
 # в”Ђв”Ђ Anthropic spend tracker (hard cap $2/day) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 _ANTHROPIC_SPEND_FILE = os.environ.get(
     "ANTHROPIC_SPEND_FILE",
@@ -658,6 +669,9 @@ def _call_openai_compat(provider: dict, key_idx: int, key: str, prompt: str,
         headers = _common_headers()
         headers.update({"Authorization": f"Bearer {key}",
                         "Content-Type": "application/json"})
+        # Add proxy auth header if CF Worker requires authentication
+        if provider.get("proxy_via_cf"):
+            headers.update(_cf_secret_header())
         r = _post(
             _maybe_proxy_url(provider),
             headers=headers,
@@ -1045,6 +1059,9 @@ def health_check_all(timeout: int = 10) -> dict:
             if fmt == "openai":
                 headers.update({"Authorization": f"Bearer {key}",
                                 "Content-Type": "application/json"})
+                # Add proxy auth header if CF Worker requires authentication
+                if p.get("proxy_via_cf"):
+                    headers.update(_cf_secret_header())
                 r = _post(
                     _maybe_proxy_url(p),
                     headers=headers,
