@@ -333,6 +333,11 @@ BUILDINGS_DB = {
     "Golf Place":            {"area": "Dubai Hills Estate", "emirate": "Dubai", "developer": "Emaar"},
     "Maple":                 {"area": "Dubai Hills Estate", "emirate": "Dubai", "developer": "Emaar"},
     "Sidra":                 {"area": "Dubai Hills Estate", "emirate": "Dubai", "developer": "Emaar"},
+    # Audit 2026-06-06: AG 9INE → Dubailand (Dubai Land Residence Complex per DLD).
+    # Раньше парсер ставил Dubai Hills Estate из-за substring match "Dubai".
+    "AG 9INE":               {"area": "Dubailand", "emirate": "Dubai", "developer": "AG"},
+    "Ag 9Ine":               {"area": "Dubailand", "emirate": "Dubai", "developer": "AG"},
+    "AG 9ine":               {"area": "Dubailand", "emirate": "Dubai", "developer": "AG"},
     "Elara":                 {"area": "Palm Jumeirah", "emirate": "Dubai", "developer": "Nakheel"},
     "Oceana":                {"area": "Palm Jumeirah", "emirate": "Dubai", "developer": "Nakheel"},
     "Shoreline":             {"area": "Palm Jumeirah", "emirate": "Dubai", "developer": "Nakheel"},
@@ -660,21 +665,26 @@ PROP_TYPE_MAP = {
 VIEWS = [
     "full sea view", "partial sea view", "sea view",
     "burj khalifa view", "burj view", "bruj view",
+    "burj al arab view", "bab view",
     "fountain view", "full fountain view",
-    "marina view", "full marina view",
-    "golf view", "golf course view",
+    "marina view", "full marina view", "marina skyline view",
+    "golf view", "golf course view", "full golf view",
     "canal view", "water canal view",
-    "palm view", "palm jumeirah view",
-    "city view", "skyline view", "downtown view",
-    "community view", "pool view",
-    "lagoon view", "park view",
-    "beach view", "ocean view",
-    "creek view", "harbour view",
+    "palm view", "palm jumeirah view", "atlantis view",
+    "city view", "skyline view", "downtown view", "city skyline view",
+    "community view", "pool view", "full pool view",
+    "lagoon view", "park view", "plaza view",
+    "beach view", "ocean view", "bay view",
+    "creek view", "harbour view", "harbor view",
     "full water view", "water view",
-    "garden view", "mountain view", "lake view",
-    "boulevard view", "courtyard view",
+    "garden view", "mountain view", "lake view", "greenery view",
+    "boulevard view", "courtyard view", "yard view",
     "panoramic view", "full panoramic view",
-    "open view", "street view",
+    "open view", "street view", "road view",
+    # S2-5 (2026-06-05): expanded vocabulary
+    "dubai eye view", "ain dubai view",
+    "creek harbour view", "creek harbor view",
+    "private pool view", "shared pool view",
 ]
 
 STATUS_KEYWORDS = {
@@ -705,6 +715,11 @@ def clean_text(text: str) -> str:
     text = emoji_pattern.sub(" ", text)
     text = re.sub(r"[=_\-\*•·|]{3,}", " ", text)
     text = re.sub(r"[!]{2,}", "!", text)
+    # B###: Remove Markdown bold/italic asterisks that split numbers.
+    # "6**,000 AED" / "**5,900**" — strip ** and * adjacent to digits so price parses correctly.
+    text = re.sub(r'(\d)\*{1,2}(?=,\d{3})', r'\1', text)  # "6**,000" → "6,000"
+    text = re.sub(r'\*{1,2}(\d)', r'\1', text)             # "**5,900" → "5,900"
+    text = re.sub(r'(\d)\*{1,2}', r'\1', text)             # "5,900**" → "5,900"
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
@@ -1020,9 +1035,17 @@ def validate_deal_type_by_price(
             # Additional guard: skip if text clearly offers a property (selling/asking price)
             if not re.search(r'\b(?:selling\s+price|asking\s+price|sales?\s+price|sp\s*:|op\s*:|for\s+sale\b)\b', t):
                 return "sale"
-        if any(re.search(p, t, re.IGNORECASE) for p in _HARD_RENT_KW_PE):
+        _has_hard_sale = any(re.search(p, t, re.IGNORECASE) for p in _HARD_SALE_KW_PE)
+        _has_hard_rent = any(re.search(p, t, re.IGNORECASE) for p in _HARD_RENT_KW_PE)
+        # B###: Sale signals beat rent signals when BOTH present.
+        # "Office for sale | Rented" = for-sale investment property (tenanted), NOT a rent listing.
+        # "For sale | Selling price | Rental income 100k" = same pattern.
+        if _has_hard_sale and _has_hard_rent:
+            # Explicit "for sale" or "selling price" in text beats ambiguous rent words like "rented"
+            deal_type = "sale"
+        elif _has_hard_rent:
             deal_type = "rent"
-        elif any(re.search(p, t, re.IGNORECASE) for p in _HARD_SALE_KW_PE):
+        elif _has_hard_sale:
             deal_type = "sale"
 
     if not price or price <= 0:
@@ -1068,6 +1091,17 @@ def validate_deal_type_by_price(
         # B047: sp\s*[:\-] не ловится \b если за : идёт пробел ("SP: AED")
         if re.search(r'\b(?:for\s+sale|sales?\s*price|selling\s*price|sale\s*price|asking\s*price|payment\s+plan|handover|distress\s+deal|below\s+(?:market|op)|off[\s\-]?plan|developer\s*:|aed\s*[\d.,]+\s*(?:m\b|mln|million))\b', tl) \
            or re.search(r'\bsp\s*[:\-]', tl):
+            return "sale"
+    # B###: rent > 1.5M + sale-intent signals (motivated seller / resale / investor) → sale
+    # Охватывает id=4214 и другие ~31 записей с явными sale-сигналами в тексте.
+    if deal_type == "rent" and price > 1_500_000 and text:
+        tl = text.lower()
+        if re.search(
+            r'\b(?:motivated\s+seller|owner\s+motivated|must\s+sell|urgent\s+sale|'
+            r'resale|for\s+sale|selling|open\s+to\s+offers|price\s+negotiable)\b',
+            tl
+        ):
+            print(f"[parser] rent>1.5M + sale-signal -> reclassify sale (price={price})")
             return "sale"
 
     # ── 5: market floor/ceiling (original logic) ─────────────────────────
@@ -1817,6 +1851,13 @@ _BUILDING_HEUR_STOPWORDS = {
     # ── B047-2: more single-word non-buildings found in DB ────────────────────
     "type", "size", "floor", "view", "views", "block", "phase", "wing",
     "gate", "zone", "sector", "plot", "level", "row", "bay",
+    # ── B###: literal garbage values that leak from LLM/form defaults ──────────
+    "null", "none", "n/a", "na", "tbd", "tba", "n.a", "n/a.",
+    "property details", "property detail",
+    "villa", "apartment", "flat", "studio", "penthouse", "duplex",
+    "townhouse", "office", "retail", "shop", "warehouse",
+    "residential", "commercial", "mixed use", "mixed-use",
+    "property", "listing",
 }
 
 
@@ -2629,9 +2670,11 @@ def extract_size(text: str) -> dict:
                     break
 
     # Bare SQFT (number directly followed by unit) — теперь с поддержкой пробелов
+    # FIX-B056: added sq/ft (slash variant seen in listings: "380 sq/ft")
     if result["size_sqft"] is None:
         bare_sqft_patterns = [
             rf'{NUM}\s*sq\.?\s*ft\b',
+            rf'{NUM}\s*sq/ft\b',   # slash variant: "380 sq/ft" (B056)
             rf'{NUM}\s*sqft\b',
             rf'{NUM}\s*ft[²*2]',
             rf'{NUM}\s*SF\b',
@@ -2647,8 +2690,10 @@ def extract_size(text: str) -> dict:
                     break
 
     # Bare SQM (number directly followed by unit)
+    # FIX-B055: added 'sqmt' typo variant (seen in listings: "37sqmt", "34sqmt")
     if result["size_sqft"] is None:
         bare_sqm_patterns = [
+            r'([\d,]+\.?\d*)\s*sqmt\b',   # typo for sqm (B055)
             r'([\d,]+\.?\d*)\s*sqm\b',
             r'([\d,]+\.?\d*)\s*sq\.?\s*m\b',
             r'([\d,]+\.?\d*)\s*m2\b',
@@ -2756,6 +2801,24 @@ def extract_price(text: str) -> dict:
     result = {"price": None, "currency": "AED",
               "original_price": None, "selling_price": None}
 
+    # B###: Early capture of monthly rent price BEFORE strips erase it.
+    # Strip-patterns like "X per month → ' '" are designed for installment amounts
+    # in SALE listings, but they eat the only price in pure rent listings.
+    # Capture "N AED per month" / "AED N / month" / "Rent: N AED monthly" BEFORE strips.
+    # The monthly-to-yearly ×12 conversion happens in parse_message after deal_type is known.
+    _monthly_rent_m = re.search(
+        r'(?:rent\s*[:\-]?\s*)?([\d,\.]+)\s*(?:aed|dh|dirham|درهم)?\s*/\s*(?:month|mo|mth)\b|'
+        r'(?:aed|dh|dirham|درهم)\s*([\d,\.]+)\s*/\s*(?:month|mo|mth)\b|'
+        r'([\d,\.]+)\s*(?:aed|dh|dirham|درهم)\s+(?:per\s+month|monthly)\b|'
+        r'(?:aed|dh|dirham|درهم)\s*([\d,\.]+)\s+(?:per\s+month|monthly)\b|'
+        r'(?:rent|price)\s*[:\-]\s*([\d,\.]+)\s*(?:aed|dh|dirham)?\s+(?:per\s+month|monthly)\b',
+        text, re.I)
+    if _monthly_rent_m:
+        _monthly_raw = next(g for g in _monthly_rent_m.groups() if g)
+        _monthly_v = _parse_amount(_monthly_raw.replace(",", "").replace(" ", ""))
+        if _monthly_v and 1000 < _monthly_v < 100_000:
+            result["_monthly_price_captured"] = _monthly_v  # stash, use below if no better price found
+
     # Strip reference/permit/RERA/DLD numbers — these 7-9 digit IDs were being
     # picked up as price (e.g. "Reference No.: #34881961" → price=34,881,961).
     # Drop the entire line containing these markers.
@@ -2780,11 +2843,21 @@ def extract_price(text: str) -> dict:
     # Раньше брал rent (280K/year) как sale price в multi-listing с "Price: AED 6M".
     # Поддерживаем все варианты: "Rented at 75k", "Rented: AED 280,000 / year",
     # "Rented till X (240k/year)", "Rent 155K", "Rented out 58k yearly".
+    # B###: strip "Rented at/for/out X" and "Rented: X/year" patterns.
+    # CRITICAL: Must NOT strip bare "Rent: N" / "Rent N AED" because those ARE the price.
+    # Require either: (a) explicit at/for/out/till/until qualifier, OR
+    #                 (b) time unit suffix (/year, /month, yearly, monthly).
+    # Old pattern was too greedy ((?:at|...|for|-)? was optional → ate "Rent 85000").
     text = re.sub(
-        r'\brent(?:ed)?\s*(?:out\s+)?(?:at|@|till|until|for|[\-])?[\s:\-]*'
+        r'\brent(?:ed)?\s*(?:out\s+)?\s*(?:at|@|till|until|for)\s*[\s:\-]*'
         r'(?:aed\s+)?[\d.,]+\s*[km]?\s*(?:aed)?\s*'
         r'(?:/\s*(?:year|yr|month|mo)|per\s+(?:year|month|annum)|yearly|monthly|'
         r'till\s+\d|until\s+\d)?',
+        ' ', text, flags=re.I)
+    # Also strip "Rented N/year" / "Rent 155K yearly" (with time unit, no at/for)
+    text = re.sub(
+        r'\brent(?:ed)?\s+(?:out\s+)?(?:aed\s+)?[\d.,]+\s*[km]?\s*(?:aed)?\s*'
+        r'(?:/\s*(?:year|yr|month|mo)\b|per\s+(?:year|month|annum)\b|yearly\b|monthly\b)',
         ' ', text, flags=re.I)
     # «Rented MONTH YEAR - N AED» / «Rented till MONTH-YEAR - N AED» — расширенный
     # формат с датой и тире между датой и суммой. Раньше "250 000 AED" из
@@ -3103,10 +3176,39 @@ def extract_price(text: str) -> dict:
             if v and v > 1000:
                 result["price"] = v
                 return result
+    # B###: "6,000 AED / month" / "AED 5,800 per month" / "Rent: 5,900 AED per month"
+    # extract_price strips per-sqft "X AED/sqft" but misses "X AED / month" (space around slash).
+    # These are monthly rent prices; capture them so the monthly-to-yearly conversion works.
+    if not result["price"] and not has_payment_plan:
+        m = re.search(
+            r'([\d,\.]+)\s*(?:aed|dh|dirham|درهم)?\s*/\s*(?:month|mo|mth)\b|'
+            r'(?:aed|dh|درهم)\s*([\d,\.]+)\s*/\s*(?:month|mo|mth)\b|'
+            r'([\d,\.]+)\s*(?:aed|dh|dirham|درهم)\s+(?:per\s+month|monthly|/month|p\.m\.)\b|'
+            r'(?:aed|dh|درهم)\s*([\d,\.]+)\s+(?:per\s+month|monthly|p\.m\.)\b|'
+            r'(?:rent|price)\s*[:\-]?\s*([\d,\.]+)\s*(?:aed|dh|dirham)?\s+(?:per\s+month|monthly|/month)\b|'
+            r'(?:aed|dh|درهم)\s*([\d,\.]+)\s*(?:per\s+month|monthly)\b',
+            t, re.I)
+        if m:
+            raw = next(g for g in m.groups() if g)
+            v = _parse_amount(raw.replace(" ", ""))
+            if v and 1000 < v < 100_000:
+                result["price"] = v
     if not result["price"]:
         m = re.search(r'(?:rent|for\s+rent)\s*:?\s*([\d,\.]+\s*[mkb]?l?)', t, re.I)
         if m:
             v = _parse_amount(m.group(1))
+            if v and v > 10_000:
+                result["price"] = v
+    # B###: "Annual 85,000 AED" / "AED 85,000 per year" / "85,000 AED yearly"
+    # These are explicit yearly rent prices without slash notation.
+    if not result["price"]:
+        m = re.search(
+            r'(?:annual(?:ly)?|yearly|per\s+year|per\s+annum)\s*[:\-]?\s*(?:aed\s+)?([\d,\.]+\s*[km]?)\b|'
+            r'([\d,\.]+\s*[km]?)\s*(?:aed|dh)\s+(?:annual(?:ly)?|yearly|per\s+year)',
+            t, re.I)
+        if m:
+            raw = m.group(1) or m.group(2)
+            v = _parse_amount(raw.replace(" ", ""))
             if v and v > 10_000:
                 result["price"] = v
 
@@ -3220,6 +3322,11 @@ def extract_price(text: str) -> dict:
                 result["original_price"] = converted
     else:
         result["currency"] = "AED"
+
+    # B###: Fallback — use monthly price captured before strips if no price found yet
+    if not result["price"] and result.get("_monthly_price_captured"):
+        result["price"] = result["_monthly_price_captured"]
+    result.pop("_monthly_price_captured", None)  # cleanup temp key
 
     return result
 
@@ -4592,8 +4699,59 @@ def parse_message(
     if price and sizes.get("size_sqft"):
         price_per_sqft = round(price / sizes["size_sqft"], 0)
 
+    # ── B###: sqm→sqft size correction ────────────────────────────────────────
+    # Если size_sqft < 200 (меньше 18 кв.м) при цене > 300k AED — почти наверняка
+    # парсер получил SQM вместо SQFT (например «65 sqm» распознан как 65 sqft).
+    # Умножаем на 10.764 и пересчитываем price_per_sqft. Применяем ДО всех
+    # price-guard'ов, чтобы price_per_sqft не был абсурдно высоким.
+    if (sizes.get("size_sqft") and sizes["size_sqft"] < 200
+            and price and price > 300_000):
+        _sqft_corrected = round(sizes["size_sqft"] * 10.764, 1)
+        print(f"[parser] sqm->sqft correction: {sizes['size_sqft']} -> {_sqft_corrected} sqft "
+              f"(price={price})")
+        sizes["size_sqft"] = _sqft_corrected
+        if price:
+            price_per_sqft = round(price / _sqft_corrected, 0)
+
+    # ── B###: price AED/sqft mis-parsed as total price ────────────────────────
+    # Если sale price < 5000 при size_sqft > 300 — почти наверняка это AED/sqft,
+    # не total price (дешевле 5000 AED total = заведомый нонсенс).
+    # Флажим is_audit + помечаем review_reason; NOT пересчитываем автоматически
+    # (умножение price_per_sqft × size даст total, но нет уверенности в корректности).
+    if (price and price < 5_000 and sizes.get("size_sqft")
+            and sizes["size_sqft"] > 300 and deal_type == "sale"):
+        print(f"[parser] SUSPECT price/sqft-as-total: price={price} size={sizes['size_sqft']}")
+        # Попытаемся восстановить total = price_per_sqft * size_sqft
+        _total_attempt = int(price * sizes["size_sqft"])
+        if _total_attempt > 200_000:
+            price = _total_attempt
+            price_per_sqft = price_data.get("price")  # оригинальное — это был psf
+            print(f"[parser] price restored: psf={price_per_sqft} × sqft={sizes['size_sqft']} → total={price}")
+        # Иначе оставляем цену, но помечаем аудит ниже
+
     # ── Validate deal_type against market floor prices ─────────────────────
     deal_type = validate_deal_type_by_price(price, deal_type, bedrooms, area, text=original_text, building=building)
+
+    # ── B###: Monthly rent → annual conversion ────────────────────────────────
+    # When rent price is monthly (< 30k AED) and text explicitly says "per month" /
+    # "monthly" — multiply by 12 to store as yearly (UAE standard).
+    # Guard: if text also mentions yearly contract price, do NOT convert (parser already
+    # picked the yearly value). Only convert when price < 30k and monthly keyword present.
+    if price and deal_type == "rent" and price < 30_000:
+        _rent_period = detect_rent_period(first_block, price)
+        if _rent_period == "monthly":
+            # Extra guard: if text has a yearly price > price*10, the yearly value was
+            # probably already extracted. Don't double-convert.
+            _yearly_in_text = re.search(
+                r'\b(\d{4,6})\s*(?:aed|dh|dirham)?\s*/?\s*year\b|\byearly\s+(?:contract\s+)?(?:aed\s+)?(\d{5,6})',
+                first_block, re.I)
+            _has_yearly_price = bool(_yearly_in_text)
+            if not _has_yearly_price:
+                _yearly_price = price * 12
+                print(f"[parser] monthly rent {price} AED/month -> {_yearly_price} AED/year (×12)")
+                price = _yearly_price
+                if sizes.get("size_sqft"):
+                    price_per_sqft = round(price / sizes["size_sqft"], 0)
 
     # ── Sanity floor: residential rent < 20k / sale < 200k = это служебка ──
     residential_types = {"apartment","studio","villa","townhouse","penthouse","duplex"}
@@ -4683,9 +4841,24 @@ def parse_message(
         bedrooms = None
 
     # building == area (case-insensitive) → удалить building, это area-как-building bug
-    if building and area and building.strip().lower() == area.strip().lower():
-        building = None
-        building_conf = 0.0
+    # B###: расширено — community-level names в building тоже обнуляем.
+    # Кейс: building="JVC" area="Jumeirah Village Circle" или building="Business Bay" area="Business Bay"
+    if building and area:
+        _bld_lc = building.strip().lower()
+        _area_lc = area.strip().lower()
+        # Exact match
+        _bld_is_area = (_bld_lc == _area_lc)
+        # building IS contained in AREAS dict keys or aliases
+        if not _bld_is_area:
+            for _aname, _ainfo in AREAS.items():
+                _aname_lc = _aname.strip().lower()
+                _aliases_lc = [a.lower() for a in (_ainfo.get("aliases") or [])]
+                if _bld_lc in (_aname_lc, *_aliases_lc):
+                    _bld_is_area = True
+                    break
+        if _bld_is_area:
+            building = None
+            building_conf = 0.0
 
     # Final stopword check на extracted building (на случай если detect_building не отсек)
     if building and _is_building_stopword(building):
@@ -4734,7 +4907,13 @@ def parse_message(
                    # Area-name leak (когда area попадает в building):
                    'damac lagoon','damac lagoons','damac hills','damac hills 2',
                    'creek harbour','creek beach','sobha hartland','palm jumeirah',
-                   'dubai marina','business bay','downtown','jumeirah'}:
+                   'dubai marina','business bay','downtown','jumeirah',
+                   # B###: garbage building values (literal 'null', UI labels, generic type)
+                   'null','none','n/a','na','property details','property detail',
+                   'villa','apartment','flat','studio','penthouse','duplex',
+                   'townhouse','office','retail','shop','warehouse','land','plot',
+                   'residential','commercial','mixed use','mixed-use',
+                   'property','unit','listing','n.a','n/a.','tbd','tba'}:
             building = None
             building_conf = 0.0
         # Starts with digit + bedroom-noun

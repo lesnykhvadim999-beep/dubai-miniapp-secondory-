@@ -833,6 +833,18 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
     if data.get("original_text") and not data.get("content_hash"):
         data["content_hash"] = compute_content_hash(data["original_text"])
 
+    # B###: ensure listing_key is always set before insert/dedup lookup.
+    # Callers that don't go through parse_message_v2 (user-submitted, backfill
+    # scripts, test tools) may pass data without listing_key.
+    # Also covers staging rows where area/building were unknown at parse-time
+    # but were later enriched by LLM before calling upsert again.
+    if not data.get("listing_key") and (data.get("area") or data.get("building")):
+        try:
+            from parser_engine import make_listing_key as _make_lk
+            data["listing_key"] = _make_lk(data)
+        except Exception:
+            pass  # parser_engine not available in test env — skip silently
+
     conn = get_conn()
     try:
         with conn.cursor() as cur:
@@ -880,12 +892,19 @@ def upsert_listing(data: dict) -> tuple[int, bool]:
             _otext_lower = _otext.lower()
 
             # G1: пустой/короткий original_text — нет верификации цены/полей.
-            # Audit 2026-06-06: relaxed 20 → 10. Many real Telegram listings
-            # are short captions: "Altai Tower 1.08M" (17 chars). 10 is enough
-            # to ensure we're not parsing pure noise.
-            if len(_otext) < 10:
+            # Audit 2026-06-07: skip G1 when core fields (bld+area+price)
+            # already extracted (likely from photo OCR). Otherwise photo-only
+            # posts with OCR'd inventory data get dropped here, even though
+            # they're valid listings. Mirrors the SDK no_text override.
+            _has_core_otext = (data.get("building") and data.get("area")
+                                and data.get("price"))
+            if len(_otext) < 10 and not _has_core_otext:
                 print(f"[parser] reject: no/short original_text (len={len(_otext)})")
                 return -1, False
+            elif len(_otext) < 10 and _has_core_otext:
+                print(f"[parser] G1 override: short text but core fields present "
+                      f"(bld={data.get('building')!r} area={data.get('area')!r} "
+                      f"price={data.get('price')})")
 
             # G2: "Key money" / "goodwill" — это коммерческий бизнес,
             # не сделка с недвижимостью. Пример: ресторан "Key money 350k"
