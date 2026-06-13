@@ -12,6 +12,7 @@ All fixes applied:
 """
 
 import os, re, time, json, threading, requests
+import difflib
 from datetime import datetime, timezone
 
 # FSST: callback dedup + SIGTERM + health server
@@ -163,6 +164,20 @@ except Exception as _bm_e:
     def _bm_register_trigger(*a, **kw): return None
     def _bm_opt_out_cb(*a, **kw): return (False, "")
     _BM_OPT_OUT_PREFIX = "pa_optout_"
+
+# ── LIVE VALIDATION: product_analytics funnel tracking (best-effort) ──────────
+try:
+    import product_analytics as _pa
+except Exception:
+    _pa = None
+
+def _trk(stage, uid, **kw):
+    """Тихий трекинг этапа воронки. Любая ошибка — игнорируется."""
+    try:
+        if _pa:
+            _pa.track(stage, uid, bot="resale", **kw)
+    except Exception:
+        pass
 
 
 def _bm_safe_record_turn(user_id, language=None, last_user_text=None):
@@ -711,6 +726,7 @@ T = {
     "wiz_area_q":         "🏙 *Choose location*\n\nType area name (full or abbreviation: Marina, JVC, DT, Palm, JBR…)\nor tap «Any location» to skip.",
     "wiz_area_any":       "🌍 Any location",
     "wiz_area_match":     "Matching areas — tap one:",
+    "wiz_area_fuzzy":     "Did you mean one of these? Tap to select:",
     "wiz_area_nomatch":   "_No area matched «{q}». Try shorter spelling or tap «Any location»._",
     "wiz_bld_q":          "🏢 *Choose building*\n\nType building name (full or part: Burj, Aykon, Sobha One, Sidra…)\nor tap «Any building» to skip.",
     "wiz_bld_any":        "🏢 Any building",
@@ -1135,6 +1151,7 @@ T = {
     "wiz_area_q":         "🏙 *Выберите район*\n\nНапишите название (полностью или сокращение: Marina, JVC, DT, Palm, JBR, Бизнес-Бей…)\nили нажмите «Любой район» чтобы пропустить.",
     "wiz_area_any":       "🌍 Любой район",
     "wiz_area_match":     "Подходящие районы — нажмите:",
+    "wiz_area_fuzzy":     "Возможно, вы имели в виду? Нажмите для выбора:",
     "wiz_area_nomatch":   "_Район «{q}» не найден. Попробуйте сократить или нажмите «Любой район»._",
     "wiz_bld_q":          "🏢 *Выберите здание*\n\nНапишите название (полностью или часть: Burj, Aykon, Sobha One, Sidra…)\nили нажмите «Любое здание» чтобы пропустить.",
     "wiz_bld_any":        "🏢 Любое здание",
@@ -1567,6 +1584,7 @@ T = {
     "wiz_area_q":         "🏙 *اختر المنطقة*\n\nاكتب اسم المنطقة (كامل أو اختصار: Marina, JVC, DT, Palm…)\nأو اضغط «أي منطقة» لتخطي.",
     "wiz_area_any":       "🌍 أي منطقة",
     "wiz_area_match":     "المناطق المطابقة — اضغط:",
+    "wiz_area_fuzzy":     "هل تقصد إحدى هذه المناطق؟ اضغط للاختيار:",
     "wiz_area_nomatch":   "_لم تتطابق منطقة مع «{q}»._",
     "wiz_bld_q":          "🏢 *اختر المبنى*\n\nاكتب اسم المبنى (كامل أو جزء: Burj, Aykon…)\nأو اضغط «أي مبنى» لتخطي.",
     "wiz_bld_any":        "🏢 أي مبنى",
@@ -1789,6 +1807,123 @@ try:
 except Exception:
     _antispam_mod = None
 
+# ── PHASE 2 — ECO CONVERSION LAYER (action_block / listings_gateway / lead_capture / portfolio_engine) ──
+# Защитные импорты: если любой модуль недоступен — фича выключается, бот работает как раньше.
+try:
+    import action_block as _ab
+    import listings_gateway as _lg
+    import lead_capture as _lc
+    import portfolio_engine as _pe
+    _ECO_OK = True
+    print("[eco-phase2] action_block/listings_gateway/lead_capture/portfolio_engine OK", flush=True)
+except Exception as _eco_e:
+    _ab = _lg = _lc = _pe = None
+    _ECO_OK = False
+    print(f"[eco-phase2] import failed (non-fatal): {_eco_e}", flush=True)
+
+# Словарь ожидающих лид-форму: uid -> {step, collected, ctx}
+_eco_lead_pending: dict = {}
+
+# ── HUMAN EXPLAINER + ADVANCED METRICS (защитный импорт) ────────────────────
+# Если модули недоступны — вся фича отключается, бот работает как раньше.
+try:
+    import human_explainer as _hx
+    import advanced_metrics as _am
+    print("[hx+am] human_explainer + advanced_metrics OK", flush=True)
+except Exception as _hx_e:
+    _hx = _am = None
+    print(f"[hx+am] import failed (non-fatal): {_hx_e}", flush=True)
+
+
+def _eco_kb(ctx: dict) -> dict:
+    """Конвертирует _ab.rows(ctx) -> raw dict {"inline_keyboard": [...]}  (формат resale_bot)."""
+    if not _ab:
+        return {}
+    raw = _ab.rows(ctx)
+    return {"inline_keyboard": [[{"text": t, "callback_data": c} for t, c in row] for row in raw]}
+
+
+def _eco_obj_kb(ctx: dict) -> dict:
+    """object_keyboard → raw dict (📷📐📊💰🏦📄❤️📩)."""
+    if not _ab:
+        return {}
+    raw = _ab.rows(ctx, actions=_ab.OBJECT_ACTIONS)
+    return {"inline_keyboard": [[{"text": t, "callback_data": c} for t, c in row] for row in raw]}
+
+
+def _eco_fmt_budget(ctx: dict) -> str:
+    bmin = ctx.get("budget_min")
+    bmax = ctx.get("budget_max")
+    if bmin and bmax:
+        return f"{int(bmin):,}–{int(bmax):,} AED"
+    if bmin:
+        return f"от {int(bmin):,} AED"
+    if bmax:
+        return f"до {int(bmax):,} AED"
+    # P2.6 FIX P6: object-card ctx несёт price (не budget_min/max) — используем его
+    price = ctx.get("price")
+    if price:
+        try:
+            return f"~{int(price):,} AED"
+        except (TypeError, ValueError):
+            pass
+    return ""
+
+
+def eco_handle_lead_step(cid, uid, text):
+    """Обработчик шагов лид-формы в handle_msg. True если поглотил ввод."""
+    if uid not in _eco_lead_pending:
+        return False
+    if not _lc:
+        _eco_lead_pending.pop(uid, None)
+        return False
+    state = _eco_lead_pending[uid]
+    step = state.get("step", 0)
+    prompts = _lc.FIELD_PROMPTS
+    if step >= len(prompts):
+        _eco_lead_pending.pop(uid, None)
+        return False
+    field, _ = prompts[step]
+    state["collected"][field] = text.strip()
+    state["step"] = step + 1
+    if state["step"] < len(prompts):
+        _, next_prompt = prompts[state["step"]]
+        _send(cid, next_prompt)
+    else:
+        # Форма заполнена — сохраняем лид
+        ctx = state.get("ctx", {})
+        # P2.6 FIX P6: interest_type — осмысленный (buy/invest/rent), не вид объекта
+        _deal = ctx.get("deal_type", "")
+        _screen = ctx.get("source_screen", "card")
+        if _deal == "rent":
+            _itype = "rent"
+        elif _screen in ("roi", "invest"):
+            _itype = "invest"
+        else:
+            _itype = "buy"
+        # object_ref: с грида kind=area — не теряем, с карточки kind=resale+oid
+        _oid = ctx.get("oid")
+        _kind = ctx.get("kind", "resale")
+        _obj_ref = f"{_kind}:{_oid}" if _oid else None
+        payload = {
+            **state["collected"],
+            "source_bot": "resale-bot",
+            "source_screen": _screen,
+            "area": ctx.get("area"),
+            "object_ref": _obj_ref,
+            "budget": _eco_fmt_budget(ctx),
+            "interest_type": _itype,
+            "telegram_user_id": uid,
+            "telegram_username": ctx.get("username"),
+        }
+        try:
+            _lc.save_lead(payload)
+        except Exception as _le:
+            print(f"[eco-lead] save_lead failed: {_le}", flush=True)
+        _send(cid, _lc.confirmation_text(payload))
+        _eco_lead_pending.pop(uid, None)
+    return True
+
 
 def _build_pdf_signals(score_dict, listing, lang):
     """Build a list of human-readable positive signal strings in user's lang.
@@ -1904,8 +2039,268 @@ def _build_pdf_risks(score_dict, listing, lang):
     return risks[:5]
 
 
-def _send_pdf(cid, uid, listing):
-    """Generate investment PDF for a listing + send as document."""
+def _resale_v16_spec(listing: dict, dld_b: dict | None, mkt: dict | None, score: dict | None) -> dict:
+    """Build ecosystem_pdf v16 spec for a resale listing (report_kind=OBJECT).
+
+    Only real fields — no zeros/N/A/placeholders. Missing data → field omitted.
+    """
+    price = listing.get("price")
+    area = listing.get("area") or ""
+    building = listing.get("building") or ""
+    bedrooms = listing.get("bedrooms")
+    size_sqft = listing.get("size_sqft")
+    ppf = listing.get("price_per_sqft")
+    deal_type = listing.get("deal_type", "sale")
+    prop_type = listing.get("property_type") or ""
+    roi = listing.get("roi_estimate")
+    pct = listing.get("price_vs_market_percent")
+    inv_score = listing.get("investment_score")
+    furn = listing.get("furnishing") or ""
+    floor = listing.get("floor")
+
+    # Price per m2
+    ppm2 = None
+    if ppf:
+        ppm2 = int(ppf * 10.764)
+    elif size_sqft and price and size_sqft > 0:
+        ppm2 = int(price / (size_sqft * 0.0929))
+
+    # Size in m2
+    size_m2 = round(size_sqft * 0.0929, 1) if size_sqft else None
+
+    # Build human-readable BR label
+    br_label = None
+    if bedrooms == 0:
+        br_label = "Studio"
+    elif bedrooms:
+        br_label = f"{bedrooms} BR"
+
+    # Question + answer
+    location_str = " · ".join(p for p in [building, area] if p)
+    question = f"Стоит ли покупать этот объект? {location_str}"
+
+    # ── ЕДИНЫЙ вердикт через decision_engine (БЛОК 6 спеки) — NO local thresholds ──
+    badge = "Требует дополнительной проверки"
+    buy_now = "Нет"
+    confidence_level = "Средняя"
+    horizon = "12-24 мес"
+    try:
+        import decision_engine as _de_pdf
+        # Нормализуем inv_score в 0-100 для decision_engine.verdict
+        _pdf_score = None
+        if inv_score:
+            _pdf_score = float(inv_score) if inv_score > 10 else float(inv_score) * 10
+        if _pdf_score is not None:
+            _vlabel, _vemoji = _de_pdf.verdict(_pdf_score)
+            if _vlabel in ("STRONG BUY", "BUY"):
+                badge = "Сильная точка входа"
+                buy_now = "Да"
+                confidence_level = "Высокая"
+            elif _vlabel == "GOOD OPTION":
+                badge = "Рекомендуется к рассмотрению"
+                buy_now = "Да"
+                confidence_level = "Средняя"
+            elif _vlabel in ("PASS",):
+                badge = "Повышенный риск"
+                buy_now = "Нет"
+                confidence_level = "Низкая"
+            # HOLD / SPECULATIVE → оставляем badge по умолчанию
+    except Exception:
+        # Fallback: старая логика если decision_engine не доступен
+        if inv_score:
+            s = float(inv_score) if inv_score > 10 else float(inv_score) * 10
+            if s >= 80:
+                badge = "Сильная точка входа"
+                buy_now = "Да"
+                confidence_level = "Высокая"
+            elif s >= 70:
+                badge = "Рекомендуется к рассмотрению"
+                buy_now = "Да"
+                confidence_level = "Средняя"
+            elif s < 50:
+                badge = "Повышенный риск"
+                buy_now = "Нет"
+                confidence_level = "Низкая"
+
+    # Market signal for answer
+    market_note = ""
+    if pct is not None and -70 < pct < -3:
+        market_note = f" — {abs(round(pct,1))}% ниже рынка"
+    elif pct is not None and pct > 3:
+        market_note = f" — {round(pct,1)}% выше рынка"
+
+    roi_note = ""
+    if roi and deal_type == "sale" and roi < 30:
+        roi_note = f", годовая доходность от аренды ~{roi}%"
+
+    answer_parts = [badge]
+    if br_label:
+        answer_parts.append(br_label)
+    if prop_type:
+        answer_parts.append(prop_type.capitalize())
+    answer = " · ".join(answer_parts)
+    answer_note = f"По данным рынка{market_note}{roi_note}." if (market_note or roi_note) else None
+
+    # Economics facts (стр.2)
+    economics = []
+    if price:
+        economics.append(("Цена объекта", f"AED {price:,}".replace(",", " ")))
+    if ppm2:
+        economics.append(("Цена за м2", f"AED {ppm2:,} / м2".replace(",", " ")))
+    if ppf:
+        economics.append(("Цена за кв.фут", f"AED {int(ppf):,} / sqft".replace(",", " ")))
+    if size_m2:
+        economics.append(("Площадь", f"{size_m2} м2"))
+    if br_label:
+        economics.append(("Спален", br_label))
+    if floor is not None:
+        economics.append(("Этаж", str(floor)))
+    if furn:
+        economics.append(("Меблировка", furn.replace("_", " ").capitalize()))
+    if deal_type:
+        economics.append(("Тип сделки", "Аренда" if deal_type == "rent" else "Продажа"))
+    if area:
+        economics.append(("Район", area))
+    if roi and deal_type == "sale" and roi < 30:
+        economics.append(("Годовая доходность от аренды", f"~{roi}% / год"))
+
+    # Market benchmarks from mkt
+    if mkt:
+        yld = mkt.get("yield")
+        growth = mkt.get("growth_yoy") or mkt.get("yoy_growth")
+        avg_psf = mkt.get("avg_price_psf") or mkt.get("avg_psf")
+        if yld:
+            economics.append(("Средняя доходность района", f"{yld}%"))
+        if growth:
+            economics.append(("Рост цены за год", f"{growth}%"))
+        if avg_psf:
+            economics.append(("Средняя цена / sqft", f"AED {int(avg_psf):,}".replace(",", " ")))
+
+    # Comparison table with market (стр.3)
+    comparison = None
+    if dld_b and price and ppm2:
+        bm_psf = (dld_b.get("avg_price_psf") or dld_b.get("avg_psf"))
+        bm_deals = dld_b.get("deals")
+        if bm_psf:
+            bm_ppm2 = int(float(bm_psf) * 10.764)
+            comparison = {
+                "headers": ["Параметр", "Объект", "Рынок (DLD)"],
+                "rows": [
+                    ["Параметр", "Объект", "Рынок (DLD)"],
+                    ["Цена / м2", f"AED {ppm2:,}".replace(",", " "), f"AED {bm_ppm2:,}".replace(",", " ")],
+                ],
+                "takeaway": (
+                    f"Объект {'ниже' if ppm2 < bm_ppm2 else 'выше'} медианы рынка DLD"
+                    f" на {abs(round((ppm2/bm_ppm2 - 1)*100, 1))}%."
+                ),
+            }
+            if bm_deals:
+                comparison["rows"].append(["Сделок DLD (здание)", "—", str(bm_deals)])
+
+    # ── Rating через decision_engine.object_score — ЕДИНАЯ шкала 0-100 ────────
+    # breakdown из investment_score_v2 хранит значения в 0-25 (четыре фактора ×25).
+    # Нормализуем ТОЛЬКО для отображения breakdown-баров; итоговый rating — из DE.
+    rating_breakdown = None
+    rating = None
+    try:
+        import decision_engine as _de_pdf2
+        _de_pdf2_ok = True
+    except Exception:
+        _de_pdf2_ok = False
+
+    if score and isinstance(score, dict):
+        bd = score.get("breakdown") or {}
+        if bd:
+            # breakdown из investment_score_v2: каждый фактор 0-25 → нормализуем в 0-100
+            def _norm_25(v):
+                try:
+                    return min(100, round(float(v) / 25.0 * 100))
+                except Exception:
+                    return None
+            rating_breakdown = {
+                "yield": _norm_25(bd.get("yield")),
+                "growth": _norm_25(bd.get("growth")),
+                "liquidity": _norm_25(bd.get("liquidity")),
+                "risk": _norm_25(bd.get("risk")),
+            }
+            rating_breakdown = {k: v for k, v in rating_breakdown.items() if v is not None}
+        # Итоговый rating: score из score dict уже 0-100 (investment_score_v2.score)
+        total = score.get("score")  # уже 0-100 в v2
+        if total is None:
+            total = score.get("total")  # v1 может быть 0-25 → нормализуем
+        if total is not None:
+            try:
+                fv = float(total)
+                rating = min(100, round(fv if fv > 10 else fv * 4))  # v1: макс 25→100
+            except Exception:
+                pass
+    if rating is None and inv_score:
+        try:
+            rating = min(100, round(float(inv_score) if float(inv_score) > 10 else float(inv_score) * 10))
+        except Exception:
+            pass
+
+    # Risks from risk factors in score
+    growth_risks = None
+    if score and isinstance(score, dict):
+        rf = score.get("risk_factors") or []
+        if rf:
+            growth_risks = [str(r).replace("_", " ") for r in rf[:3]]
+
+    spec = {
+        "report_kind": "OBJECT",
+        "question": question,
+        "answer": answer,
+        "analyzed": f"Объект {location_str}" if location_str else "Объект вторичного рынка",
+    }
+    if answer_note:
+        spec["answer_note"] = answer_note
+    if economics:
+        spec["economics"] = economics
+    if comparison:
+        spec["comparison"] = comparison
+    if rating is not None:
+        spec["rating"] = rating
+    if rating_breakdown:
+        spec["rating_breakdown"] = rating_breakdown
+    if growth_risks:
+        spec["growth_risks"] = growth_risks
+    spec["verdict"] = {
+        "badge": badge,
+        "fits": [f for f in [
+            ("Инвестор в аренду" if roi and roi >= 5 else None),
+            ("Покупка для жизни" if deal_type == "sale" else None),
+            ("Бюджет от AED " + f"{int(price * 0.8 / 100000) * 100000:,}".replace(",", " ") if price else None),
+        ] if f],
+        "not_fits": [f for f in [
+            ("Краткосрочная спекуляция" if (pct or 0) > 5 else None),
+        ] if f],
+    }
+    spec["decision"] = {
+        "buy_now": buy_now,
+        "confidence_level": confidence_level,
+        "horizon": horizon,
+        "reason": answer_note or badge,
+    }
+    return spec
+
+
+def _send_pdf(cid, uid, listing, hourglass_mid=None, post_pdf_fn=None):
+    """Generate investment PDF for a listing + send as document.
+
+    BUG1 FIX: hourglass_mid — message_id часов-тоста (⏳), удаляется ДО отправки PDF
+    при успехе или при ошибке (не висит вечно).
+    post_pdf_fn — callable() вызывается ПОСЛЕ успешной отправки документа
+    (шлёт блок «Что хотите сделать дальше?» — только после PDF, не до).
+    """
+
+    def _delete_hourglass():
+        if hourglass_mid:
+            try:
+                _api("deleteMessage", chat_id=cid, message_id=hourglass_mid)
+            except Exception as _de:
+                print(f"[pdf] delete hourglass err: {_de}", flush=True)
+
     # PDF feature manually disabled 2026-06-03 by Vadim.
     _disabled = (os.getenv("PDF_DISABLED") or "").strip() in ("1", "true", "True", "yes")
     if not _disabled:
@@ -1915,6 +2310,7 @@ def _send_pdf(cid, uid, listing):
         except Exception:
             pass
     if _disabled:
+        _delete_hourglass()
         try:
             send_message(cid, "📄 PDF-отчёт временно отключён.\n\nVadim Realty · RERA BRN 65011")
         except Exception:
@@ -1924,6 +2320,7 @@ def _send_pdf(cid, uid, listing):
     try:
         from stability import ff as _ff, degrade_msg as _dmsg
         if not _ff("PDF_REPORT"):
+            _delete_hourglass()
             try:
                 send_message(cid, _dmsg("feature_unavailable", _get_lang(uid)))
             except Exception:
@@ -1952,40 +2349,53 @@ def _send_pdf(cid, uid, listing):
         score = compute_investment_score(listing, dld_b, mkt)
         lang = _get_lang(uid)
 
-        # v_pdf2: общий брендовый Vadim Realty PDF (10 страниц).
+        # v16: ECOSYSTEM PDF ENGINE v16 (navy/gold, institutional).
+        # Fallback chain: ecosystem_pdf → vadim_pdf → legacy pdf_report.
         pdf_path = None
+        _lid = listing.get("id", "report")
+        _out = f"/tmp/ecosystem_resale_{_lid}.pdf"
         try:
-            from vadim_pdf import generate_pdf_report
-            payload = {
-                "name": listing.get("building") or listing.get("area") or "Listing",
-                "title": listing.get("building") or "Property",
-                "area": listing.get("area"),
-                "emirate": listing.get("emirate"),
-                "avg_price": listing.get("price"),
-                "price_per_m2": (listing.get("price_per_sqft") or 0) * 10.764 if listing.get("price_per_sqft") else None,
-                "area_m2": (listing.get("size_sqft") or 0) * 0.0929 if listing.get("size_sqft") else None,
-                "yield": (mkt or {}).get("yield") if mkt else None,
-                "growth_yoy": (mkt or {}).get("growth_yoy") if mkt else None,
-                "deals": (dld_b or {}).get("deals") if dld_b else None,
-                "description": (
-                    f"{listing.get('bedrooms','?')} BR · "
-                    f"{listing.get('property_type','')}"
-                ),
-                "signals": _build_pdf_signals(score, listing, lang),
-                "risks":   _build_pdf_risks(score, listing, lang),
-            }
-            payload["signals"] = [s for s in payload["signals"] if s]
-            pdf_path = generate_pdf_report("listing", payload, lang=lang)
-        except Exception as _e:
-            print(f"[resale] vadim_pdf failed, fallback to legacy: {_e}")
-            pdf_path = generate_pdf(listing, score, lang=lang)
+            import ecosystem_pdf as _epdf
+            from datetime import date as _date
+            _datestr = _date.today().strftime("%d %b %Y").upper()
+            _v16_spec = _resale_v16_spec(listing, dld_b, mkt, score)
+            pdf_path = _epdf.render_report_v2(_v16_spec, _out, datestr=_datestr)
+            print(f"[resale] ecosystem_pdf v16 OK lid={_lid}")
+        except Exception as _e16:
+            print(f"[resale] ecosystem_pdf v16 failed (lid={_lid}): {_e16}, trying vadim_pdf")
+            try:
+                from vadim_pdf import generate_pdf_report
+                _vp = {
+                    "name": listing.get("building") or listing.get("area") or "Listing",
+                    "title": listing.get("building") or "Property",
+                    "area": listing.get("area"),
+                    "emirate": listing.get("emirate"),
+                    "avg_price": listing.get("price"),
+                    "price_per_m2": (listing.get("price_per_sqft") or 0) * 10.764 if listing.get("price_per_sqft") else None,
+                    "area_m2": (listing.get("size_sqft") or 0) * 0.0929 if listing.get("size_sqft") else None,
+                    "yield": (mkt or {}).get("yield") if mkt else None,
+                    "growth_yoy": (mkt or {}).get("growth_yoy") if mkt else None,
+                    "deals": (dld_b or {}).get("deals") if dld_b else None,
+                    "description": f"{listing.get('bedrooms','?')} BR · {listing.get('property_type','')}",
+                    "signals": _build_pdf_signals(score, listing, lang),
+                    "risks": _build_pdf_risks(score, listing, lang),
+                }
+                _vp["signals"] = [s for s in _vp["signals"] if s]
+                pdf_path = generate_pdf_report("listing", _vp, lang=lang)
+            except Exception as _e:
+                print(f"[resale] vadim_pdf failed, fallback to legacy: {_e}")
+                pdf_path = generate_pdf(listing, score, lang=lang)
 
         if not pdf_path or not os.path.exists(pdf_path):
-            _send(cid, _t(uid, "pdf_failed"))
+            # BUG1 FIX: при ошибке — удалить часы и показать видимое сообщение
+            _delete_hourglass()
+            _send(cid, "Не удалось сформировать PDF, попробуйте ещё раз.")
             return
         bld = (listing.get("building") or listing.get("area") or "Property")
         filename = f"investment-{listing.get('id', 'report')}.pdf"
         caption = _t(uid, "pdf_report_caption").format(bld=bld)
+        # BUG1 FIX: сначала удалить часы, потом отправить документ
+        _delete_hourglass()
         with open(pdf_path, "rb") as f:
             requests.post(
                 f"{API}/sendDocument",
@@ -1995,7 +2405,16 @@ def _send_pdf(cid, uid, listing):
             )
         try: os.remove(pdf_path)
         except Exception as e: print(f"[bot] _send_pdf cleanup: {e}")
+        # BUG1 FIX: «Что дальше?» — только ПОСЛЕ успешной отправки PDF
+        if post_pdf_fn:
+            try:
+                post_pdf_fn()
+            except Exception as _ppf_e:
+                print(f"[pdf] post_pdf_fn err: {_ppf_e}", flush=True)
     except Exception as e:
+        # BUG1 FIX: при любом необработанном сбое — удалить часы и уведомить
+        _delete_hourglass()
+        _send(cid, "Не удалось сформировать PDF, попробуйте ещё раз.")
         print(f"[bot] _send_pdf: {e}")
 
 
@@ -2090,8 +2509,8 @@ def _trim_tg(text):
         return text
     return text[: _TG_MAX_TEXT - len(_TG_TRIM_NOTE)] + _TG_TRIM_NOTE
 
-def _send(cid, text, kb=None):
-    p = {"chat_id": cid, "text": _trim_tg(text), "parse_mode": "Markdown"}
+def _send(cid, text, kb=None, parse_mode="Markdown"):
+    p = {"chat_id": cid, "text": _trim_tg(text), "parse_mode": parse_mode}
     if kb: p["reply_markup"] = kb
     return _api("sendMessage", **p)
 
@@ -2167,8 +2586,8 @@ def _paywall(cid: int, uid: int, feature: str):
     kb_rows = [[_btn(lbl, cb) for lbl, cb in row] for row in raw_rows]
     _send(cid, text, _kb(*kb_rows) if kb_rows else None)
 
-def _photo(cid, photo, caption, kb=None):
-    p = {"chat_id": cid, "photo": photo, "caption": caption[:1024], "parse_mode": "Markdown"}
+def _photo(cid, photo, caption, kb=None, parse_mode="Markdown"):
+    p = {"chat_id": cid, "photo": photo, "caption": caption[:1024], "parse_mode": parse_mode}
     if kb: p["reply_markup"] = kb
     return _api("sendPhoto", **p)
 
@@ -2648,16 +3067,71 @@ def _master_zone_aliases(q: str) -> list:
     return out
 
 
+def _normalize_area_q(q: str) -> str:
+    """Нормализует запрос района: lower, trim, убрать лишние пробелы."""
+    if not q:
+        return ""
+    q = q.strip().lower()
+    q = re.sub(r"\s+", " ", q)
+    # Транслит частых RU→EN упрощений
+    _RU_MAP = {
+        "бизнес бей": "business bay", "бизнес-бей": "business bay",
+        "пальма": "palm jumeirah", "марина": "dubai marina",
+        "даунтаун": "downtown dubai", "даунтавн": "downtown dubai",
+        "дубай хиллс": "dubai hills estate",
+        "джвс": "jumeirah village circle", "джвц": "jumeirah village circle",
+    }
+    return _RU_MAP.get(q, q)
+
+
+def _fuzzy_area_matches(qn: str, items: list, limit: int = 5) -> list:
+    """Fuzzy-матч: возвращает items у которых хотя бы одно имя/алиас
+    достаточно похоже на qn (difflib ratio >= 0.65 или token-sort ~0.7).
+    Устойчив к опечаткам типа Talal→Tilal.
+    """
+    results = []
+    scored = []
+    for item in items:
+        names_to_check = [item["name"]] + list(item.get("aliases") or [])
+        names_lower = [n.lower() for n in names_to_check if n]
+        best_ratio = 0.0
+        for n in names_lower:
+            r = difflib.SequenceMatcher(None, qn, n).ratio()
+            if r > best_ratio:
+                best_ratio = r
+            # Также сравниваем каждое «слово» запроса с каждым словом имени
+            # (помогает при «Talal Al Ghaf» → «Tilal Al Ghaf»)
+            for tok_q in qn.split():
+                for tok_n in n.split():
+                    if len(tok_q) >= 3 and len(tok_n) >= 3:
+                        tr = difflib.SequenceMatcher(None, tok_q, tok_n).ratio()
+                        if tr > best_ratio:
+                            best_ratio = tr
+        if best_ratio >= 0.65:
+            scored.append((best_ratio, item))
+    scored.sort(key=lambda x: -x[0])
+    seen = set()
+    for _, item in scored:
+        if item["name"] in seen:
+            continue
+        seen.add(item["name"])
+        results.append(item)
+        if len(results) >= limit:
+            break
+    return results
+
+
 def search_areas_by_query(q: str, emirate: str = None, limit: int = 8) -> list:
     """Возвращает top-N matching areas. Логика:
        0. v110: master-zone canonical (JVC → Jumeirah Village Circle и его алиасы) — топ
        1. Точное совпадение name / alias (case-insensitive)
        2. startswith — следующие
        3. contains — последние
+       4. v131: fuzzy (Levenshtein-like ratio >= 0.65, опечатки Talal→Tilal)
     Если emirate задан — фильтруем."""
     if not q or len(q.strip()) < 1:
         return []
-    qn = q.strip().lower()
+    qn = _normalize_area_q(q)
     items = _load_all_areas()
     if emirate:
         items = [i for i in items if not i.get("emirate") or i["emirate"] == emirate]
@@ -2684,6 +3158,20 @@ def search_areas_by_query(q: str, emirate: str = None, limit: int = 8) -> list:
         seen.add(it["name"]); result.append(it)
         if len(result) >= limit:
             break
+
+    # v131: 4. Fuzzy-матч если предыдущие шаги не дали результата
+    if not result:
+        fuzzy = _fuzzy_area_matches(qn, items, limit=limit)
+        for it in fuzzy:
+            if it["name"] in seen: continue
+            seen.add(it["name"])
+            # Помечаем как fuzzy-подсказку для UX (заголовок «Возможно, вы имели в виду»)
+            it = dict(it)
+            it["_fuzzy"] = True
+            result.append(it)
+            if len(result) >= limit:
+                break
+
     return result
 
 
@@ -3715,7 +4203,7 @@ def format_card(listing, uid, rank=None):
     # User-entered description (from /add wizard)
     desc = listing.get("description")
     if desc and isinstance(desc, str) and desc.strip():
-        lines.append(f"📝 _{desc[:200].strip()}_")
+        lines.append(f"📝 _{_md_esc(desc[:200].strip())}_")
 
     # 6. Analytics block (separator + items)
     # v56 HONESTY FIX: gate "below market" / "premium-segment" / score on
@@ -3962,27 +4450,12 @@ def format_detail(listing, uid):
         for chunk in [desc[i:i+50] for i in range(0, len(desc), 50)][:6]:
             lines.append(f"  {_md_esc(chunk)}")
 
-    roi   = listing.get("roi_estimate")
-    rent  = listing.get("market_rent_1br")
-    alow  = listing.get("airbnb_estimate_low")
-    ahigh = listing.get("airbnb_estimate_high")
-    growth= listing.get("market_growth_pct")
-    score = listing.get("investment_score")
     dq    = listing.get("deal_quality", "normal")
     pct   = listing.get("price_vs_market_percent")
     disc  = listing.get("discount_percent")
 
-    if deal_type == "sale":
-        lines.append("")
-        lines.append(_sep())
-        lines.append(f"  {_t(uid,'det_investment_analysis')}")
-        lines.append(_sep())
-        if score:  lines.append(f"  {_t(uid,'det_score'):<11} {score} / 10")
-        if roi:    lines.append(f"  {_t(uid,'det_roi'):<11} {roi}{_t(uid,'det_roi_yearly')}")
-        if rent:   lines.append(f"  {_t(uid,'det_longterm'):<11} {_fmt(rent)} {_t(uid,'det_per_year')}")
-        if alow and ahigh:
-            lines.append(f"  {_t(uid,'det_airbnb'):<11} {_fmt(alow)} – {_fmt(ahigh)} {_t(uid,'det_per_year')}")
-        if growth: lines.append(f"  {_t(uid,'det_area_growth'):<11} {growth}{_t(uid,'det_annually')}")
+    # Инвест-блок (score/10, roi, rent, airbnb, growth) убран — дублирует EA build_analysis.
+    # deal_quality-плашка остаётся как визуальный сигнал (скидка от рынка).
 
     if dq in ("very_good", "good", "interesting"):
         lines.append("")
@@ -4154,25 +4627,293 @@ def _ai_invest_comment(listing: dict, uid: int) -> str:
     return ""
 
 
+def _ea_spec_resale_chat(listing: dict, score_rep: dict | None, score_v2: dict | None, uid: int = 0) -> dict:
+    """Build ecosystem_analytics chat spec for a resale listing (light narrative v5).
+    Only real data — missing fields are not passed (block stays hidden).
+    Verdict via ЕДИНЫЙ decision_engine.object_score → verdict(score). No local thresholds.
+    """
+    import ecosystem_analytics as _ea_mod
+    try:
+        import decision_engine as _de
+    except Exception:
+        _de = None
+
+    price = listing.get("price")
+    area = listing.get("area") or ""
+    building = listing.get("building") or ""
+    bedrooms = listing.get("bedrooms")
+    size_sqft = listing.get("size_sqft")
+    ppf = listing.get("price_per_sqft")
+    deal_type = listing.get("deal_type", "sale")
+    roi = listing.get("roi_estimate") or (score_rep.get("roi") if score_rep else None)
+    growth = (score_rep.get("growth_pct") if score_rep else None) or listing.get("market_growth_pct")
+    pct = listing.get("price_vs_market_percent")
+    inv_score = listing.get("investment_score")
+
+    # BUG3 FIX: BR label локализован — для RU «N спал.», для прочих «N BR»
+    _lang = _get_lang(uid) if uid else "en"
+    br_label = None
+    if bedrooms == 0:
+        br_label = "Студия" if _lang == "ru" else "Studio"
+    elif bedrooms:
+        br_label = f"{bedrooms} спал." if _lang == "ru" else f"{bedrooms} BR"
+
+    # Location string
+    location_parts = [p for p in [br_label, building, area] if p]
+    answer = " · ".join(location_parts) if location_parts else "Объект"
+
+    # ── ЕДИНЫЙ рейтинг через decision_engine.object_score (БЛОК 3 спеки) ───────
+    # Факторы из реальных полей листинга — без выдумок.
+    rating = None
+    if _de is not None:
+        # price_vs_market_pct: дисконт + = ниже рынка (хорошо), + = выше (плохо)
+        # decision_engine.n_discount: +10% дороже→0, -10% дешевле→100
+        price_vs = None
+        if pct is not None:
+            try:
+                price_vs = float(pct)  # % от рынка: -15 = 15% ниже, +10 = 10% выше
+            except Exception:
+                pass
+        yield_pct_v = None
+        if roi:
+            try:
+                yield_pct_v = float(roi)
+            except Exception:
+                pass
+        growth_pct_v = None
+        if growth:
+            try:
+                growth_pct_v = float(growth)
+            except Exception:
+                pass
+        deals_year_v = None
+        if score_rep:
+            try:
+                deals_year_v = float(score_rep.get("area_deals") or score_rep.get("deals") or 0) or None
+            except Exception:
+                pass
+        payback_v = None
+        if score_rep:
+            pb = score_rep.get("payback_years")
+            if pb and pb < 99:
+                try:
+                    payback_v = float(pb)
+                except Exception:
+                    pass
+        quality_v = None
+        if score_v2:
+            try:
+                quality_v = float(score_v2.get("score") or 0) or None
+            except Exception:
+                pass
+        rating = _de.object_score(
+            price_vs_market_pct=price_vs,
+            yield_pct=yield_pct_v,
+            growth_pct=growth_pct_v,
+            deals_year=deals_year_v,
+            payback_years=payback_v,
+            quality=quality_v,
+        )
+    # Fallback: если decision_engine не дал score — взять score_v2 (уже 0-100)
+    if rating is None and score_v2:
+        sv = score_v2.get("score")
+        if sv is not None:
+            try:
+                rating = min(100, int(float(sv)))
+            except Exception:
+                pass
+    # Fallback 2: inv_score из БД (может быть 0-25 или 0-100)
+    if rating is None and inv_score:
+        try:
+            rating = min(100, int(float(inv_score) if float(inv_score) > 10 else float(inv_score) * 10))
+        except Exception:
+            pass
+
+    # ── ЕДИНЫЙ вердикт через decision_engine.verdict(score) — НЕТ локальных порогов ──
+    verdict = "HOLD"
+    if _de is not None and rating is not None:
+        _vlabel, _vemoji = _de.verdict(rating)
+        # Маппинг на строки ecosystem_analytics.build_analysis (BUY/HOLD/AVOID)
+        if _vlabel in ("STRONG BUY", "BUY", "GOOD OPTION"):
+            verdict = "BUY"
+        elif _vlabel in ("PASS",):
+            verdict = "AVOID"
+        else:
+            verdict = "HOLD"
+    elif rating is not None:
+        # Если decision_engine не загружен — fallback по общей шкале спеки
+        if rating >= 70:
+            verdict = "BUY"
+        elif rating < 50:
+            verdict = "AVOID"
+        else:
+            verdict = "HOLD"
+
+    # main_reason: discount vs market OR roi
+    main_reason = None
+    if pct is not None and pct < -3:
+        main_reason = f"Объект на {abs(round(pct, 1))}% ниже медианы рынка DLD — дисконт к рынку."
+    elif pct is not None and pct > 3:
+        main_reason = f"Цена на {round(pct, 1)}% выше рынка — требует проверки обоснования."
+    elif roi and deal_type == "sale" and float(roi) >= 6:
+        main_reason = f"Годовая доходность от аренды ~{round(float(roi), 1)}% — выше среднего по Dubai."
+
+    # ai_reason: 2-3 sentences from score data
+    ai_reason = None
+    if score_rep:
+        parts = []
+        rec = score_rep.get("recommendation")
+        rec_map = {
+            "strong_buy": "Сильная точка входа на рынке вторички.",
+            "buy": "Объект рекомендуется к рассмотрению.",
+            "hold": "Нейтральный актив: держать позицию или ждать коррекции.",
+            "avoid": "Объект несёт повышенные риски на текущих условиях.",
+            "caution": "Требуется дополнительная проверка перед принятием решения.",
+        }
+        if rec and rec in rec_map:
+            parts.append(rec_map[rec])
+        pb = score_rep.get("payback_years")
+        if pb and pb < 99:
+            parts.append(f"Срок окупаемости через аренду: ~{pb} лет.")
+        if growth:
+            parts.append(f"Прогноз роста цены: +{round(float(growth), 1)}%/год по DLD.")
+        if parts:
+            ai_reason = " ".join(parts)
+
+    # metrics
+    metrics = {}
+    if roi and deal_type == "sale":
+        try:
+            metrics["yield"] = f"~{round(float(roi), 1)}%/год"
+        except Exception:
+            pass
+    if growth:
+        try:
+            metrics["growth"] = f"+{round(float(growth), 1)}%/год"
+        except Exception:
+            pass
+    if score_rep:
+        risk_s = score_rep.get("risk_score")
+        if risk_s is not None:
+            try:
+                r = int(risk_s)
+                metrics["risk"] = "высокий" if r >= 7 else ("средний" if r >= 4 else "низкий")
+            except Exception:
+                pass
+
+    # next_steps
+    next_steps = []
+    if deal_type == "sale":
+        next_steps.append("Запросить инвест-отчёт PDF (кнопка ниже) — полный анализ за 15 сек")
+    next_steps.append("Сверить сделки DLD по зданию/району — кнопка DLD аналитика")
+    next_steps.append("Подобрать аналоги — вернитесь в каталог, параметры уже заданы")
+
+    spec = {"answer": answer, "verdict": verdict}
+    if rating is not None:
+        spec["rating"] = rating
+    if main_reason:
+        spec["main_reason"] = main_reason
+    if ai_reason:
+        spec["ai_reason"] = ai_reason
+    if metrics:
+        spec["metrics"] = metrics
+    if next_steps:
+        spec["next_steps"] = next_steps
+
+    # risks from score
+    if score_rep:
+        rf = score_rep.get("risk_factors") or []
+        risks = [str(r).replace("_", " ").capitalize() for r in rf[:4] if r]
+        if risks:
+            spec["risks"] = risks
+
+    # ── metrics_explained: числовые значения для build_analysis (≤5 с inline-объяснениями) ──
+    # Передаём через all_for_object; build_analysis сам выбирает ≤5 по приоритету.
+    if _am is not None:
+        try:
+            _hx_ar = None
+            if roi:
+                try:
+                    _hx_ar = float(price) * float(roi) / 100 if price and roi else None
+                except Exception:
+                    pass
+            _me = _am.all_for_object(
+                price=price,
+                price_psf=ppf,
+                area=area,
+                bedrooms=bedrooms,
+                annual_rent=_hx_ar,
+                deal_type=deal_type,
+                noi=None,
+                active_listings=None,
+            )
+            if _me:
+                spec["metrics_explained"] = _me
+        except Exception as _me_e:
+            print(f"[ea_spec] metrics_explained: {_me_e}", flush=True)
+
+    # ctx: бюджет для inline-объяснений
+    if price:
+        spec["ctx"] = {"budget": price}
+
+    # entry_zone: «Сильная»/«Комфортная» по дисконту к рынку
+    if pct is not None:
+        try:
+            _pct_f = float(pct)
+            if _pct_f <= -10:
+                spec["entry_zone"] = "Сильная — объект ниже медианы рынка"
+            elif _pct_f <= -3:
+                spec["entry_zone"] = "Комфортная — небольшой дисконт к рынку"
+        except Exception:
+            pass
+
+    return spec
+
+
 def format_detail_full(listing: dict, uid: int, with_ai: bool = False) -> str:
     """S3-3: full detail card per ТЗ.
-    Combines existing format_detail (header/specs/desc) + extended invest section.
-    AI-комментарий опциональный (флаг with_ai) — экономит LLM-call."""
+    ФАЗА 3: ОДИН вердикт+рейтинг через EA build_analysis. Без дубль-инвест-блоков.
+    EA chat block (ECOSYSTEM light narrative v5) + specs объекта. AI-комментарий опциональный."""
+    # ── ECOSYSTEM ANALYTICS — first screen ──────────────────────────────────────
+    ea_text = ""
+    try:
+        import ecosystem_analytics as _ea
+        # Fetch score data
+        _score_rep = None
+        _score_v2 = None
+        try:
+            from investment_engine import compute_investment_score as _cis
+            from parser_engine import _lookup_benchmark as _lb, MARKET as _MKT
+            _bench = _lb(listing.get("building"))
+            _area_key = (listing.get("area") or "").lower().strip()
+            _mkt = (_MKT or {}).get(_area_key)
+            _score_rep = _cis(listing, dld_benchmark=_bench, market=_mkt)
+        except Exception as _e:
+            print(f"[ea_chat] invest engine: {_e}")
+        try:
+            from investment_score_v2 import compute_score as _v2s
+            _score_v2 = _v2s(listing)
+        except Exception:
+            pass
+        _ea_spec = _ea_spec_resale_chat(listing, _score_rep, _score_v2, uid=uid)
+        ea_text = _ea.build_analysis(_ea_spec)
+    except Exception as _ea_err:
+        print(f"[ea_chat] resale build_analysis failed: {_ea_err}")
+
     base = format_detail(listing, uid)
     # Strip B130 funnel from base (мы поставим свои inline-кнопки вместо ссылок)
     cut = base.find("\n━━━━━━━━━━━━━━━━━━━━\n_💡")
     if cut > 0:
         base = base[:cut]
-    # Drop the empty "INVESTMENT ANALYSIS" stub block from format_detail when
-    # listing has no investment_score/roi/rent (мы рендерим расширенный блок ниже).
-    _empty_stub = (f"\n\n{_sep()}\n  {_t(uid,'det_investment_analysis')}\n{_sep()}\n{_sep()}\n")
-    if _empty_stub in base:
-        base = base.replace(_empty_stub, "\n")
-    # Also strip the trailing separator that format_detail adds, чтобы не было дубля.
+    # Strip trailing separator to avoid double separator after EA block
     if base.rstrip().endswith(_sep()):
         base = base.rstrip()[:-len(_sep())].rstrip()
-    extended = _format_full_invest_section(listing, uid)
-    parts = [base, extended]
+    # EA block first, then specs (без _format_full_invest_section — дублирует EA)
+    parts = []
+    if ea_text:
+        parts.append(ea_text)
+        parts.append("")
+    parts.append(base)
     if with_ai:
         ai_text = _ai_invest_comment(listing, uid)
         if ai_text:
@@ -4235,6 +4976,21 @@ def send_lead_to_bot(uid, uname, fname, lang, listing_id):
     msg_id   = listing.get("telegram_message_id") or "—"
     msg_link = f"https://t.me/{source.lstrip('@')}/{msg_id}" if source != "—" and msg_id != "—" else "—"
 
+    # Lead Score через advanced_metrics (деградирует если модуль недоступен)
+    _ls_score, _ls_reason = None, None
+    if _am:
+        try:
+            _ls_score, _ls_reason = _am.lead_score(
+                budget_aed=price,
+                timeline=None,
+                purpose=None,
+                pdf_opened=False,
+                object_selected=True,   # нажал «Заявка» → выбрал объект
+                has_phone=bool(phone and phone != "—"),
+            )
+        except Exception as _ls_e:
+            print(f"[lead-score] {_ls_e}", flush=True)
+
     text = (
         f"🏠 *NEW LEAD — Resale Property*\n\n"
         f"👤 Client: {_md_esc(udisp)}\n"
@@ -4249,6 +5005,8 @@ def send_lead_to_bot(uid, uname, fname, lang, listing_id):
     )
     if score: text += f"⭐️ Score: {_md_esc(score)}/10\n"
     if roi:   text += f"📈 ROI: {_md_esc(roi)}%\n"
+    if _ls_score is not None:
+        text += f"🎯 Lead Score: *{_ls_score}/100* — {_md_esc(_ls_reason or '')}\n"
 
     text += (
         f"\n{_sep()}\n  INTERNAL DATA\n{_sep()}\n"
@@ -5091,6 +5849,7 @@ def send_results_grid(cid, uid, mid=None):
     text = _fmt_grid_text(items, total, page + 1, last_page,
                           props, type_label, L)
     _send(cid, text, kb)
+    _trk("analytics", uid, area=gs(uid).get("filters", {}).get("area"))
 
     s["wizard"] = "results_grid"
     s["results_has_more"] = has_more
@@ -5868,27 +6627,29 @@ def show_property_detail(cid, uid, mid, lid, with_ai: bool = False):
             pass
 
     text = format_detail_full(listing, uid, with_ai=with_ai)
-    page = gs(uid).get("page", 0)
 
-    # 7 кнопок per ТЗ + back-to-grid
-    L = user_lang.get(uid, "ru")
-    is_ru = (L == "ru")
-    kb = _kb(
-        [_btn("📊 DLD аналитика района" if is_ru else "📊 DLD analytics",
-              f"property_area_analytics:{lid}"),
-         _btn("📈 Рассчитать ROI" if is_ru else "📈 Calculate ROI",
-              f"property_roi:{lid}")],
-        [_btn("📄 Брошюра проекта" if is_ru else "📄 Brochure",
-              f"property_brochure:{lid}"),
-         _btn("💼 Связаться с агентом" if is_ru else "💼 Contact agent",
-              f"property_contact_agent:{lid}")],
-        [_btn("🧠 Инвестиционный анализ" if is_ru else "🧠 AI analysis",
-              f"property_invest_analysis:{lid}"),
-         _btn("⚡ Действия" if is_ru else "⚡ Actions",
-              f"property_actions:{lid}")],
-        [_btn("← Назад к сетке" if is_ru else "← Back to grid",
-              f"property_back_to_grid:{page}")],
-    )
+    # hx render_short убран — метрики с объяснениями теперь внутри EA build_analysis
+    # (metrics_explained передаётся через _ea_spec_resale_chat → all_for_object)
+
+    # UX V4: карточка = 4 кнопки (Заявка/PDF/Фото/➕Ещё) + назад (скрыта под Ещё→Свернуть)
+    # Легаси property_*-кнопки убраны из нового рендера, обработчики остались для старых сообщений.
+    page = gs(uid).get("page", 0)
+    _v4_ctx = {
+        "kind": "resale", "oid": lid,
+        "area": listing.get("area"), "building": listing.get("building"),
+        "price": listing.get("price"), "deal_type": listing.get("deal_type", "sale"),
+    }
+    if _ECO_OK and _ab:
+        try:
+            _v4_rows = _ab.rows(_v4_ctx, actions=_ab.OBJECT_PRIMARY, per_row=2)
+            kb = {"inline_keyboard": [[{"text": t, "callback_data": cd} for t, cd in row] for row in _v4_rows]}
+        except Exception as _v4_kb_e:
+            print(f"[v4-card-kb] {_v4_kb_e}", flush=True)
+            # Fallback: минимальная клавиатура
+            kb = _kb([_btn("📩 Заявка", f"eco:book:o={lid}"),
+                      _btn("← Назад", f"property_back_to_grid:{page}")])
+    else:
+        kb = _kb([_btn("← Назад к сетке", f"property_back_to_grid:{page}")])
 
     # Try with cover photo if available
     images = get_listing_images(lid)
@@ -5907,12 +6668,13 @@ def show_property_detail(cid, uid, mid, lid, with_ai: bool = False):
         try:
             # photo caption is limited to 1024 chars; if our text doesn't fit, send text-only
             if len(text) <= 1024:
-                _photo(cid, cover_id, text, kb)
+                _photo(cid, cover_id, text, kb, parse_mode="HTML")
                 return
         except Exception:
             pass
     # Fallback: text-only (trimmed at 4096)
-    _send(cid, text, kb)
+    # BUG2 FIX: ea_text contains HTML tags (<b>…</b>) — must send with parse_mode HTML
+    _send(cid, text, kb, parse_mode="HTML")
 
 
 # ── Agent contacts (PHASE W + W2 data) ───────────────────────────────────────
@@ -5954,48 +6716,55 @@ def get_agent_contacts(lid):
     Includes the canonical itself + all dedup'd siblings."""
     import psycopg2
     contacts = []
+    conn = None
     try:
-        with _pg_conn() as conn:
-            cur = conn.cursor()
-            # Get canonical
+        conn = _pg_conn()
+        cur = conn.cursor()
+        # Get canonical
+        cur.execute("""
+            SELECT id, phone, agent_name, seller_username, price,
+                   agent_phones, agent_names, agent_channels, dup_listing_ids,
+                   COALESCE(agent_count, 1) AS ac
+            FROM listings WHERE id = %s
+        """, (lid,))
+        r = cur.fetchone()
+        if not r:
+            return []
+        (canon_id, ph, an, su, price,
+         ap, an_arr, ac_arr, dup_ids, ac) = r
+        # Add canonical
+        contacts.append({
+            "id": canon_id,
+            "name": an or "—",
+            "phone": ph,
+            "telegram": "@" + su.lstrip("@") if su else None,
+            "price": price,
+            "is_canonical": True,
+        })
+        # Add all duplicates
+        if dup_ids:
             cur.execute("""
-                SELECT id, phone, agent_name, seller_username, price,
-                       agent_phones, agent_names, agent_channels, dup_listing_ids,
-                       COALESCE(agent_count, 1) AS ac
-                FROM listings WHERE id = %s
-            """, (lid,))
-            r = cur.fetchone()
-            if not r:
-                return []
-            (canon_id, ph, an, su, price,
-             ap, an_arr, ac_arr, dup_ids, ac) = r
-            # Add canonical
-            contacts.append({
-                "id": canon_id,
-                "name": an or "—",
-                "phone": ph,
-                "telegram": "@" + su.lstrip("@") if su else None,
-                "price": price,
-                "is_canonical": True,
-            })
-            # Add all duplicates
-            if dup_ids:
-                cur.execute("""
-                    SELECT id, phone, agent_name, seller_username, price
-                    FROM listings WHERE id = ANY(%s)
-                """, (list(dup_ids),))
-                for r2 in cur.fetchall():
-                    did, dph, dan, dsu, dprice = r2
-                    contacts.append({
-                        "id": did,
-                        "name": dan or "—",
-                        "phone": dph,
-                        "telegram": "@" + dsu.lstrip("@") if dsu else None,
-                        "price": dprice,
-                        "is_canonical": False,
-                    })
+                SELECT id, phone, agent_name, seller_username, price
+                FROM listings WHERE id = ANY(%s)
+            """, (list(dup_ids),))
+            for r2 in cur.fetchall():
+                did, dph, dan, dsu, dprice = r2
+                contacts.append({
+                    "id": did,
+                    "name": dan or "—",
+                    "phone": dph,
+                    "telegram": "@" + dsu.lstrip("@") if dsu else None,
+                    "price": dprice,
+                    "is_canonical": False,
+                })
     except Exception as e:
         print(f"get_agent_contacts err: {e}")
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
     return contacts
 
 
@@ -6938,11 +7707,7 @@ def show_alerts(cid, uid):
 #                                              gs(uid)["waiting"] = "compare_b1"/"compare_b2"
 # +===========================================================================
 
-_INTEL_DSN = (
-    os.environ.get("INTELLIGENCE_DATABASE_URL")
-    or "postgresql://postgres:REDACTED_INTELLIGENCE_DB_PASSWORD"
-       "@autorack.proxy.rlwy.net:25004/railway"
-)
+_INTEL_DSN = os.environ.get("INTELLIGENCE_DATABASE_URL", "")
 _INTEL_LOCAL = threading.local()
 
 
@@ -7956,13 +8721,19 @@ def dispatch_wizard_button(cid, uid, text):
             state["wizard"] = "building_input"
             _send(cid, _t(uid, "wiz_bld_q"), kb_reply_building_input(uid))
             return True
-        # Поиск по введённому тексту
+        # Поиск по введённому тексту (v131: fuzzy включён в search_areas_by_query)
         emirate = filters.get("emirate")
         matches = search_areas_by_query(text, emirate=emirate, limit=10)
         if not matches:
             _send(cid, _t(uid, "wiz_area_nomatch").replace("{q}", text),
                   kb_reply_area_input(uid))
             return True
+
+        # Определяем: все матчи fuzzy или есть точные?
+        is_all_fuzzy = all(it.get("_fuzzy") for it in matches)
+        # Если единственный fuzzy-кандидат с высоким рейтингом (ratio ~ уверенный матч) —
+        # всё равно показываем кнопку для подтверждения (не принимаем молча)
+
         # ВСЕГДА показываем suggestions (даже при 1 матче) — юзер сверяется + skip option
         rows = []
         for it in matches:
@@ -7971,8 +8742,11 @@ def dispatch_wizard_button(cid, uid, text):
                 label = f"{it['name']}  ({it['aliases'][0]})"
             rows.append([_btn(label, f"pickarea|{it['name']}")])
         rows.append([_btn(_t(uid, "wiz_area_any"), "pickarea|__any__")])
-        _send(cid, _t(uid, "wiz_area_match"),
-              {"inline_keyboard": rows})
+        if is_all_fuzzy:
+            rows.append([_btn(_t(uid, "rbtn_home"), "menu|main")])
+
+        header = _t(uid, "wiz_area_fuzzy") if is_all_fuzzy else _t(uid, "wiz_area_match")
+        _send(cid, header, {"inline_keyboard": rows})
         return True
 
     # ── Building input step (smart search, auto-grow по listings DB) ─────────
@@ -8810,6 +9584,11 @@ def handle_cb(cb):
                 show_property_detail(cid, uid, mid, _pid, with_ai=True)
                 return
             if _pname == "property_contact_agent":
+                # P2.6/audit fix 2026-06-13: загейтить — контакт продавца не уходит без paywall
+                # (раньше этот путь обходил _gate, в отличие от action=="agents").
+                if not _gate(uid, "seller_data"):
+                    _paywall(cid, uid, "seller_data")
+                    return
                 show_agents(cid, uid, mid, _pid)
                 return
             if _pname == "property_actions":
@@ -8854,6 +9633,323 @@ def handle_cb(cb):
         except Exception as _e:
             print(f"[grid_page] {data}: {_e}")
         return
+
+    # ── ECO ROUTER — eco:* callbacks (PHASE 2, изолировано) ─────────────────────
+    if _ECO_OK and _ab and data.startswith("eco:"):
+        try:
+            act, c = _ab.decode(data)
+            _answer(cbid)
+
+            if act == "home":
+                show_main(cid, uid)
+
+            elif act == "pdf":
+                # P2.6 FIX: eco-pdf теперь использует тот же путь что и легаси pdf|id
+                # _send_pdf → ecosystem_pdf.render_report_v2 (v16) → fallback vadim_pdf → legacy
+                lid = c.get("oid")
+                if lid:
+                    if not _gate(uid, "pdf"):
+                        _paywall(cid, uid, "pdf")
+                    else:
+                        listing_for_pdf = get_listing_by_id(int(lid))
+                        if listing_for_pdf:
+                            # BUG1 FIX: сохраняем message_id часов чтобы удалить их после генерации
+                            _hg_resp = _send(cid, "⏳ Готовлю инвест-отчёт PDF…")
+                            _hg_mid = None
+                            try:
+                                _hg_mid = (_hg_resp or {}).get("result", {}).get("message_id")
+                            except Exception:
+                                pass
+                            _trk("pdf", uid, object_ref=f"resale:{lid}")
+
+                            # BUG1 FIX: пост-PDF callback — шлётся ТОЛЬКО после успешной отправки документа
+                            def _post_pdf_next(_c=c, _cid=cid):
+                                try:
+                                    _ppn_rows = _ab.rows(_c, _ab.POST_PDF_NEXT, per_row=1)
+                                    _ppn_kb = {"inline_keyboard": [[{"text": t, "callback_data": cd} for t, cd in row]
+                                                                   for row in _ppn_rows]}
+                                    _send(_cid, "Что хотите сделать дальше?", _ppn_kb)
+                                except Exception as _ppkb_e:
+                                    print(f"[eco-pdf] post_pdf_next_kb err: {_ppkb_e}", flush=True)
+
+                            # Запускаем в потоке — _send_pdf сам удаляет часы + шлёт документ + вызывает post_pdf_fn
+                            import threading as _thr
+                            _thr.Thread(
+                                target=_send_pdf,
+                                args=(cid, uid, dict(listing_for_pdf)),
+                                kwargs={"hourglass_mid": _hg_mid, "post_pdf_fn": _post_pdf_next},
+                                daemon=True
+                            ).start()
+                        else:
+                            _send(cid, "📄 PDF: объект не найден.")
+                else:
+                    _send(cid, "📄 PDF: выберите конкретный объект.")
+
+            elif act == "obj":
+                # Показать объекты по контексту
+                if not _lg:
+                    _send(cid, "🏢 Каталог временно недоступен.")
+                else:
+                    try:
+                        if c.get("building"):
+                            items = _lg.objects_for_building(
+                                c["building"], deal_type=c.get("deal_type", "sale"),
+                                bedrooms=c.get("bedrooms"))
+                        elif c.get("project_id"):
+                            items = _lg.lots_for_project(c["project_id"])
+                        else:
+                            items = _lg.objects_for_area(
+                                c.get("area"), deal_type=c.get("deal_type", "sale"),
+                                bedrooms=c.get("bedrooms"),
+                                budget_min=c.get("budget_min"), budget_max=c.get("budget_max"))
+                        list_txt = _lg.list_text(items)
+                        # Под каждым объектом — кнопка-карточка
+                        card_rows = []
+                        for o in items[:6]:
+                            card_cb = _ab.encode("card", {"kind": o.get("kind", "resale"),
+                                                           "oid": o.get("id"),
+                                                           "area": o.get("area"),
+                                                           "price": o.get("price")})
+                            card_rows.append([{"text": f"🏠 {o.get('title','Объект')[:40]}",
+                                               "callback_data": card_cb}])
+                        back_row = [{"text": "🏠 Главное меню", "callback_data": _ab.encode("home")}]
+                        kb = {"inline_keyboard": card_rows + [back_row]} if card_rows else {}
+                        _send(cid, list_txt, kb if kb.get("inline_keyboard") else None)
+                        _trk("objects", uid, area=c.get("area"))
+                    except Exception as _obj_e:
+                        print(f"[eco-obj] {_obj_e}", flush=True)
+                        _send(cid, "🏢 Каталог временно недоступен.")
+
+            elif act == "card":
+                # Карточка объекта (eco: вариант — через listings_gateway)
+                if not _lg:
+                    _send(cid, "Карточка недоступна.")
+                else:
+                    try:
+                        o = _lg.get_object(c.get("kind", "resale"), c.get("oid"))
+                        if not o:
+                            _send(cid, "Объект не найден.")
+                        else:
+                            card_txt = _lg.card_text(o)
+                            obj_ctx = {
+                                "kind": o.get("kind"), "oid": o.get("id"),
+                                "area": o.get("area"), "building": o.get("building"),
+                                "price": o.get("price"),
+                                "deal_type": o.get("deal_type", "sale"),
+                            }
+                            kb = _eco_obj_kb(obj_ctx)
+                            img = o.get("image_url")
+                            if img:
+                                try:
+                                    _photo(cid, img, card_txt[:1024], kb or None)
+                                except Exception:
+                                    _send(cid, card_txt, kb or None)
+                            else:
+                                _send(cid, card_txt, kb or None)
+                            _trk("card", uid, object_ref=f"resale:{c.get('oid')}")
+                    except Exception as _card_e:
+                        print(f"[eco-card] {_card_e}", flush=True)
+                        _send(cid, "Карточка временно недоступна.")
+
+            elif act in ("lead", "book"):
+                # Запустить лид-форму
+                if not _lc:
+                    _send(cid, "📩 Заявка: напишите нам напрямую.")
+                else:
+                    user_info = cb.get("from", {})
+                    _eco_lead_pending[uid] = {
+                        "step": 0,
+                        "collected": {},
+                        "ctx": {
+                            **c,
+                            "source_screen": act,
+                            "username": user_info.get("username"),
+                        },
+                    }
+                    _, first_prompt = _lc.FIELD_PROMPTS[0]
+                    _send(cid, f"📩 <b>Заявка</b> — {len(_lc.FIELD_PROMPTS)} шага\n\n{first_prompt}")
+
+            elif act == "mort":
+                # Ипотека — роутим на roi-bot (у resale нет своего калькулятора)
+                area = c.get("area") or ""
+                slug = area.strip()[:30].replace(" ", "_")
+                utm = f"from_resale_eco_mort_{slug}"
+                _send(cid, f"🏦 Расчёт ипотеки: [откройте @dubai_roi_fpr_bot](https://t.me/dubai_roi_fpr_bot?start={utm})")
+
+            elif act == "roi":
+                # ROI — роутим на roi-bot
+                area = c.get("area") or ""
+                slug = area.strip()[:30].replace(" ", "_")
+                utm = f"from_resale_eco_roi_{slug}"
+                _send(cid, f"📈 ROI-калькулятор: [откройте @dubai_roi_fpr_bot](https://t.me/dubai_roi_fpr_bot?start={utm})")
+
+            elif act == "cmp":
+                # Сравнение — через существующий compare или _pe.rank_options
+                if not _lg or not _pe:
+                    show_compare(cid, uid)
+                else:
+                    try:
+                        area = c.get("area")
+                        items = _lg.objects_for_area(area, deal_type=c.get("deal_type", "sale"),
+                                                     bedrooms=c.get("bedrooms"), limit=5)
+                        if items:
+                            candidates = [{"name": o.get("title") or o.get("area") or "Объект",
+                                           "yield_pct": o.get("roi"), "kind": o.get("kind"),
+                                           "deals_year": None} for o in items]
+                            ranked = _pe.rank_options(candidates, "balanced")
+                            block = _pe.best_option_block(ranked, "balanced")
+                            if block:
+                                _send(cid, block, _eco_kb(c) or None)
+                            else:
+                                _send(cid, _lg.list_text(items))
+                        else:
+                            show_compare(cid, uid)
+                    except Exception as _cmp_e:
+                        print(f"[eco-cmp] {_cmp_e}", flush=True)
+                        show_compare(cid, uid)
+
+            elif act == "photos":
+                # Фото объекта
+                oid = c.get("oid")
+                if oid:
+                    images = get_listing_images(int(oid)) or []
+                    urls = [img for img in images if img and not img.startswith("tg://")]
+                    if urls:
+                        try:
+                            _media_group(cid, urls[:10])
+                        except Exception:
+                            _send(cid, "Фото временно недоступны.")
+                    else:
+                        _answer(cbid, "Фото не найдены")
+
+            elif act in ("plans", "analyt"):
+                oid = c.get("oid")
+                if oid and act == "analyt":
+                    area = c.get("area") or ""
+                    slug = area.strip()[:40].replace(" ", "_")
+                    utm = f"from_resale_eco_card_{slug}"
+                    _send(cid, f"📊 [Аналитика района](https://t.me/Analitik_price_bot?start={utm})")
+                else:
+                    _answer(cbid, "Планировки — скоро")
+
+            elif act == "fav":
+                oid = c.get("oid")
+                if oid:
+                    try:
+                        from db_schema import add_favorite, is_favorited
+                        if not is_favorited(uid, int(oid)):
+                            add_favorite(uid, int(oid))
+                    except Exception:
+                        pass
+                _answer(cbid, "❤️ Добавлено в избранное")
+
+            # ── UX V4: ➕ Ещё / ➖ Свернуть — edit-in-place ─────────────────────
+            elif act == "more":
+                # Раскрыть: заменяем только reply_markup на card_more_keyboard (вторичные действия)
+                try:
+                    _more_rows = _ab.rows(c, _ab.OBJECT_MORE, per_row=2)
+                    _more_kb = {"inline_keyboard": [[{"text": t, "callback_data": cd} for t, cd in row]
+                                                    for row in _more_rows]}
+                    _edit_kb(cid, mid, _more_kb)
+                except Exception as _more_e:
+                    print(f"[eco-more] {_more_e}", flush=True)
+                    _answer(cbid, "Ошибка раскрытия меню")
+
+            elif act == "less":
+                # Свернуть: возвращаем card_keyboard (4 главных кнопки)
+                try:
+                    _less_rows = _ab.rows(c, _ab.OBJECT_PRIMARY, per_row=2)
+                    _less_kb = {"inline_keyboard": [[{"text": t, "callback_data": cd} for t, cd in row]
+                                                    for row in _less_rows]}
+                    _edit_kb(cid, mid, _less_kb)
+                except Exception as _less_e:
+                    print(f"[eco-less] {_less_e}", flush=True)
+                    _answer(cbid, "Ошибка свёртки меню")
+
+            elif act == "metrics":
+                # Полный объяснённый блок показателей (human_explainer)
+                oid = c.get("oid")
+                if not _hx or not _am:
+                    _send(cid, "Недостаточно данных для расширенных показателей.")
+                elif not oid:
+                    _send(cid, "Недостаточно данных для расширенных показателей.")
+                else:
+                    try:
+                        _mx_listing = get_listing_by_id(int(oid))
+                        if not _mx_listing:
+                            _send(cid, "Недостаточно данных для расширенных показателей.")
+                        else:
+                            _mx_price = _mx_listing.get("price")
+                            _mx_mr    = _mx_listing.get("market_rent")
+                            _mx_ar    = float(_mx_mr) if _mx_mr else (float(_mx_price) * 0.07 if _mx_price else None)
+                            _mx_metrics = _am.all_for_object(
+                                price=_mx_price,
+                                price_psf=_mx_listing.get("price_per_sqft"),
+                                area=_mx_listing.get("area") or c.get("area"),
+                                bedrooms=_mx_listing.get("bedrooms"),
+                                annual_rent=_mx_ar,
+                                deal_type=_mx_listing.get("deal_type", "sale"),
+                                noi=None,
+                                active_listings=None,
+                            )
+                            _mx_block = _hx.render_block(
+                                _mx_metrics,
+                                {"budget": _mx_price},
+                                limit=6,
+                            )
+                            if _mx_block:
+                                _send(cid, _mx_block, parse_mode="HTML")
+                            else:
+                                _send(cid, "Недостаточно данных для расширенных показателей.")
+                    except Exception as _mx_e:
+                        print(f"[eco-metrics] {_mx_e}", flush=True)
+                        _send(cid, "Недостаточно данных для расширенных показателей.")
+
+            elif act == "map":
+                # Карта: открываем Google Maps по адресу/зоне объекта
+                area = c.get("area") or ""
+                building = c.get("building") or ""
+                query = building.strip() if building.strip() else area.strip()
+                if query:
+                    maps_url = f"https://www.google.com/maps/search/{requests.utils.quote(query + ' Dubai')}"
+                    _send(cid, f"🗺 [{query}, Dubai]({maps_url})")
+                else:
+                    _answer(cbid, "Адрес не определён")
+
+            elif act == "sim":
+                # Похожие объекты: объекты в том же районе (аналогично eco:obj но без явного building)
+                area = c.get("area")
+                deal_type = c.get("deal_type", "sale")
+                if not area:
+                    _answer(cbid, "Район не определён")
+                elif not _lg:
+                    _send(cid, "Каталог временно недоступен.")
+                else:
+                    try:
+                        items = _lg.objects_for_area(area, deal_type=deal_type, limit=5)
+                        if items:
+                            list_txt = _lg.list_text(items)
+                            card_rows_sim = []
+                            for o in items[:5]:
+                                sim_cb = _ab.encode("card", {"kind": o.get("kind", "resale"),
+                                                              "oid": o.get("id"),
+                                                              "area": o.get("area"),
+                                                              "price": o.get("price")})
+                                card_rows_sim.append([{"text": f"🏠 {(o.get('title') or o.get('area') or 'Объект')[:40]}",
+                                                       "callback_data": sim_cb}])
+                            back_sim = [{"text": "🏠 Главное меню", "callback_data": _ab.encode("home")}]
+                            kb_sim = {"inline_keyboard": card_rows_sim + [back_sim]}
+                            _send(cid, f"✨ Похожие в {area}:\n\n{list_txt}", kb_sim)
+                        else:
+                            _answer(cbid, f"Похожих в {area} не найдено")
+                    except Exception as _sim_e:
+                        print(f"[eco-sim] {_sim_e}", flush=True)
+                        _answer(cbid, "Похожие временно недоступны")
+
+        except Exception as _eco_router_e:
+            print(f"[eco-router] {data}: {_eco_router_e}", flush=True)
+        return
+    # ── END ECO ROUTER ────────────────────────────────────────────────────────────
 
     if "|" not in data: return
     parts  = data.split("|")
@@ -9291,9 +10387,15 @@ def handle_cb(cb):
             # ACK was already sent at the top — show via normal message
             _send(cid, _t(uid, "not_found_short"))
             return
-        # Send as message (toast won't fire — ACK already sent at top of handle_cb)
-        _send(cid, _t(uid, "pdf_generating"))
+        # BUG1 FIX: сохраняем message_id часов для удаления после генерации
+        _hg_resp_leg = _send(cid, _t(uid, "pdf_generating"))
+        _hg_mid_leg = None
+        try:
+            _hg_mid_leg = (_hg_resp_leg or {}).get("result", {}).get("message_id")
+        except Exception:
+            pass
         threading.Thread(target=_send_pdf, args=(cid, uid, dict(listing)),
+                          kwargs={"hourglass_mid": _hg_mid_leg},
                           daemon=True).start()
 
     # ── Subscription payment ───────────────────────────────────────────────────
@@ -9716,11 +10818,16 @@ def handle_cb(cb):
 
     # ── Map link ──────────────────────────────────────────────────────────────
     elif action == "agents":
-        # Show agent contacts (PHASE W + W2 dedup data) + WA/TG action buttons.
-        # Free for all users (no monetization yet).
+        # P2.6 FIX P7: загейтить — контакт продавца не должен уходить без paywall.
+        # seller_data gate — тот же что у action=="seller".
         lid = int(parts[1]) if len(parts) > 1 else 0
-        if lid:
-            show_agents(cid, uid, mid, lid)
+        if not lid:
+            return
+        if not _gate(uid, "seller_data"):
+            # Перенаправляем на заявку вместо слива контакта
+            _paywall(cid, uid, "seller_data")
+            return
+        show_agents(cid, uid, mid, lid)
         return
 
     elif action == "map":
@@ -10186,6 +11293,8 @@ def handle_msg(msg):
                     )
                 except Exception as _e:
                     print(f"[resale] /start cbj log err: {_e}", flush=True)
+            _payload = text.split(" ", 1)[1].strip() if " " in text else "(direct)"
+            _trk("first_seen", uid, source=_payload)
             send_welcome_with_logo(cid, uid)
         elif cmd == "menu":  show_main(cid, uid)
         elif cmd == "ai":    ai_consultant_start(cid, uid)
@@ -10475,6 +11584,14 @@ def handle_msg(msg):
             add_states[uid] = s
             add_next_step(cid, uid)
             return
+
+    # ── ECO PHASE 2: лид-форма (перехватываем ввод до wizard'ов) ────────────────
+    try:
+        if _ECO_OK and eco_handle_lead_step(cid, uid, text):
+            return
+    except Exception as _eco_lead_e:
+        print(f"[eco-lead-step] {_eco_lead_e}", flush=True)
+        _eco_lead_pending.pop(uid, None)  # сброс при ошибке
 
     s = gs(uid)
 

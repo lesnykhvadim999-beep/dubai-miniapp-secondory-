@@ -54,8 +54,8 @@ AREA_GROUPS = [
     ["damac hills", "akoya"],
     # Damac Hills 2
     ["damac hills 2", "damac hills ii"],
-    # Tilal Al Ghaf
-    ["tilal al ghaf", "tilal ghaf", "ghaf"],
+    # Tilal Al Ghaf (+ частая опечатка Talal)
+    ["tilal al ghaf", "tilal ghaf", "ghaf", "talal al ghaf", "talal ghaf"],
     # Emaar Beachfront
     ["emaar beachfront", "beachfront", "ebf"],
     # Bluewaters Island
